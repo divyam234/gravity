@@ -39,7 +39,7 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({ task }) => {
 	const isComplete = task.status === "complete";
 
 	return (
-		<Card className="w-full shadow-sm border-default-100 hover:shadow-md transition-shadow">
+		<Card className="w-full shadow-sm border-border hover:shadow-md transition-shadow">
 			<Card.Content className="p-4 space-y-4">
 				<div className="flex justify-between items-start gap-4">
 					<Link
@@ -55,7 +55,7 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({ task }) => {
 						</h3>
 						<div className="flex items-center gap-2 mt-1.5">
 							<StatusChip status={task.status} />
-							<span className="text-sm text-default-500 font-medium">
+							<span className="text-sm text-muted font-medium">
 								{formatBytes(completedLength)} / {formatBytes(totalLength)}
 							</span>
 						</div>
@@ -137,7 +137,7 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({ task }) => {
 					showValueLabel
 				/>
 
-				<div className="flex justify-between items-center text-sm text-default-500 bg-default-50/50 p-2 rounded-xl border border-default-50">
+				<div className="flex justify-between items-center text-sm text-muted bg-muted-background/50 p-2 rounded-xl border border-border/50">
 					<div className="flex gap-4">
 						<span className="flex items-center gap-1.5 font-bold text-success/80">
 							<div className="w-1.5 h-1.5 rounded-full bg-success" />
@@ -152,12 +152,12 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({ task }) => {
 					<div className="flex gap-4 font-medium">
 						{isActive && <span>ETA: {formatTime(eta)}</span>}
 						{task.numSeeders && (
-							<span className="bg-default-100 px-2 py-0.5 rounded text-[10px] uppercase font-black">
+							<span className="bg-default/30 px-2 py-0.5 rounded text-[10px] uppercase font-black">
 								Peers: {task.connections} (S:{task.numSeeders})
 							</span>
 						)}
 						{!task.numSeeders && (
-							<span className="bg-default-100 px-2 py-0.5 rounded text-[10px] uppercase font-black">
+							<span className="bg-default/30 px-2 py-0.5 rounded text-[10px] uppercase font-black">
 								Conn: {task.connections}
 							</span>
 						)}

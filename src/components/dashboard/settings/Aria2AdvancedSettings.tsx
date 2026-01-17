@@ -16,7 +16,7 @@ export const Aria2AdvancedSettings: React.FC<{ options: any }> = ({
 
 	return (
 		<div className="space-y-6">
-			<div className="border-b border-default-100 pb-2">
+			<div className="border-b border-border pb-2">
 				<h3 className="text-lg font-bold">Advanced Tunings</h3>
 			</div>
 			<div className="opacity-60 grayscale pointer-events-none">

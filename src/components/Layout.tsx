@@ -109,7 +109,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({
 
 					<div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
 						{/* Header */}
-						<header className="h-16 border-b border-default-100 flex items-center justify-between px-4 md:px-8 bg-background shrink-0">
+						<header className="h-16 border-b border-border flex items-center justify-between px-4 md:px-8 bg-background shrink-0">
 							<div className="flex items-center gap-3">
 								{rpcUrl && (
 									<Button
@@ -156,7 +156,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({
 													<Label className="text-sm font-bold">
 														Download Limit
 													</Label>
-													<span className="text-xs bg-default-100 px-2 py-0.5 rounded font-mono">
+													<span className="text-xs bg-default/30 px-2 py-0.5 rounded font-mono">
 														{globalOptions["max-overall-download-limit"] || "0"}
 													</span>
 												</div>
@@ -185,7 +185,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({
 													<Label className="text-sm font-bold">
 														Upload Limit
 													</Label>
-													<span className="text-xs bg-default-100 px-2 py-0.5 rounded font-mono">
+													<span className="text-xs bg-default/30 px-2 py-0.5 rounded font-mono">
 														{globalOptions["max-overall-upload-limit"] || "0"}
 													</span>
 												</div>
@@ -217,13 +217,13 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({
 									isIconOnly
 									variant="ghost"
 									onPress={() => purgeDownloadResult.mutate()}
-									className="text-default-500 hover:text-danger"
+									className="text-muted hover:text-danger"
 									aria-label="Purge"
 								>
 									<IconMagicWand className="w-5 h-5" />
 								</Button>
 
-								<div className="w-px h-6 bg-default-100 mx-1" />
+								<div className="w-px h-6 bg-default/30 mx-1" />
 
 								<Button
 									isIconOnly

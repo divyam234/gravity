@@ -6,7 +6,7 @@ export const Aria2NetworkSettings: React.FC<{ options: any }> = ({
 }) => {
 	return (
 		<div className="space-y-6">
-			<div className="border-b border-default-100 pb-2">
+			<div className="border-b border-border pb-2">
 				<h3 className="text-lg font-bold">Network & Connection</h3>
 			</div>
 			<div className="space-y-4">

@@ -10,9 +10,9 @@ export const AppSettings: React.FC = () => {
 
 	return (
 		<div className="space-y-6">
-			<div className="border-b border-default-100 pb-2">
+			<div className="border-b border-border pb-2">
 				<h3 className="text-lg font-bold">UI Preferences</h3>
-				<p className="text-sm text-default-500">
+				<p className="text-sm text-muted">
 					Customize the dashboard behavior.
 				</p>
 			</div>
@@ -34,7 +34,7 @@ export const AppSettings: React.FC = () => {
 					</Slider.Track>
 					<Slider.Output />
 				</Slider>
-				<p className="text-xs text-default-500">
+				<p className="text-xs text-muted">
 					Frequency of RPC polling. Lower is more real-time but uses more
 					CPU/Network.
 				</p>

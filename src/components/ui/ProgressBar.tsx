@@ -28,7 +28,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
 	};
 
 	const colorMap = {
-		default: "bg-default-400",
+		default: "bg-default/50",
 		accent: "bg-accent",
 		success: "bg-success",
 		warning: "bg-warning",
@@ -43,13 +43,13 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
 		>
 			{({ percentage, valueText }) => (
 				<>
-					<div className="flex justify-between text-sm text-default-500 font-medium">
+					<div className="flex justify-between text-sm text-muted font-medium">
 						{label && <span>{label}</span>}
 						{showValueLabel && <span>{valueText}</span>}
 					</div>
 					<div
 						className={cn(
-							"w-full bg-default-100 rounded-full overflow-hidden",
+							"w-full bg-default/30 rounded-full overflow-hidden",
 							heightMap[size],
 						)}
 					>

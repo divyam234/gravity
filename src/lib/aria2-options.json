@@ -67,7 +67,7 @@
     "category": "HTTP/FTP/SFTP Options",
     "type": "<USER>",
     "default": null,
-    "description": "\n\nSet user for option.\n\n\\--checksum \\=<TYPE>=<DIGEST> [\u00b6]\n\nSet checksum. TYPE is hash type. The supported hash type is listed in `Hash Algorithms` in `aria2c -v`. DIGEST is hex digest. For example, setting sha-1 digest looks like this:`sha-1=0192ba11326fe2298c8cb4de616f4d4140213838` This option applies only to HTTP(S)/FTP downloads."
+    "description": "\n\nSet user for option.\n\n\\--checksum \\=<TYPE>=<DIGEST> [¶]\n\nSet checksum. TYPE is hash type. The supported hash type is listed in `Hash Algorithms` in `aria2c -v`. DIGEST is hex digest. For example, setting sha-1 digest looks like this:`sha-1=0192ba11326fe2298c8cb4de616f4d4140213838` This option applies only to HTTP(S)/FTP downloads."
   },
   {
     "name": "connect-timeout",
@@ -149,7 +149,7 @@
   {
     "name": "proxy-method",
     "category": "HTTP/FTP/SFTP Options",
-    "type": "<METHOD>",
+    "type": "get|tunnel",
     "default": "get",
     "description": "\n\nSet the method to use in proxy request. METHOD is either `get` or `tunnel`. HTTPS downloads always use `tunnel` regardless of this option."
   },
@@ -205,7 +205,7 @@
   {
     "name": "stream-piece-selector",
     "category": "HTTP/FTP/SFTP Options",
-    "type": "<SELECTOR>",
+    "type": "default|inorder|random|geom",
     "default": "default",
     "description": "\n\nSpecify piece selection algorithm used in HTTP/FTP download. A piece is a fixed length segment which is downloaded in parallel in a segmented download."
   },
@@ -219,7 +219,7 @@
   {
     "name": "uri-selector",
     "category": "HTTP/FTP/SFTP Options",
-    "type": "<SELECTOR>",
+    "type": "inorder|feedback|adaptive",
     "default": "feedback",
     "description": "\n\nSpecify URI selection algorithm. The possible values are `inorder`,`feedback` and `adaptive`. If `inorder` is given, URI is tried in the order appeared in the URI list. If `feedback` is given, aria2 uses download speed observed in the previous downloads and choose fastest server in the URI list. This also effectively skips dead mirrors. The observed download speed is a part of performance profile of servers mentioned in and options. If `adaptive` is given, selects one of the best mirrors for t..."
   },
@@ -436,7 +436,7 @@
   {
     "name": "ftp-type",
     "category": "FTP/SFTP Specific Options",
-    "type": "<TYPE>",
+    "type": "binary|ascii",
     "default": "binary",
     "description": "\n\nSet FTP transfer type. TYPE is either `binary` or `ascii`."
   },
@@ -620,7 +620,7 @@
     "category": "BitTorrent Specific Options",
     "type": "<ADDR>",
     "default": "6881-6999",
-    "description": "\n\nSpecify address to bind socket for IPv6 DHT. It should be a global unicast IPv6 address of the host.\n\n\\--dht-listen-port \\=<PORT>...[\u00b6]\n\nSet UDP listening port used by DHT(IPv4, IPv6) and UDP tracker. Multiple ports can be specified by using `,`, for example:`6881,6885`. You can also use `-` to specify a range:`6881-6999`. `,` and `-` can be used together."
+    "description": "\n\nSpecify address to bind socket for IPv6 DHT. It should be a global unicast IPv6 address of the host.\n\n\\--dht-listen-port \\=<PORT>...[¶]\n\nSet UDP listening port used by DHT(IPv4, IPv6) and UDP tracker. Multiple ports can be specified by using `,`, for example:`6881,6885`. You can also use `-` to specify a range:`6881-6999`. `,` and `-` can be used together."
   },
   {
     "name": "dht-message-timeout",
@@ -732,7 +732,7 @@
     "category": "Metalink Specific Options",
     "type": "<LANGUAGE>",
     "default": null,
-    "description": "\n\nThe language of the file to download.\n\n\\--metalink-location \\=<LOCATION>\\[,...\\] [\u00b6]\n\nThe location of the preferred server. A comma-delimited list of locations is acceptable, for example, `jp,us`."
+    "description": "\n\nThe language of the file to download.\n\n\\--metalink-location \\=<LOCATION>\\[,...\\] [¶]\n\nThe location of the preferred server. A comma-delimited list of locations is acceptable, for example, `jp,us`."
   },
   {
     "name": "metalink-os",
@@ -751,7 +751,7 @@
   {
     "name": "metalink-preferred-protocol",
     "category": "Metalink Specific Options",
-    "type": "<PROTO>",
+    "type": "http|https|ftp|none",
     "default": "none",
     "description": "\n\nSpecify preferred protocol. The possible values are `http`, `https`, `ftp` and `none`. Specify `none` to disable this feature."
   },
@@ -919,7 +919,7 @@
   {
     "name": "console-log-level",
     "category": "Advanced Options",
-    "type": "<LEVEL>",
+    "type": "debug|info|notice|warn|error",
     "default": "notice",
     "description": "\n\nSet log level to output to console. LEVEL is either `debug`,`info`, `notice`, `warn` or `error`."
   },
@@ -961,7 +961,7 @@
   {
     "name": "download-result",
     "category": "Advanced Options",
-    "type": "<OPT>",
+    "type": "default|full|hide",
     "default": "default",
     "description": "\n\nThis option changes the way `Download Results` is formatted. If OPT is `default`, print GID, status, average download speed and path/URI. If multiple files are involved, path/URI of first requested file is printed and remaining ones are omitted. If OPT is `full`, print GID, status, average download speed, percentage of progress and path/URI. The percentage of progress and path/URI are printed for each requested file in each row. If OPT is `hide`,`Download Results` is hidden."
   },
@@ -996,14 +996,14 @@
   {
     "name": "event-poll",
     "category": "Advanced Options",
-    "type": "<POLL>",
+    "type": "epoll|kqueue|port|poll|select",
     "default": null,
     "description": "\n\nSpecify the method for polling events. The possible values are `epoll`, `kqueue`, `port`, `poll` and `select`. For each `epoll`,`kqueue`, `port` and `poll`, it is available if system supports it.`epoll` is available on recent Linux. `kqueue` is available on various \\*BSD systems including Mac OS X. `port` is available on Open Solaris. The default value may vary depending on the system you use."
   },
   {
     "name": "file-allocation",
     "category": "Advanced Options",
-    "type": "<METHOD>",
+    "type": "none|prealloc|trunc|falloc",
     "default": "prealloc",
     "description": "\n\nSpecify file allocation method.`none` doesn't pre-allocate file space. `prealloc` pre-allocates file space before download begins. This may take some time depending on the size of the file. If you are using newer file systems such as ext4 (with extents support), btrfs, xfs or NTFS(MinGW build only), `falloc` is your best choice. It allocates large(few GiB) files almost instantly. Don't use `falloc` with legacy file systems such as ext3 and FAT32 because it takes almost the same time as `preall..."
   },
@@ -1080,7 +1080,7 @@
   {
     "name": "min-tls-version",
     "category": "Advanced Options",
-    "type": "<VERSION>",
+    "type": "TLSv1.1|TLSv1.2|TLSv1.3",
     "default": "TLSv1.2",
     "description": "\n\nSpecify minimum SSL/TLS version to enable. Possible Values: `TLSv1.1`, `TLSv1.2`, `TLSv1.3`"
   },
@@ -1094,7 +1094,7 @@
   {
     "name": "log-level",
     "category": "Advanced Options",
-    "type": "<LEVEL>",
+    "type": "debug|info|notice|warn|error",
     "default": "debug",
     "description": "\n\nSet log level to output. LEVEL is either `debug`, `info`, `notice`, `warn` or `error`."
   },

@@ -19,7 +19,7 @@ export const Aria2GeneralSettings: React.FC<{ options: any }> = ({
 	return (
 		<div className="space-y-8">
 			<div className="space-y-6">
-				<div className="border-b border-default-100 pb-2">
+				<div className="border-b border-border pb-2">
 					<h3 className="text-lg font-bold">General aria2 Options</h3>
 				</div>
 				<TextField>
@@ -55,15 +55,15 @@ export const Aria2GeneralSettings: React.FC<{ options: any }> = ({
 				</Switch>
 			</div>
 
-			<div className="space-y-4 pt-6 border-t border-default-100">
-				<h4 className="text-sm font-bold uppercase tracking-wider text-default-600">
+			<div className="space-y-4 pt-6 border-t border-border">
+				<h4 className="text-sm font-bold uppercase tracking-wider text-foreground/80">
 					Manual Operations
 				</h4>
 				<div className="flex flex-col gap-4">
-					<div className="bg-default-50 p-4 rounded-2xl border border-default-100 flex items-center justify-between">
+					<div className="bg-muted-background p-4 rounded-2xl border border-border flex items-center justify-between">
 						<div className="flex flex-col gap-0.5">
 							<span className="text-sm font-bold">Save Current Session</span>
-							<p className="text-xs text-default-500">
+							<p className="text-xs text-muted">
 								Force save the current download list to the session file.
 							</p>
 						</div>

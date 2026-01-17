@@ -11,9 +11,9 @@ export const ConnectionSettings: React.FC = () => {
 	return (
 		<div className="space-y-8">
 			<div className="space-y-6">
-				<div className="border-b border-default-100 pb-2">
+				<div className="border-b border-border pb-2">
 					<h3 className="text-lg font-bold">RPC Connection</h3>
-					<p className="text-sm text-default-500">
+					<p className="text-sm text-muted">
 						Configure how the dashboard connects to aria2c.
 					</p>
 				</div>
@@ -47,17 +47,17 @@ export const ConnectionSettings: React.FC = () => {
 			</div>
 
 			{version && (
-				<div className="space-y-4 pt-4 border-t border-default-100">
+				<div className="space-y-4 pt-4 border-t border-border">
 					<div className="flex items-center gap-2">
 						<IconCircleInfo className="w-4 h-4 text-accent" />
-						<h4 className="text-sm font-bold uppercase tracking-wider text-default-600">
+						<h4 className="text-sm font-bold uppercase tracking-wider text-foreground/80">
 							Aria2 Instance Information
 						</h4>
 					</div>
 
-					<div className="bg-default-50 p-4 rounded-2xl border border-default-100 space-y-4">
+					<div className="bg-muted-background p-4 rounded-2xl border border-border space-y-4">
 						<div className="flex justify-between items-center">
-							<span className="text-sm text-default-500">Version</span>
+							<span className="text-sm text-muted">Version</span>
 							<Chip
 								size="sm"
 								variant="soft"
@@ -69,7 +69,7 @@ export const ConnectionSettings: React.FC = () => {
 						</div>
 
 						<div className="space-y-2">
-							<span className="text-xs text-default-500 uppercase font-black">
+							<span className="text-xs text-muted uppercase font-black">
 								Enabled Features
 							</span>
 							<div className="flex flex-wrap gap-1.5">

@@ -14,14 +14,14 @@ export const StatsOverview: React.FC = () => {
 
 	return (
 		<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-			<Card className="overflow-hidden shadow-sm border-default-100">
+			<Card className="overflow-hidden shadow-sm border-border">
 				<Card.Content className="p-4 flex flex-col gap-2">
 					<div className="flex items-center gap-4">
 						<div className="p-3 rounded-full bg-success/10 text-success">
 							<IconArrowDown className="w-6 h-6" />
 						</div>
 						<div>
-							<p className="text-sm text-default-500 font-medium">
+							<p className="text-sm text-muted font-medium">
 								Download Speed
 							</p>
 							<h4 className="text-2xl font-bold">
@@ -38,14 +38,14 @@ export const StatsOverview: React.FC = () => {
 				</Card.Content>
 			</Card>
 
-			<Card className="overflow-hidden shadow-sm border-default-100">
+			<Card className="overflow-hidden shadow-sm border-border">
 				<Card.Content className="p-4 flex flex-col gap-2">
 					<div className="flex items-center gap-4">
 						<div className="p-3 rounded-full bg-accent/10 text-accent">
 							<IconArrowUp className="w-6 h-6" />
 						</div>
 						<div>
-							<p className="text-sm text-default-500 font-medium">
+							<p className="text-sm text-muted font-medium">
 								Upload Speed
 							</p>
 							<h4 className="text-2xl font-bold">
@@ -62,16 +62,16 @@ export const StatsOverview: React.FC = () => {
 				</Card.Content>
 			</Card>
 
-			<Card className="shadow-sm border-default-100">
+			<Card className="shadow-sm border-border">
 				<Card.Content className="p-4 flex items-center h-full gap-4">
 					<div className="p-3 rounded-full bg-warning/10 text-warning">
 						<IconPulse className="w-6 h-6" />
 					</div>
 					<div>
-						<p className="text-sm text-default-500 font-medium">Active Tasks</p>
+						<p className="text-sm text-muted font-medium">Active Tasks</p>
 						<div className="flex gap-2 items-baseline">
 							<h4 className="text-2xl font-bold">{stats.numActive}</h4>
-							<span className="text-sm text-default-400">
+							<span className="text-sm text-muted">
 								({stats.numWaiting} waiting)
 							</span>
 						</div>

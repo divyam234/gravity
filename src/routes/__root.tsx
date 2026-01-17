@@ -51,7 +51,7 @@ function ConnectionErrorOverlay({ refetch }: ConnectionErrorOverlayProps) {
 
 	return (
 		<div className="fixed inset-0 z-[9999] bg-background/80 backdrop-blur-xl flex items-center justify-center p-4">
-			<Card className="max-w-md w-full p-8 shadow-2xl border-default-100 animate-in fade-in zoom-in duration-300">
+			<Card className="max-w-md w-full p-8 shadow-2xl border-border animate-in fade-in zoom-in duration-300">
 				<div className="flex flex-col items-center text-center gap-6">
 					<div className="w-16 h-16 rounded-2xl bg-danger/10 flex items-center justify-center text-danger shadow-glow-lg shadow-danger/20">
 						<IconGear className="w-8 h-8 animate-spin-slow" />
@@ -61,7 +61,7 @@ function ConnectionErrorOverlay({ refetch }: ConnectionErrorOverlayProps) {
 						<h1 className="text-2xl font-bold tracking-tight">
 							{rpcUrl ? "Connection Failed" : "Welcome to aria2c"}
 						</h1>
-						<p className="text-default-500 text-sm">
+						<p className="text-muted text-sm">
 							{rpcUrl
 								? "Could not connect to aria2 RPC. Please check your settings."
 								: "Please configure your aria2 RPC endpoint to get started."}
@@ -72,18 +72,18 @@ function ConnectionErrorOverlay({ refetch }: ConnectionErrorOverlayProps) {
 						<div className="space-y-2 text-left">
 							<Label
 								htmlFor={urlId}
-								className="text-xs font-black uppercase tracking-widest text-default-400 ml-1"
+								className="text-xs font-black uppercase tracking-widest text-muted ml-1"
 							>
 								RPC Endpoint
 							</Label>
 							<div className="relative">
-								<IconLink className="absolute left-3 top-1/2 -translate-y-1/2 text-default-400 w-4 h-4 pointer-events-none z-10" />
+								<IconLink className="absolute left-3 top-1/2 -translate-y-1/2 text-muted w-4 h-4 pointer-events-none z-10" />
 								<Input
 									id={urlId}
 									placeholder="http://localhost:6800/jsonrpc"
 									value={localUrl}
 									onChange={(e) => setLocalUrl(e.target.value)}
-									className="font-mono text-sm pl-10 h-11 border border-default-200"
+									className="font-mono text-sm pl-10 h-11 border border-border"
 									fullWidth
 								/>
 							</div>
@@ -92,19 +92,19 @@ function ConnectionErrorOverlay({ refetch }: ConnectionErrorOverlayProps) {
 						<div className="space-y-2 text-left">
 							<Label
 								htmlFor={secretId}
-								className="text-xs font-black uppercase tracking-widest text-default-400 ml-1"
+								className="text-xs font-black uppercase tracking-widest text-muted ml-1"
 							>
 								Secret Token (Optional)
 							</Label>
 							<div className="relative">
-								<IconShieldKeyhole className="absolute left-3 top-1/2 -translate-y-1/2 text-default-400 w-4 h-4 pointer-events-none z-10" />
+								<IconShieldKeyhole className="absolute left-3 top-1/2 -translate-y-1/2 text-muted w-4 h-4 pointer-events-none z-10" />
 								<Input
 									id={secretId}
 									type="password"
 									placeholder="Enter RPC Secret"
 									value={localSecret}
 									onChange={(e) => setLocalSecret(e.target.value)}
-									className="font-mono text-sm pl-10 h-11 border border-default-200"
+									className="font-mono text-sm pl-10 h-11 border border-border"
 									fullWidth
 								/>
 							</div>
@@ -119,7 +119,7 @@ function ConnectionErrorOverlay({ refetch }: ConnectionErrorOverlayProps) {
 						Reconnect & Save
 					</Button>
 
-					<p className="text-[10px] text-default-400 uppercase tracking-tighter">
+					<p className="text-[10px] text-muted uppercase tracking-tighter">
 						Tip: Ensure aria2c is running with --enable-rpc
 					</p>
 				</div>

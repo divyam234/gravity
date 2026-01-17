@@ -87,7 +87,7 @@ function TaskDetailsPage() {
 					<IconChevronLeft className="w-5 h-5" />
 				</Button>
 				<h2 className="text-2xl font-bold tracking-tight">Task Details</h2>
-				<code className="text-xs bg-default-100 px-2 py-1 rounded text-default-500">
+				<code className="text-xs bg-default/30 px-2 py-1 rounded text-muted">
 					{gid}
 				</code>
 			</div>
@@ -95,7 +95,7 @@ function TaskDetailsPage() {
 			<div className="flex flex-col md:flex-row gap-6">
 				{/* Sidebar / Tabs */}
 				<div className="w-full md:w-64">
-					<Card className="p-2 shadow-sm border-default-100">
+					<Card className="p-2 shadow-sm border-border">
 						<Tabs
 							aria-label="Task Details Sections"
 							orientation="vertical"
@@ -141,7 +141,7 @@ function TaskDetailsPage() {
 
 				{/* Content Area */}
 				<div className="flex-1 min-h-500">
-					<Card className="h-full overflow-hidden flex flex-col bg-default-50/30 shadow-sm border-default-100">
+					<Card className="h-full overflow-hidden flex flex-col bg-muted-background/30 shadow-sm border-border">
 						{selectedTab === `${baseId}-overview` && task && (
 							<ScrollShadow className="flex-1 p-6">
 								<div className="space-y-8 text-foreground">
@@ -150,9 +150,9 @@ function TaskDetailsPage() {
 											<div className="w-1.5 h-1.5 rounded-full bg-accent" />
 											Identity
 										</h3>
-										<div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-background p-6 rounded-2xl border border-default-100">
+										<div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-background p-6 rounded-2xl border border-border">
 											<div className="space-y-1">
-												<p className="text-xs text-default-500 uppercase font-bold">
+												<p className="text-xs text-muted uppercase font-bold">
 													Filename
 												</p>
 												<p className="text-base font-semibold break-all">
@@ -162,16 +162,16 @@ function TaskDetailsPage() {
 												</p>
 											</div>
 											<div className="space-y-1">
-												<p className="text-xs text-default-500 uppercase font-bold">
+												<p className="text-xs text-muted uppercase font-bold">
 													GID
 												</p>
-												<p className="font-mono text-sm bg-default-50 px-2 py-0.5 rounded border border-default-100 inline-block">
+												<p className="font-mono text-sm bg-muted-background px-2 py-0.5 rounded border border-border inline-block">
 													{gid}
 												</p>
 											</div>
 											{task.infoHash && (
-												<div className="space-y-1 md:col-span-2 pt-2 border-t border-default-50">
-													<p className="text-xs text-default-500 uppercase font-bold">
+												<div className="space-y-1 md:col-span-2 pt-2 border-t border-border/50">
+													<p className="text-xs text-muted uppercase font-bold">
 														Info Hash
 													</p>
 													<p className="font-mono text-sm break-all text-accent">
@@ -187,9 +187,9 @@ function TaskDetailsPage() {
 											<div className="w-1.5 h-1.5 rounded-full bg-accent" />
 											Location
 										</h3>
-										<div className="bg-background p-6 rounded-2xl border border-default-100">
+										<div className="bg-background p-6 rounded-2xl border border-border">
 											<div className="space-y-1">
-												<p className="text-xs text-default-500 uppercase font-bold">
+												<p className="text-xs text-muted uppercase font-bold">
 													Download Directory
 												</p>
 												<p className="text-sm font-medium break-all">
@@ -205,8 +205,8 @@ function TaskDetailsPage() {
 											Status
 										</h3>
 										<div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-											<div className="p-4 bg-background rounded-2xl border border-default-100 shadow-sm">
-												<p className="text-xs text-default-500 uppercase font-bold mb-1">
+											<div className="p-4 bg-background rounded-2xl border border-border shadow-sm">
+												<p className="text-xs text-muted uppercase font-bold mb-1">
 													State
 												</p>
 												<Chip
@@ -218,22 +218,22 @@ function TaskDetailsPage() {
 													{task.status}
 												</Chip>
 											</div>
-											<div className="p-4 bg-background rounded-2xl border border-default-100 shadow-sm">
-												<p className="text-xs text-default-500 uppercase font-bold mb-1">
+											<div className="p-4 bg-background rounded-2xl border border-border shadow-sm">
+												<p className="text-xs text-muted uppercase font-bold mb-1">
 													Connections
 												</p>
 												<p className="text-xl font-bold">{task.connections}</p>
 											</div>
-											<div className="p-4 bg-background rounded-2xl border border-default-100 shadow-sm">
-												<p className="text-xs text-default-500 uppercase font-bold mb-1">
+											<div className="p-4 bg-background rounded-2xl border border-border shadow-sm">
+												<p className="text-xs text-muted uppercase font-bold mb-1">
 													Total Size
 												</p>
 												<p className="text-base font-bold">
 													{formatBytes(task.totalLength)}
 												</p>
 											</div>
-											<div className="p-4 bg-background rounded-2xl border border-default-100 shadow-sm">
-												<p className="text-xs text-default-500 uppercase font-bold mb-1">
+											<div className="p-4 bg-background rounded-2xl border border-border shadow-sm">
+												<p className="text-xs text-muted uppercase font-bold mb-1">
 													Uploaded
 												</p>
 												<p className="text-base font-bold text-accent">
@@ -248,12 +248,12 @@ function TaskDetailsPage() {
 
 						{selectedTab === `${baseId}-files` && (
 							<div className="flex flex-col h-full">
-								<div className="p-6 border-b border-default-100 flex justify-between items-center bg-default-50/50">
+								<div className="p-6 border-b border-border flex justify-between items-center bg-muted-background/50">
 									<div>
 										<span className="text-xl font-bold block leading-tight">
 											Files
 										</span>
-										<span className="text-sm text-default-500">
+										<span className="text-sm text-muted">
 											{files?.length} items • Toggle to enable/disable
 										</span>
 									</div>
@@ -281,14 +281,14 @@ function TaskDetailsPage() {
 												key={file.index}
 												id={file.index}
 												textValue={file.path}
-												className="mb-2 p-4 rounded-2xl border border-default-100 bg-background hover:border-accent/50 transition-all group data-[selected=true]:border-accent/40 data-[selected=true]:bg-accent/5"
+												className="mb-2 p-4 rounded-2xl border border-border bg-background hover:border-accent/50 transition-all group data-[selected=true]:border-accent/40 data-[selected=true]:bg-accent/5"
 											>
 												<div className="flex items-start gap-4 w-full">
 													<ListBox.ItemIndicator className="mt-1" />
 
 													<div className="flex-1 min-w-0">
 														<div className="flex items-center gap-2">
-															<IconFile className="w-4.5 h-4.5 text-default-400 group-hover:text-accent transition-colors shrink-0" />
+															<IconFile className="w-4.5 h-4.5 text-muted group-hover:text-accent transition-colors shrink-0" />
 															<span
 																className="text-base font-semibold truncate"
 																title={file.path}
@@ -296,9 +296,9 @@ function TaskDetailsPage() {
 																{file.path.split("/").pop() || "Unknown File"}
 															</span>
 														</div>
-														<div className="flex gap-4 mt-2 text-sm text-default-500">
+														<div className="flex gap-4 mt-2 text-sm text-muted">
 															<span className="flex items-center gap-1.5">
-																<div className="w-1 h-1 rounded-full bg-default-300" />
+																<div className="w-1 h-1 rounded-full bg-default/40" />
 																{formatBytes(file.length)}
 															</span>
 															<span className="flex items-center gap-1.5 text-success font-medium">
@@ -323,8 +323,8 @@ function TaskDetailsPage() {
 						{selectedTab === `${baseId}-peers` && (
 							<ScrollShadow className="flex-1 p-4">
 								{!peers || peers.length === 0 ? (
-									<div className="flex flex-col items-center justify-center h-full text-default-400 gap-4">
-										<div className="p-6 rounded-full bg-default-50">
+									<div className="flex flex-col items-center justify-center h-full text-muted gap-4">
+										<div className="p-6 rounded-full bg-muted-background">
 											<IconPersons className="w-12 h-12 opacity-20" />
 										</div>
 										<p className="font-medium">No peers connected</p>
@@ -334,7 +334,7 @@ function TaskDetailsPage() {
 										{peers.map((peer: any) => (
 											<div
 												key={`${peer.ip}-${peer.port}`}
-												className="flex items-center justify-between p-5 rounded-2xl border border-default-100 bg-background shadow-sm hover:border-accent/30 transition-colors"
+												className="flex items-center justify-between p-5 rounded-2xl border border-border bg-background shadow-sm hover:border-accent/30 transition-colors"
 											>
 												<div className="flex items-center gap-4">
 													<Avatar className="w-10 h-10 font-bold bg-accent/10 text-accent">
@@ -347,26 +347,26 @@ function TaskDetailsPage() {
 															<span className="text-sm font-bold">
 																{peer.ip}
 															</span>
-															<span className="text-xs bg-default-100 px-1.5 py-0.5 rounded text-default-500">
+															<span className="text-xs bg-default/30 px-1.5 py-0.5 rounded text-muted">
 																:{peer.port}
 															</span>
 														</div>
-														<span className="text-xs font-mono text-default-400 truncate max-w-200">
+														<span className="text-xs font-mono text-muted truncate max-w-200">
 															{peer.peerId}
 														</span>
 													</div>
 												</div>
 												<div className="flex gap-8">
 													<div className="flex flex-col items-end">
-														<span className="text-[10px] text-default-400 uppercase font-black tracking-wider">
+														<span className="text-[10px] text-muted uppercase font-black tracking-wider">
 															Down
 														</span>
 														<span className="text-sm text-success font-bold">
 															{formatBytes(peer.downloadSpeed)}/s
 														</span>
 													</div>
-													<div className="flex flex-col items-end border-l border-default-100 pl-8">
-														<span className="text-[10px] text-default-400 uppercase font-black tracking-wider">
+													<div className="flex flex-col items-end border-l border-border pl-8">
+														<span className="text-[10px] text-muted uppercase font-black tracking-wider">
 															Up
 														</span>
 														<span className="text-sm text-accent font-bold">
@@ -384,8 +384,8 @@ function TaskDetailsPage() {
 						{selectedTab === `${baseId}-servers` && (
 							<ScrollShadow className="flex-1 p-4">
 								{!servers || servers.length === 0 ? (
-									<div className="flex flex-col items-center justify-center h-full text-default-400 gap-4">
-										<div className="p-6 rounded-full bg-default-50">
+									<div className="flex flex-col items-center justify-center h-full text-muted gap-4">
+										<div className="p-6 rounded-full bg-muted-background">
 											<IconNodesDown className="w-12 h-12 opacity-20" />
 										</div>
 										<p className="font-medium">
@@ -398,7 +398,7 @@ function TaskDetailsPage() {
 											<div key={srv.index} className="space-y-3">
 												<div className="flex items-center gap-2 px-2">
 													<div className="w-1 h-3 rounded-full bg-accent" />
-													<div className="text-xs font-black text-default-400 uppercase tracking-widest">
+													<div className="text-xs font-black text-muted uppercase tracking-widest">
 														File Index: {srv.index}
 													</div>
 												</div>
@@ -406,7 +406,7 @@ function TaskDetailsPage() {
 													{srv.servers.map((s: any) => (
 														<div
 															key={s.uri}
-															className="p-4 rounded-2xl border border-default-100 bg-background flex justify-between items-center shadow-sm hover:border-accent-soft-hover transition-colors"
+															className="p-4 rounded-2xl border border-border bg-background flex justify-between items-center shadow-sm hover:border-accent-soft-hover transition-colors"
 														>
 															<div className="flex flex-col min-w-0 gap-1">
 																<span className="text-sm font-bold truncate text-accent/80">
@@ -423,13 +423,13 @@ function TaskDetailsPage() {
 																			CURRENT
 																		</Chip>
 																	)}
-																	<span className="text-xs text-default-500 font-medium">
+																	<span className="text-xs text-muted font-medium">
 																		Priority: {s.currentPriority}
 																	</span>
 																</div>
 															</div>
 															<div className="flex flex-col items-end shrink-0 ml-4">
-																<span className="text-[10px] text-default-400 uppercase font-black">
+																<span className="text-[10px] text-muted uppercase font-black">
 																	Speed
 																</span>
 																<span className="text-sm text-success font-bold">

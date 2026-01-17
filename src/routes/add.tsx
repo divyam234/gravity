@@ -104,7 +104,7 @@ function AddDownloadPage() {
 				<h2 className="text-2xl font-bold tracking-tight">Add Download</h2>
 			</div>
 
-			<div className="bg-default-50/50 p-6 rounded-3xl border border-default-100 space-y-6">
+			<div className="bg-muted-background/50 p-6 rounded-3xl border border-border space-y-6">
 				<Tabs
 					aria-label="Download Type"
 					selectedKey={selectedTab as string}
@@ -143,7 +143,7 @@ function AddDownloadPage() {
 								onChange={(e) => setUris(e.target.value)}
 								fullWidth
 							/>
-							<Description className="text-xs text-default-500 mt-1">
+							<Description className="text-xs text-muted mt-1">
 								Enter one URL per line.
 							</Description>
 						</TextField>
@@ -158,7 +158,7 @@ function AddDownloadPage() {
 						>
 							<Button
 								variant="tertiary"
-								className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-default-200 rounded-3xl text-default-400 gap-4 hover:border-accent transition-all cursor-pointer w-full h-auto bg-transparent hover:bg-accent/5"
+								className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-border rounded-3xl text-muted gap-4 hover:border-accent transition-all cursor-pointer w-full h-auto bg-transparent hover:bg-accent/5"
 							>
 								<IconFileArrowUp
 									className={cn(
@@ -215,7 +215,7 @@ function AddDownloadPage() {
 					</Accordion.Item>
 				</Accordion>
 
-				<div className="flex justify-end gap-3 pt-6 border-t border-default-100">
+				<div className="flex justify-end gap-3 pt-6 border-t border-border">
 					<Button
 						variant="ghost"
 						onPress={() => navigate({ to: "/tasks/all" })}
