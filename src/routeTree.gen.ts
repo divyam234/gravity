@@ -9,20 +9,16 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as AddRouteImport } from './routes/add'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SettingsIndexRouteImport } from './routes/settings.index'
 import { Route as TasksWaitingRouteImport } from './routes/tasks.waiting'
 import { Route as TasksStoppedRouteImport } from './routes/tasks.stopped'
 import { Route as TasksAllRouteImport } from './routes/tasks.all'
 import { Route as TasksActiveRouteImport } from './routes/tasks.active'
 import { Route as TaskGidRouteImport } from './routes/task.$gid'
+import { Route as SettingsCategoryRouteImport } from './routes/settings.$category'
 
-const SettingsRoute = SettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AddRoute = AddRouteImport.update({
   id: '/add',
   path: '/add',
@@ -31,6 +27,11 @@ const AddRoute = AddRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsIndexRoute = SettingsIndexRouteImport.update({
+  id: '/settings/',
+  path: '/settings/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TasksWaitingRoute = TasksWaitingRouteImport.update({
@@ -58,91 +59,96 @@ const TaskGidRoute = TaskGidRouteImport.update({
   path: '/task/$gid',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SettingsCategoryRoute = SettingsCategoryRouteImport.update({
+  id: '/settings/$category',
+  path: '/settings/$category',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/add': typeof AddRoute
-  '/settings': typeof SettingsRoute
+  '/settings/$category': typeof SettingsCategoryRoute
   '/task/$gid': typeof TaskGidRoute
   '/tasks/active': typeof TasksActiveRoute
   '/tasks/all': typeof TasksAllRoute
   '/tasks/stopped': typeof TasksStoppedRoute
   '/tasks/waiting': typeof TasksWaitingRoute
+  '/settings': typeof SettingsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/add': typeof AddRoute
-  '/settings': typeof SettingsRoute
+  '/settings/$category': typeof SettingsCategoryRoute
   '/task/$gid': typeof TaskGidRoute
   '/tasks/active': typeof TasksActiveRoute
   '/tasks/all': typeof TasksAllRoute
   '/tasks/stopped': typeof TasksStoppedRoute
   '/tasks/waiting': typeof TasksWaitingRoute
+  '/settings': typeof SettingsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/add': typeof AddRoute
-  '/settings': typeof SettingsRoute
+  '/settings/$category': typeof SettingsCategoryRoute
   '/task/$gid': typeof TaskGidRoute
   '/tasks/active': typeof TasksActiveRoute
   '/tasks/all': typeof TasksAllRoute
   '/tasks/stopped': typeof TasksStoppedRoute
   '/tasks/waiting': typeof TasksWaitingRoute
+  '/settings/': typeof SettingsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/add'
-    | '/settings'
+    | '/settings/$category'
     | '/task/$gid'
     | '/tasks/active'
     | '/tasks/all'
     | '/tasks/stopped'
     | '/tasks/waiting'
+    | '/settings'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/add'
-    | '/settings'
+    | '/settings/$category'
     | '/task/$gid'
     | '/tasks/active'
     | '/tasks/all'
     | '/tasks/stopped'
     | '/tasks/waiting'
+    | '/settings'
   id:
     | '__root__'
     | '/'
     | '/add'
-    | '/settings'
+    | '/settings/$category'
     | '/task/$gid'
     | '/tasks/active'
     | '/tasks/all'
     | '/tasks/stopped'
     | '/tasks/waiting'
+    | '/settings/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AddRoute: typeof AddRoute
-  SettingsRoute: typeof SettingsRoute
+  SettingsCategoryRoute: typeof SettingsCategoryRoute
   TaskGidRoute: typeof TaskGidRoute
   TasksActiveRoute: typeof TasksActiveRoute
   TasksAllRoute: typeof TasksAllRoute
   TasksStoppedRoute: typeof TasksStoppedRoute
   TasksWaitingRoute: typeof TasksWaitingRoute
+  SettingsIndexRoute: typeof SettingsIndexRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/settings': {
-      id: '/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof SettingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/add': {
       id: '/add'
       path: '/add'
@@ -155,6 +161,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings/': {
+      id: '/settings/'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/tasks/waiting': {
@@ -192,18 +205,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TaskGidRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings/$category': {
+      id: '/settings/$category'
+      path: '/settings/$category'
+      fullPath: '/settings/$category'
+      preLoaderRoute: typeof SettingsCategoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AddRoute: AddRoute,
-  SettingsRoute: SettingsRoute,
+  SettingsCategoryRoute: SettingsCategoryRoute,
   TaskGidRoute: TaskGidRoute,
   TasksActiveRoute: TasksActiveRoute,
   TasksAllRoute: TasksAllRoute,
   TasksStoppedRoute: TasksStoppedRoute,
   TasksWaitingRoute: TasksWaitingRoute,
+  SettingsIndexRoute: SettingsIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

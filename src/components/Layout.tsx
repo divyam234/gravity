@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import React from "react";
 import { DropZone, type FileDropItem } from "react-aria-components";
+import IconBars from "~icons/gravity-ui/bars";
 import IconCloud from "~icons/gravity-ui/cloud";
 import IconCloudSlash from "~icons/gravity-ui/cloud-slash";
 import IconDisplayPulse from "~icons/gravity-ui/display-pulse";
@@ -16,7 +17,7 @@ import { useShortcuts } from "../hooks/useShortcuts";
 import { aria2 } from "../lib/aria2-rpc";
 import { useFileStore } from "../store/useFileStore";
 import { useSettingsStore } from "../store/useSettingsStore";
-import { Sidebar } from "./Sidebar";
+import { MobileSidebar, Sidebar } from "./Sidebar";
 
 export const Layout: React.FC<{ children: React.ReactNode }> = ({
 	children,
@@ -25,6 +26,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({
 	const navigate = useNavigate();
 	const { theme, setTheme, rpcUrl, pollingInterval } = useSettingsStore();
 	const { setPendingFile } = useFileStore();
+	const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
 
 	// Safe query that only runs when configured
 	const { isError, isLoading } = useQuery({
@@ -95,12 +97,30 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({
 						</div>
 					)}
 
-					{rpcUrl && <Sidebar />}
+					{rpcUrl && (
+						<>
+							<Sidebar />
+							<MobileSidebar
+								isOpen={isMobileMenuOpen}
+								onClose={() => setIsMobileMenuOpen(false)}
+							/>
+						</>
+					)}
 
 					<div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
 						{/* Header */}
-						<header className="h-16 border-b border-default-100 flex items-center justify-between px-8 bg-background shrink-0">
-							<div className="flex items-center gap-2">
+						<header className="h-16 border-b border-default-100 flex items-center justify-between px-4 md:px-8 bg-background shrink-0">
+							<div className="flex items-center gap-3">
+								{rpcUrl && (
+									<Button
+										isIconOnly
+										variant="ghost"
+										className="md:hidden -ml-2"
+										onPress={() => setIsMobileMenuOpen(true)}
+									>
+										<IconBars className="w-5 h-5" />
+									</Button>
+								)}
 								{!isLoading && (
 									<Chip
 										size="sm"
@@ -114,7 +134,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({
 											) : (
 												<IconCloud className="w-3 h-3" />
 											)}
-											<span className="text-[10px] uppercase font-black">
+											<span className="text-[10px] uppercase font-black hidden sm:inline">
 												{isError ? "Offline" : "Connected"}
 											</span>
 										</div>
@@ -122,7 +142,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({
 								)}
 							</div>
 
-							<div className="flex items-center gap-3">
+							<div className="flex items-center gap-2 md:gap-3">
 								<Popover>
 									<Popover.Trigger>
 										<Button isIconOnly variant="ghost" aria-label="Limits">
@@ -220,7 +240,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({
 							</div>
 						</header>
 
-						<main className="flex-1 overflow-y-auto p-8 relative">
+						<main className="flex-1 overflow-y-auto p-4 md:p-8 relative">
 							{isError && (
 								<div className="mb-6">
 									<Alert
@@ -243,7 +263,12 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({
 											size="sm"
 											variant="secondary"
 											className="ml-auto font-bold"
-											onPress={() => navigate({ to: "/settings" })}
+											onPress={() =>
+												navigate({
+													to: "/settings/$category",
+													params: { category: "connection" },
+												})
+											}
 										>
 											Fix
 										</Button>
