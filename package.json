@@ -29,6 +29,7 @@
     "react-aria-components": "^1.14.0",
     "react-dom": "^19.2.0",
     "react-top-loading-bar": "^3.0.2",
+    "recharts": "^3.6.0",
     "tailwind-merge": "^3.4.0",
     "tailwind-variants": "^3.2.2",
     "tailwindcss": "^4.0.6",
