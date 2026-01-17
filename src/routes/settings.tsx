@@ -13,15 +13,20 @@ import { Aria2FullOptionsSettings } from "../components/dashboard/settings/Aria2
 import { Aria2GeneralSettings } from "../components/dashboard/settings/Aria2GeneralSettings";
 import { Aria2NetworkSettings } from "../components/dashboard/settings/Aria2NetworkSettings";
 import { ConnectionSettings } from "../components/dashboard/settings/ConnectionSettings";
-import { useGlobalOption } from "../hooks/useAria2";
+import { globalOptionOptions, useGlobalOption } from "../hooks/useAria2";
+import { useSettingsStore } from "../store/useSettingsStore";
 
 export const Route = createFileRoute("/settings")({
 	component: SettingsPage,
+	loader: async ({ context: { queryClient } }) => {
+		const { rpcUrl } = useSettingsStore.getState();
+		await queryClient.ensureQueryData(globalOptionOptions(rpcUrl));
+	},
 });
 
 function SettingsPage() {
 	const navigate = useNavigate();
-	const { data: options, isLoading: isAriaLoading } = useGlobalOption();
+	const { data: options } = useGlobalOption();
 	const [selectedTab, setSelectedTab] = React.useState<React.Key>("connection");
 	const baseId = useId();
 
@@ -35,7 +40,7 @@ function SettingsPage() {
 				>
 					<IconChevronLeft className="w-5 h-5" />
 				</Button>
-				<h2 className="text-2xl font-bold">Settings</h2>
+				<h2 className="text-2xl font-bold tracking-tight">Settings</h2>
 			</div>
 
 			<div className="bg-default-50/50 rounded-3xl border border-default-100 flex flex-col md:flex-row overflow-hidden min-h-[600px]">
@@ -101,20 +106,11 @@ function SettingsPage() {
 				<div className="flex-1 overflow-y-auto p-8 bg-background">
 					{selectedTab === `${baseId}-connection` && <ConnectionSettings />}
 					{selectedTab === `${baseId}-app` && <AppSettings />}
-					{selectedTab === `${baseId}-all-aria2` &&
-						!isAriaLoading &&
-						options && <Aria2FullOptionsSettings options={options} />}
+					{selectedTab === `${baseId}-all-aria2` && options && (
+						<Aria2FullOptionsSettings options={options} />
+					)}
 
-					{(selectedTab === `${baseId}-general` ||
-						selectedTab === `${baseId}-connection-aria2` ||
-						selectedTab === `${baseId}-advanced`) &&
-						isAriaLoading && (
-							<div className="flex items-center justify-center h-full text-default-500">
-								Loading aria2 settings...
-							</div>
-						)}
-
-					{!isAriaLoading && options && (
+					{options && (
 						<div className="max-w-3xl">
 							{selectedTab === `${baseId}-general` && (
 								<Aria2GeneralSettings options={options} />

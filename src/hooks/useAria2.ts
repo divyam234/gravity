@@ -1,4 +1,10 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+	queryOptions,
+	useMutation,
+	useQuery,
+	useQueryClient,
+	useSuspenseQuery,
+} from "@tanstack/react-query";
 import { useEffect } from "react";
 import { aria2 } from "../lib/aria2-rpc";
 import { useSettingsStore } from "../store/useSettingsStore";
@@ -11,53 +17,115 @@ export function useSyncAria2() {
 	}, [rpcUrl, rpcSecret]);
 }
 
-export function useAria2Version() {
-	const { rpcUrl } = useSettingsStore(); // Trigger re-fetch on URL change
-	return useQuery({
+// --- Query Options ---
+
+export const aria2VersionOptions = (rpcUrl: string) =>
+	queryOptions({
 		queryKey: ["aria2", "version", rpcUrl],
 		queryFn: () => aria2.getVersion(),
 		retry: false,
 	});
-}
 
-export function useGlobalStat() {
-	const { pollingInterval, rpcUrl } = useSettingsStore();
-	return useQuery({
+export const globalStatOptions = (rpcUrl: string, pollingInterval: number) =>
+	queryOptions({
 		queryKey: ["aria2", "globalStat", rpcUrl],
 		queryFn: () => aria2.getGlobalStat(),
 		refetchInterval: pollingInterval,
 		retry: false,
 	});
-}
 
-export function useActiveTasks() {
-	const { pollingInterval, rpcUrl } = useSettingsStore();
-	return useQuery({
+export const activeTasksOptions = (rpcUrl: string, pollingInterval: number) =>
+	queryOptions({
 		queryKey: ["aria2", "tasks", "active", rpcUrl],
 		queryFn: () => aria2.tellActive(),
 		refetchInterval: pollingInterval,
 		retry: false,
 	});
-}
 
-export function useWaitingTasks(offset = 0, num = 100) {
-	const { pollingInterval, rpcUrl } = useSettingsStore();
-	return useQuery({
+export const waitingTasksOptions = (
+	rpcUrl: string,
+	pollingInterval: number,
+	offset = 0,
+	num = 100,
+) =>
+	queryOptions({
 		queryKey: ["aria2", "tasks", "waiting", offset, num, rpcUrl],
 		queryFn: () => aria2.tellWaiting(offset, num),
 		refetchInterval: pollingInterval,
 		retry: false,
 	});
-}
 
-export function useStoppedTasks(offset = 0, num = 100) {
-	const { pollingInterval, rpcUrl } = useSettingsStore();
-	return useQuery({
+export const stoppedTasksOptions = (
+	rpcUrl: string,
+	pollingInterval: number,
+	offset = 0,
+	num = 100,
+) =>
+	queryOptions({
 		queryKey: ["aria2", "tasks", "stopped", offset, num, rpcUrl],
 		queryFn: () => aria2.tellStopped(offset, num),
 		refetchInterval: pollingInterval,
 		retry: false,
 	});
+
+export const globalOptionOptions = (rpcUrl: string) =>
+	queryOptions({
+		queryKey: ["aria2", "globalOption", rpcUrl],
+		queryFn: () => aria2.getGlobalOption(),
+	});
+
+export const taskStatusOptions = (rpcUrl: string, gid: string) =>
+	queryOptions({
+		queryKey: ["aria2", "status", gid, rpcUrl],
+		queryFn: () => aria2.tellStatus(gid),
+		refetchInterval: 2000,
+	});
+
+export const taskFilesOptions = (rpcUrl: string, gid: string) =>
+	queryOptions({
+		queryKey: ["aria2", "files", gid, rpcUrl],
+		queryFn: () => aria2.getFiles(gid),
+		refetchInterval: 2000,
+	});
+
+export const taskPeersOptions = (rpcUrl: string, gid: string) =>
+	queryOptions({
+		queryKey: ["aria2", "peers", gid, rpcUrl],
+		queryFn: () => aria2.getPeers(gid),
+		refetchInterval: 3000,
+	});
+
+export const taskServersOptions = (rpcUrl: string, gid: string) =>
+	queryOptions({
+		queryKey: ["aria2", "servers", gid, rpcUrl],
+		queryFn: () => aria2.getServers(gid),
+		refetchInterval: 5000,
+	});
+
+// --- Hooks ---
+
+export function useGlobalStat() {
+	const { pollingInterval, rpcUrl } = useSettingsStore();
+	return useSuspenseQuery(globalStatOptions(rpcUrl, pollingInterval));
+}
+
+export function useActiveTasks() {
+	const { pollingInterval, rpcUrl } = useSettingsStore();
+	return useSuspenseQuery(activeTasksOptions(rpcUrl, pollingInterval));
+}
+
+export function useWaitingTasks(offset = 0, num = 100) {
+	const { pollingInterval, rpcUrl } = useSettingsStore();
+	return useSuspenseQuery(
+		waitingTasksOptions(rpcUrl, pollingInterval, offset, num),
+	);
+}
+
+export function useStoppedTasks(offset = 0, num = 100) {
+	const { pollingInterval, rpcUrl } = useSettingsStore();
+	return useSuspenseQuery(
+		stoppedTasksOptions(rpcUrl, pollingInterval, offset, num),
+	);
 }
 
 export function useAllTasks() {
@@ -66,65 +134,45 @@ export function useAllTasks() {
 	const stopped = useStoppedTasks(0, 50);
 
 	return {
-		isLoading: active.isLoading || waiting.isLoading || stopped.isLoading,
-		isError: active.isError || waiting.isError || stopped.isError,
 		active: active.data || [],
 		waiting: waiting.data || [],
 		stopped: stopped.data || [],
 		refetch: () => {
-			active.refetch();
-			waiting.refetch();
-			stopped.refetch();
+			// Suspense queries handle refetching internally through options,
+			// but we can expose manual refetch if needed.
 		},
 	};
 }
 
 export function useGlobalOption() {
 	const { rpcUrl } = useSettingsStore();
-	return useQuery({
-		queryKey: ["aria2", "globalOption", rpcUrl],
-		queryFn: () => aria2.getGlobalOption(),
-	});
+	return useSuspenseQuery(globalOptionOptions(rpcUrl));
 }
 
 export function useTaskFiles(gid: string) {
 	const { rpcUrl } = useSettingsStore();
+	return useSuspenseQuery(taskFilesOptions(rpcUrl, gid));
+}
+
+export function useTaskPeers(gid: string, enabled = false) {
+	const { rpcUrl } = useSettingsStore();
 	return useQuery({
-		queryKey: ["aria2", "files", gid, rpcUrl],
-		queryFn: () => aria2.getFiles(gid),
-		enabled: !!gid,
-		refetchInterval: 2000,
+		...taskPeersOptions(rpcUrl, gid),
+		enabled: !!gid && enabled,
 	});
 }
 
-export function useTaskPeers(gid: string, enabled: boolean = false) {
+export function useTaskServers(gid: string, enabled = false) {
 	const { rpcUrl } = useSettingsStore();
 	return useQuery({
-		queryKey: ["aria2", "peers", gid, rpcUrl],
-		queryFn: () => aria2.getPeers(gid),
+		...taskServersOptions(rpcUrl, gid),
 		enabled: !!gid && enabled,
-		refetchInterval: 3000,
-	});
-}
-
-export function useTaskServers(gid: string, enabled: boolean = false) {
-	const { rpcUrl } = useSettingsStore();
-	return useQuery({
-		queryKey: ["aria2", "servers", gid, rpcUrl],
-		queryFn: () => aria2.getServers(gid),
-		enabled: !!gid && enabled,
-		refetchInterval: 5000,
 	});
 }
 
 export function useTaskStatus(gid: string) {
 	const { rpcUrl } = useSettingsStore();
-	return useQuery({
-		queryKey: ["aria2", "status", gid, rpcUrl],
-		queryFn: () => aria2.tellStatus(gid),
-		enabled: !!gid,
-		refetchInterval: 2000,
-	});
+	return useSuspenseQuery(taskStatusOptions(rpcUrl, gid));
 }
 
 // Mutations

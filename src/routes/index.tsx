@@ -5,11 +5,33 @@ import IconPlus from "~icons/gravity-ui/plus";
 import IconTrashBin from "~icons/gravity-ui/trash-bin";
 import { StatsOverview } from "../components/dashboard/StatsOverview";
 import { TaskList } from "../components/dashboard/TaskList";
-import { useAria2Actions } from "../hooks/useAria2";
+import {
+	activeTasksOptions,
+	globalStatOptions,
+	stoppedTasksOptions,
+	useAria2Actions,
+	waitingTasksOptions,
+} from "../hooks/useAria2";
 import { useNotifications } from "../hooks/useNotifications";
+import { useSettingsStore } from "../store/useSettingsStore";
 
 export const Route = createFileRoute("/")({
 	component: Dashboard,
+	loader: async ({ context: { queryClient } }) => {
+		const { rpcUrl, pollingInterval } = useSettingsStore.getState();
+
+		// Prefetch essential data for the dashboard
+		await Promise.all([
+			queryClient.ensureQueryData(globalStatOptions(rpcUrl, pollingInterval)),
+			queryClient.ensureQueryData(activeTasksOptions(rpcUrl, pollingInterval)),
+			queryClient.ensureQueryData(
+				waitingTasksOptions(rpcUrl, pollingInterval, 0, 50),
+			),
+			queryClient.ensureQueryData(
+				stoppedTasksOptions(rpcUrl, pollingInterval, 0, 50),
+			),
+		]);
+	},
 });
 
 function Dashboard() {

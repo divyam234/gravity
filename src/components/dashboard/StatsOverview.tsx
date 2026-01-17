@@ -1,4 +1,4 @@
-import { Card, Skeleton } from "@heroui/react";
+import { Card } from "@heroui/react";
 import type React from "react";
 import IconArrowDown from "~icons/gravity-ui/arrow-down";
 import IconArrowUp from "~icons/gravity-ui/arrow-up";
@@ -9,33 +9,12 @@ import { formatBytes } from "../../lib/utils";
 import { SpeedGraph } from "../ui/SpeedGraph";
 
 export const StatsOverview: React.FC = () => {
-	const { data: stats, isLoading } = useGlobalStat();
+	const { data: stats } = useGlobalStat();
 	const { downloadHistory, uploadHistory } = useSpeedHistory();
-
-	if (isLoading || !stats) {
-		return (
-			<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-				{[1, 2, 3].map((i) => (
-					<Card key={i} className="h-32 shadow-sm border-default-100">
-						<Card.Content className="p-4 space-y-4">
-							<div className="flex items-center gap-4">
-								<Skeleton className="w-12 h-12 rounded-full" />
-								<div className="space-y-2 flex-1">
-									<Skeleton className="w-2/3 h-3 rounded-lg" />
-									<Skeleton className="w-1/2 h-6 rounded-lg" />
-								</div>
-							</div>
-							<Skeleton className="w-full h-8 rounded-xl" />
-						</Card.Content>
-					</Card>
-				))}
-			</div>
-		);
-	}
 
 	return (
 		<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-			<Card className="overflow-hidden">
+			<Card className="overflow-hidden shadow-sm border-default-100">
 				<Card.Content className="p-4 flex flex-col gap-2">
 					<div className="flex items-center gap-4">
 						<div className="p-3 rounded-full bg-success/10 text-success">
@@ -59,7 +38,7 @@ export const StatsOverview: React.FC = () => {
 				</Card.Content>
 			</Card>
 
-			<Card className="overflow-hidden">
+			<Card className="overflow-hidden shadow-sm border-default-100">
 				<Card.Content className="p-4 flex flex-col gap-2">
 					<div className="flex items-center gap-4">
 						<div className="p-3 rounded-full bg-primary/10 text-primary">
@@ -83,7 +62,7 @@ export const StatsOverview: React.FC = () => {
 				</Card.Content>
 			</Card>
 
-			<Card>
+			<Card className="shadow-sm border-default-100">
 				<Card.Content className="p-4 flex items-center h-full gap-4">
 					<div className="p-3 rounded-full bg-warning/10 text-warning">
 						<IconPulse className="w-6 h-6" />

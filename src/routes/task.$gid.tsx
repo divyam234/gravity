@@ -5,7 +5,6 @@ import {
 	Chip,
 	ListBox,
 	ScrollShadow,
-	Skeleton,
 	Tabs,
 } from "@heroui/react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
@@ -16,6 +15,8 @@ import IconFile from "~icons/gravity-ui/file";
 import IconNodesDown from "~icons/gravity-ui/nodes-down";
 import IconPersons from "~icons/gravity-ui/persons";
 import {
+	taskFilesOptions,
+	taskStatusOptions,
 	useTaskFiles,
 	useTaskPeers,
 	useTaskServers,
@@ -24,16 +25,24 @@ import {
 import type { Aria2File } from "../lib/aria2-rpc";
 import { aria2 } from "../lib/aria2-rpc";
 import { formatBytes } from "../lib/utils";
+import { useSettingsStore } from "../store/useSettingsStore";
 
 export const Route = createFileRoute("/task/$gid")({
 	component: TaskDetailsPage,
+	loader: async ({ context: { queryClient }, params: { gid } }) => {
+		const { rpcUrl } = useSettingsStore.getState();
+		await Promise.all([
+			queryClient.ensureQueryData(taskStatusOptions(rpcUrl, gid)),
+			queryClient.ensureQueryData(taskFilesOptions(rpcUrl, gid)),
+		]);
+	},
 });
 
 function TaskDetailsPage() {
 	const { gid } = Route.useParams();
 	const navigate = useNavigate();
 	const baseId = useId();
-	const { data: task, isLoading: isStatusLoading } = useTaskStatus(gid);
+	const { data: task } = useTaskStatus(gid);
 	const { data: files } = useTaskFiles(gid);
 	const [selectedTab, setSelectedTab] = React.useState<React.Key>(
 		`${baseId}-overview`,
@@ -65,25 +74,6 @@ function TaskDetailsPage() {
 		const selectFileStr = Array.from(keys).sort().join(",");
 		aria2.changeOption(gid, { "select-file": selectFileStr });
 	};
-
-	if (isStatusLoading) {
-		return (
-			<div className="max-w-6xl mx-auto space-y-6">
-				<div className="flex items-center gap-4 animate-pulse">
-					<div className="w-10 h-10 bg-default-200 rounded-lg" />
-					<div className="w-48 h-8 bg-default-200 rounded-lg" />
-				</div>
-				<div className="flex flex-col md:flex-row gap-6">
-					<div className="w-full md:w-64 space-y-2">
-						{[1, 2, 3, 4].map((i) => (
-							<Skeleton key={i} className="h-12 rounded-xl" />
-						))}
-					</div>
-					<Skeleton className="flex-1 min-h-[500px] rounded-3xl" />
-				</div>
-			</div>
-		);
-	}
 
 	return (
 		<div className="max-w-6xl mx-auto space-y-6">
