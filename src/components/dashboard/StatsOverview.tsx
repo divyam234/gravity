@@ -1,0 +1,95 @@
+import { Card } from "@heroui/react";
+import type React from "react";
+import IconArrowDown from "~icons/gravity-ui/arrow-down";
+import IconArrowUp from "~icons/gravity-ui/arrow-up";
+import IconPulse from "~icons/gravity-ui/pulse";
+import { useGlobalStat } from "../../hooks/useAria2";
+import { useSpeedHistory } from "../../hooks/useSpeedHistory";
+import { formatBytes } from "../../lib/utils";
+import { SpeedGraph } from "../ui/SpeedGraph";
+
+export const StatsOverview: React.FC = () => {
+	const { data: stats, isLoading } = useGlobalStat();
+	const { downloadHistory, uploadHistory } = useSpeedHistory();
+
+	if (isLoading || !stats) {
+		return (
+			<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+				{[1, 2, 3].map((i) => (
+					<Card key={i} className="h-32 animate-pulse" />
+				))}
+			</div>
+		);
+	}
+
+	return (
+		<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+			<Card className="overflow-hidden">
+				<Card.Content className="p-4 flex flex-col gap-2">
+					<div className="flex items-center gap-4">
+						<div className="p-3 rounded-full bg-success/10 text-success">
+							<IconArrowDown className="w-6 h-6" />
+						</div>
+						<div>
+							<p className="text-small text-default-500 font-medium">
+								Download Speed
+							</p>
+							<h4 className="text-2xl font-bold">
+								{formatBytes(stats.downloadSpeed)}/s
+							</h4>
+						</div>
+					</div>
+					<SpeedGraph
+						data={downloadHistory}
+						color="oklch(var(--color-success))"
+						height={40}
+						className="mt-2"
+					/>
+				</Card.Content>
+			</Card>
+
+			<Card className="overflow-hidden">
+				<Card.Content className="p-4 flex flex-col gap-2">
+					<div className="flex items-center gap-4">
+						<div className="p-3 rounded-full bg-primary/10 text-primary">
+							<IconArrowUp className="w-6 h-6" />
+						</div>
+						<div>
+							<p className="text-small text-default-500 font-medium">
+								Upload Speed
+							</p>
+							<h4 className="text-2xl font-bold">
+								{formatBytes(stats.uploadSpeed)}/s
+							</h4>
+						</div>
+					</div>
+					<SpeedGraph
+						data={uploadHistory}
+						color="oklch(var(--color-primary))"
+						height={40}
+						className="mt-2"
+					/>
+				</Card.Content>
+			</Card>
+
+			<Card>
+				<Card.Content className="p-4 flex items-center h-full gap-4">
+					<div className="p-3 rounded-full bg-warning/10 text-warning">
+						<IconPulse className="w-6 h-6" />
+					</div>
+					<div>
+						<p className="text-small text-default-500 font-medium">
+							Active Tasks
+						</p>
+						<div className="flex gap-2 items-baseline">
+							<h4 className="text-2xl font-bold">{stats.numActive}</h4>
+							<span className="text-small text-default-400">
+								({stats.numWaiting} waiting)
+							</span>
+						</div>
+					</div>
+				</Card.Content>
+			</Card>
+		</div>
+	);
+};
