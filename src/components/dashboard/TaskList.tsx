@@ -163,7 +163,7 @@ export const TaskList: React.FC = () => {
 					<div className="flex items-center gap-2 w-full md:w-auto">
 						{isSelectionMode ? (
 							<div className="flex items-center gap-2 bg-default-100 p-1 rounded-xl animate-in fade-in zoom-in duration-200 w-full md:w-auto">
-								<span className="text-tiny font-bold px-3 uppercase text-default-500 whitespace-nowrap">
+								<span className="text-xs font-bold px-3 uppercase text-default-500 whitespace-nowrap">
 									{selectedGids.size} Selected
 								</span>
 								<Button

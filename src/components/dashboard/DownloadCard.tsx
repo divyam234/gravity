@@ -48,14 +48,14 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({ task }) => {
 						className="flex-1 min-w-0 cursor-pointer group outline-none"
 					>
 						<h3
-							className="text-lg font-bold truncate group-hover:text-primary transition-colors leading-tight"
+							className="text-lg font-bold truncate group-hover:text-accent transition-colors leading-tight"
 							title={fileName}
 						>
 							{fileName}
 						</h3>
 						<div className="flex items-center gap-2 mt-1.5">
 							<StatusChip status={task.status} />
-							<span className="text-small text-default-500 font-medium">
+							<span className="text-sm text-default-500 font-medium">
 								{formatBytes(completedLength)} / {formatBytes(totalLength)}
 							</span>
 						</div>
@@ -70,7 +70,7 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({ task }) => {
 									</Button>
 								</Link>
 							</Tooltip.Trigger>
-							<Tooltip.Content className="p-2 text-tiny">
+							<Tooltip.Content className="p-2 text-xs">
 								Files & Details
 							</Tooltip.Content>
 						</Tooltip>
@@ -87,7 +87,7 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({ task }) => {
 										<IconPause className="w-4.5 h-4.5 text-warning" />
 									</Button>
 								</Tooltip.Trigger>
-								<Tooltip.Content className="p-2 text-tiny flex items-center gap-2">
+								<Tooltip.Content className="p-2 text-xs flex items-center gap-2">
 									Pause <Kbd>P</Kbd>
 								</Tooltip.Content>
 							</Tooltip>
@@ -105,7 +105,7 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({ task }) => {
 										<IconPlay className="w-4.5 h-4.5 text-success" />
 									</Button>
 								</Tooltip.Trigger>
-								<Tooltip.Content className="p-2 text-tiny flex items-center gap-2">
+								<Tooltip.Content className="p-2 text-xs flex items-center gap-2">
 									Resume <Kbd>R</Kbd>
 								</Tooltip.Content>
 							</Tooltip>
@@ -123,7 +123,7 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({ task }) => {
 									<IconTrashBin className="w-4.5 h-4.5" />
 								</Button>
 							</Tooltip.Trigger>
-							<Tooltip.Content className="p-2 text-tiny">
+							<Tooltip.Content className="p-2 text-xs">
 								Remove
 							</Tooltip.Content>
 						</Tooltip>
@@ -133,18 +133,18 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({ task }) => {
 				<ProgressBar
 					value={progress}
 					size="md"
-					color={isError ? "danger" : isComplete ? "success" : "primary"}
+					color={isError ? "danger" : isComplete ? "success" : "accent"}
 					showValueLabel
 				/>
 
-				<div className="flex justify-between items-center text-small text-default-500 bg-default-50/50 p-2 rounded-xl border border-default-50">
+				<div className="flex justify-between items-center text-sm text-default-500 bg-default-50/50 p-2 rounded-xl border border-default-50">
 					<div className="flex gap-4">
 						<span className="flex items-center gap-1.5 font-bold text-success/80">
 							<div className="w-1.5 h-1.5 rounded-full bg-success" />
 							{formatBytes(downloadSpeed)}/s
 						</span>
-						<span className="flex items-center gap-1.5 font-bold text-primary/80">
-							<div className="w-1.5 h-1.5 rounded-full bg-primary" />
+						<span className="flex items-center gap-1.5 font-bold text-accent/80">
+							<div className="w-1.5 h-1.5 rounded-full bg-accent" />
 							{formatBytes(uploadSpeed)}/s
 						</span>
 					</div>

@@ -12,13 +12,13 @@ export const AppSettings: React.FC = () => {
 		<div className="space-y-6">
 			<div className="border-b border-default-100 pb-2">
 				<h3 className="text-lg font-bold">UI Preferences</h3>
-				<p className="text-small text-default-500">
+				<p className="text-sm text-default-500">
 					Customize the dashboard behavior.
 				</p>
 			</div>
 
 			<div className="space-y-4">
-				<Label className="text-small font-medium">
+				<Label className="text-sm font-medium">
 					Update Interval ({pollingInterval}ms)
 				</Label>
 				<Slider
@@ -42,7 +42,7 @@ export const AppSettings: React.FC = () => {
 
 			<div className="opacity-50 pointer-events-none">
 				<Select defaultValue={theme}>
-					<Label className="text-small font-medium block mb-2">
+					<Label className="text-sm font-medium block mb-2">
 						Appearance
 					</Label>
 					<Select.Trigger>

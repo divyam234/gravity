@@ -34,7 +34,7 @@ function RootComponent() {
 	return (
 		<Layout>
 			<LoadingBar
-				color="oklch(var(--color-primary))"
+				color="var(--accent)"
 				progress={progress}
 				onLoaderFinished={() => setProgress(0)}
 				height={3}

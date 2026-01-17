@@ -56,7 +56,7 @@ function Dashboard() {
 								Purge Finished
 							</Button>
 						</Tooltip.Trigger>
-						<Tooltip.Content className="p-2 text-tiny flex items-center gap-2">
+						<Tooltip.Content className="p-2 text-xs flex items-center gap-2">
 							Clear finished tasks <Kbd>Shift + C</Kbd>
 						</Tooltip.Content>
 					</Tooltip>
@@ -71,7 +71,7 @@ function Dashboard() {
 								Settings
 							</Button>
 						</Tooltip.Trigger>
-						<Tooltip.Content className="p-2 text-tiny flex items-center gap-2">
+						<Tooltip.Content className="p-2 text-xs flex items-center gap-2">
 							Configure app <Kbd>Shift + S</Kbd>
 						</Tooltip.Content>
 					</Tooltip>
@@ -83,7 +83,7 @@ function Dashboard() {
 								Add Task
 							</Button>
 						</Tooltip.Trigger>
-						<Tooltip.Content className="p-2 text-tiny flex items-center gap-2">
+						<Tooltip.Content className="p-2 text-xs flex items-center gap-2">
 							New download <Kbd>Shift + A</Kbd>
 						</Tooltip.Content>
 					</Tooltip>

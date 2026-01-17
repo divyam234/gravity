@@ -21,7 +21,7 @@ export const StatsOverview: React.FC = () => {
 							<IconArrowDown className="w-6 h-6" />
 						</div>
 						<div>
-							<p className="text-small text-default-500 font-medium">
+							<p className="text-sm text-default-500 font-medium">
 								Download Speed
 							</p>
 							<h4 className="text-2xl font-bold">
@@ -31,7 +31,7 @@ export const StatsOverview: React.FC = () => {
 					</div>
 					<SpeedGraph
 						data={downloadHistory}
-						color="oklch(var(--color-success))"
+						color="var(--success)"
 						height={40}
 						className="mt-2"
 					/>
@@ -41,11 +41,11 @@ export const StatsOverview: React.FC = () => {
 			<Card className="overflow-hidden shadow-sm border-default-100">
 				<Card.Content className="p-4 flex flex-col gap-2">
 					<div className="flex items-center gap-4">
-						<div className="p-3 rounded-full bg-primary/10 text-primary">
+						<div className="p-3 rounded-full bg-accent/10 text-accent">
 							<IconArrowUp className="w-6 h-6" />
 						</div>
 						<div>
-							<p className="text-small text-default-500 font-medium">
+							<p className="text-sm text-default-500 font-medium">
 								Upload Speed
 							</p>
 							<h4 className="text-2xl font-bold">
@@ -55,7 +55,7 @@ export const StatsOverview: React.FC = () => {
 					</div>
 					<SpeedGraph
 						data={uploadHistory}
-						color="oklch(var(--color-primary))"
+						color="var(--accent)"
 						height={40}
 						className="mt-2"
 					/>
@@ -68,12 +68,10 @@ export const StatsOverview: React.FC = () => {
 						<IconPulse className="w-6 h-6" />
 					</div>
 					<div>
-						<p className="text-small text-default-500 font-medium">
-							Active Tasks
-						</p>
+						<p className="text-sm text-default-500 font-medium">Active Tasks</p>
 						<div className="flex gap-2 items-baseline">
 							<h4 className="text-2xl font-bold">{stats.numActive}</h4>
-							<span className="text-small text-default-400">
+							<span className="text-sm text-default-400">
 								({stats.numWaiting} waiting)
 							</span>
 						</div>

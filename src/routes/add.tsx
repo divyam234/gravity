@@ -126,7 +126,7 @@ function AddDownloadPage() {
 				{selectedTab === `${baseId}-links` && (
 					<div className="flex flex-col gap-6">
 						<TextField className="w-full">
-							<Label className="text-small font-medium mb-2 block">
+							<Label className="text-sm font-medium mb-2 block">
 								Download Links
 							</Label>
 							<TextArea
@@ -151,12 +151,12 @@ function AddDownloadPage() {
 						>
 							<Button
 								variant="tertiary"
-								className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-default-200 rounded-3xl text-default-400 gap-4 hover:border-primary transition-all cursor-pointer w-full h-auto bg-transparent hover:bg-primary/5"
+								className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-default-200 rounded-3xl text-default-400 gap-4 hover:border-accent transition-all cursor-pointer w-full h-auto bg-transparent hover:bg-accent/5"
 							>
 								<IconFileArrowUp
 									className={cn(
 										"w-12 h-12 transition-transform duration-300 group-hover:-translate-y-1",
-										selectedFile ? "text-primary opacity-100" : "opacity-20",
+										selectedFile ? "text-accent opacity-100" : "opacity-20",
 									)}
 								/>
 								<p className="text-center w-full font-medium">
@@ -184,9 +184,9 @@ function AddDownloadPage() {
 				<Accordion>
 					<Accordion.Item id={`${baseId}-advanced-item`}>
 						<Accordion.Heading>
-							<Accordion.Trigger className="flex items-center gap-2 text-primary hover:underline py-2 outline-none">
+							<Accordion.Trigger className="flex items-center gap-2 text-accent hover:underline py-2 outline-none">
 								<IconChevronRight className="w-4 h-4 group-data-[expanded=true]:rotate-90 transition-transform" />
-								<span className="font-semibold text-small">
+								<span className="font-semibold text-sm">
 									Advanced Options
 								</span>
 							</Accordion.Trigger>
@@ -194,7 +194,7 @@ function AddDownloadPage() {
 						<Accordion.Panel>
 							<Accordion.Body className="pt-4 pb-2 space-y-4">
 								<TextField>
-									<Label className="text-small font-medium mb-1 block">
+									<Label className="text-sm font-medium mb-1 block">
 										Download Directory
 									</Label>
 									<Input

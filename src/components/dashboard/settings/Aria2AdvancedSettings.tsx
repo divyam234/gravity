@@ -21,7 +21,7 @@ export const Aria2AdvancedSettings: React.FC<{ options: any }> = ({
 			</div>
 			<div className="opacity-60 grayscale pointer-events-none">
 				<Select defaultValue={options["file-allocation"]}>
-					<Label className="text-small font-medium block mb-2">
+					<Label className="text-sm font-medium block mb-2">
 						File Allocation (Immutable)
 					</Label>
 					<Select.Trigger>
@@ -42,7 +42,7 @@ export const Aria2AdvancedSettings: React.FC<{ options: any }> = ({
 			</div>
 
 			<TextField isReadOnly>
-				<Label className="text-small font-medium block mb-2 opacity-60">
+				<Label className="text-sm font-medium block mb-2 opacity-60">
 					Disk Cache (Immutable)
 				</Label>
 				<Input defaultValue={options["disk-cache"]} />

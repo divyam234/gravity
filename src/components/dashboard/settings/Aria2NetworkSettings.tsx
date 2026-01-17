@@ -10,7 +10,7 @@ export const Aria2NetworkSettings: React.FC<{ options: any }> = ({
 				<h3 className="text-lg font-bold">Network & Connection</h3>
 			</div>
 			<div className="space-y-4">
-				<Label className="text-small font-medium">
+				<Label className="text-sm font-medium">
 					Max Connections per Server
 				</Label>
 				<Slider
@@ -27,7 +27,7 @@ export const Aria2NetworkSettings: React.FC<{ options: any }> = ({
 			</div>
 
 			<TextField>
-				<Label className="text-small font-medium block mb-2">
+				<Label className="text-sm font-medium block mb-2">
 					Global Proxy
 				</Label>
 				<Input

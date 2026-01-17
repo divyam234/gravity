@@ -7,7 +7,7 @@ interface ProgressBarProps {
 	max?: number;
 	label?: string;
 	showValueLabel?: boolean;
-	color?: "primary" | "success" | "warning" | "danger" | "default";
+	color?: "accent" | "success" | "warning" | "danger" | "default";
 	size?: "sm" | "md" | "lg";
 	className?: string;
 }
@@ -17,7 +17,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
 	max = 100,
 	label,
 	showValueLabel = false,
-	color = "primary",
+	color = "accent",
 	size = "md",
 	className,
 }) => {
@@ -29,7 +29,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
 
 	const colorMap = {
 		default: "bg-default-400",
-		primary: "bg-primary",
+		accent: "bg-accent",
 		success: "bg-success",
 		warning: "bg-warning",
 		danger: "bg-danger",
@@ -43,7 +43,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
 		>
 			{({ percentage, valueText }) => (
 				<>
-					<div className="flex justify-between text-small text-default-500 font-medium">
+					<div className="flex justify-between text-sm text-default-500 font-medium">
 						{label && <span>{label}</span>}
 						{showValueLabel && <span>{valueText}</span>}
 					</div>
