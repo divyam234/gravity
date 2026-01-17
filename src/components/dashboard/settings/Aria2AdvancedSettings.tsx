@@ -1,52 +1,41 @@
-import {
-	Description,
-	Input,
-	Label,
-	ListBox,
-	Select,
-	TextField,
-} from "@heroui/react";
 import type React from "react";
-import { useId } from "react";
+import aria2Options from "../../../lib/aria2-options.json";
+import { SettingField } from "./SettingField";
 
-export const Aria2AdvancedSettings: React.FC<{ options: any }> = ({
-	options,
-}) => {
-	const baseId = useId();
+export const Aria2AdvancedSettings: React.FC<{
+	options: Record<string, string>;
+}> = ({ options }) => {
+	const advancedOptions = [
+		"file-allocation",
+		"disk-cache",
+		"min-tls-version",
+		"event-poll",
+	];
+	const metadata = aria2Options.filter((opt) =>
+		advancedOptions.includes(opt.name),
+	);
 
 	return (
 		<div className="space-y-6">
 			<div className="border-b border-border pb-2">
 				<h3 className="text-lg font-bold">Advanced Tunings</h3>
+				<p className="text-xs text-muted mt-1">
+					Some of these settings may require a restart to take effect.
+				</p>
 			</div>
-			<div className="opacity-60 grayscale pointer-events-none">
-				<Select defaultValue={options["file-allocation"]}>
-					<Label className="text-sm font-medium block mb-2">
-						File Allocation (Immutable)
-					</Label>
-					<Select.Trigger>
-						<Select.Value />
-						<Select.Indicator />
-					</Select.Trigger>
-					<Select.Popover>
-						<ListBox>
-							<ListBox.Item id={`${baseId}-none`}>None</ListBox.Item>
-							<ListBox.Item id={`${baseId}-prealloc`}>Prealloc</ListBox.Item>
-							<ListBox.Item id={`${baseId}-falloc`}>Falloc</ListBox.Item>
-						</ListBox>
-					</Select.Popover>
-				</Select>
-				<Description className="mt-1">
-					This setting can only be changed at startup.
-				</Description>
+			<div className="flex flex-col">
+				{metadata.map((opt) => (
+					<SettingField
+						key={opt.name}
+						opt={opt as any}
+						value={options[opt.name] ?? opt.default ?? ""}
+						onUpdate={() => {}} // Read-only or requires restart
+						isReadOnly={
+							opt.name === "file-allocation" || opt.name === "disk-cache"
+						}
+					/>
+				))}
 			</div>
-
-			<TextField isReadOnly>
-				<Label className="text-sm font-medium block mb-2 opacity-60">
-					Disk Cache (Immutable)
-				</Label>
-				<Input defaultValue={options["disk-cache"]} />
-			</TextField>
 		</div>
 	);
 };

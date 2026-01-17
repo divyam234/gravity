@@ -145,6 +145,14 @@ export function useGlobalOption() {
 	return useSuspenseQuery(globalOptionOptions(rpcUrl));
 }
 
+export function useTaskOption(gid: string) {
+	const { rpcUrl } = useSettingsStore();
+	return useSuspenseQuery({
+		queryKey: ["aria2", "option", gid, rpcUrl],
+		queryFn: () => aria2.getOption(gid),
+	});
+}
+
 export function useTaskFiles(gid: string) {
 	const { rpcUrl } = useSettingsStore();
 	return useSuspenseQuery(taskFilesOptions(rpcUrl, gid));
@@ -245,6 +253,27 @@ export function useAria2Actions() {
 		mutationFn: () => aria2.saveSession(),
 	});
 
+	const changeGlobalOption = useMutation({
+		mutationFn: (options: Record<string, string>) =>
+			aria2.changeGlobalOption(options),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["aria2", "globalOption"] });
+		},
+	});
+
+	const changeOption = useMutation({
+		mutationFn: ({
+			gid,
+			options,
+		}: {
+			gid: string;
+			options: Record<string, string>;
+		}) => aria2.changeOption(gid, options),
+		onSuccess: (_, { gid }) => {
+			queryClient.invalidateQueries({ queryKey: ["aria2", "status", gid] });
+		},
+	});
+
 	return {
 		addUri,
 		addTorrent,
@@ -255,5 +284,7 @@ export function useAria2Actions() {
 		forceRemove,
 		purgeDownloadResult,
 		saveSession,
+		changeGlobalOption,
+		changeOption,
 	};
 }

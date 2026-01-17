@@ -1,7 +1,7 @@
 import {
 	Accordion,
 	Button,
-	Description,
+	FieldError,
 	Input,
 	Label,
 	Tabs,
@@ -11,8 +11,8 @@ import {
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import React, { useId } from "react";
 import { FileTrigger } from "react-aria-components";
+import IconChevronDown from "~icons/gravity-ui/chevron-down";
 import IconChevronLeft from "~icons/gravity-ui/chevron-left";
-import IconChevronRight from "~icons/gravity-ui/chevron-right";
 import IconFileArrowUp from "~icons/gravity-ui/file-arrow-up";
 import IconLink from "~icons/gravity-ui/link";
 import IconXmark from "~icons/gravity-ui/xmark";
@@ -53,10 +53,20 @@ function AddDownloadPage() {
 		}
 	};
 
+	const validateUris = (val: string) => {
+		if (!val.trim()) return "Enter at least one link";
+		const lines = val.split("\n").filter((l) => l.trim());
+		const invalid = lines.find(
+			(l) => !/^(http|https|ftp|sftp|magnet):/i.test(l.trim()),
+		);
+		if (invalid) return "Invalid protocol in one of the links";
+		return true;
+	};
+
 	const handleSubmit = async () => {
 		const onSuccess = () => navigate({ to: "/tasks/active" });
 
-		if (selectedTab === `${baseId}-links` && uris.trim()) {
+		if (selectedTab === `${baseId}-links` && validateUris(uris) === true) {
 			const uriList = uris.split("\n").filter((u) => u.trim());
 			addUri.mutate(
 				{
@@ -92,7 +102,7 @@ function AddDownloadPage() {
 	};
 
 	return (
-		<div className="max-w-2xl mx-auto space-y-6">
+		<div className="max-w-2xl mx-auto space-y-8 pb-12">
 			<div className="flex items-center gap-4">
 				<Button
 					variant="ghost"
@@ -104,131 +114,171 @@ function AddDownloadPage() {
 				<h2 className="text-2xl font-bold tracking-tight">Add Download</h2>
 			</div>
 
-			<div className="bg-muted-background/50 p-6 rounded-3xl border border-border space-y-6">
+			<div className="bg-muted-background/40 p-8 rounded-[40px] border border-border space-y-8 shadow-sm">
 				<Tabs
 					aria-label="Download Type"
 					selectedKey={selectedTab as string}
 					onSelectionChange={setSelectedTab}
+					className="w-full"
 				>
-					<Tabs.ListContainer>
-						<Tabs.List>
-							<Tabs.Tab id={`${baseId}-links`}>
-								<div className="flex items-center gap-2">
+					<Tabs.ListContainer className="bg-default/10 p-1.5 rounded-2xl">
+						<Tabs.List className="w-full">
+							<Tabs.Tab id={`${baseId}-links`} className="w-full py-2.5">
+								<div className="flex items-center justify-center gap-2">
 									<IconLink className="w-4 h-4" />
-									<span>Links</span>
+									<span className="font-bold">Links</span>
 								</div>
-								<Tabs.Indicator />
+								<Tabs.Indicator className="bg-background rounded-xl shadow-sm" />
 							</Tabs.Tab>
-							<Tabs.Tab id={`${baseId}-torrent`}>
-								<div className="flex items-center gap-2">
+							<Tabs.Tab id={`${baseId}-torrent`} className="w-full py-2.5">
+								<div className="flex items-center justify-center gap-2">
 									<IconFileArrowUp className="w-4 h-4" />
-									<span>Torrent File</span>
+									<span className="font-bold">File</span>
 								</div>
-								<Tabs.Indicator />
+								<Tabs.Indicator className="bg-background rounded-xl shadow-sm" />
 							</Tabs.Tab>
 						</Tabs.List>
 					</Tabs.ListContainer>
 				</Tabs>
 
-				{selectedTab === `${baseId}-links` && (
-					<div className="flex flex-col gap-6">
-						<TextField className="w-full">
-							<Label className="text-sm font-medium mb-2 block">
-								Download Links
-							</Label>
-							<TextArea
-								placeholder="https://example.com/file.zip"
-								rows={5}
-								value={uris}
-								onChange={(e) => setUris(e.target.value)}
-								fullWidth
-							/>
-							<Description className="text-xs text-muted mt-1">
-								Enter one URL per line.
-							</Description>
-						</TextField>
-					</div>
-				)}
-
-				{selectedTab === `${baseId}-torrent` && (
-					<div className="flex flex-col gap-6 relative group">
-						<FileTrigger
-							acceptedFileTypes={[".torrent", ".metalink"]}
-							onSelect={handleSelect}
+				<div className="min-h-[200px]">
+					{selectedTab === `${baseId}-links` && (
+						<TextField
+							className="w-full"
+							value={uris}
+							onChange={setUris}
+							validate={validateUris}
+							validationBehavior="aria"
 						>
-							<Button
-								variant="tertiary"
-								className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-border rounded-3xl text-muted gap-4 hover:border-accent transition-all cursor-pointer w-full h-auto bg-transparent hover:bg-accent/5"
-							>
-								<IconFileArrowUp
-									className={cn(
-										"w-12 h-12 transition-transform duration-300 group-hover:-translate-y-1",
-										selectedFile ? "text-accent opacity-100" : "opacity-20",
-									)}
-								/>
-								<p className="text-center w-full font-medium">
-									{selectedFile
-										? selectedFile.name
-										: "Click to browse or drag and drop files here"}
+							<div className="flex flex-col gap-3">
+								<Label className="text-sm font-bold tracking-tight px-1">
+									Download Links
+								</Label>
+								<div className="relative group">
+									<TextArea
+										placeholder="https://example.com/file.zip&#10;magnet:?xt=urn:btih:..."
+										className="w-full p-4 bg-default/10 rounded-2xl text-sm border border-transparent focus:bg-default/20 focus:border-accent/30 transition-all outline-none min-h-[160px] leading-relaxed data-[invalid=true]:border-danger/50"
+									/>
+									<FieldError className="absolute -bottom-6 right-1 text-[10px] text-danger font-black uppercase tracking-widest animate-in fade-in slide-in-from-top-1" />
+								</div>
+								<p className="text-[10px] text-muted uppercase font-black tracking-widest px-1">
+									Enter one URL per line. Supports HTTP, FTP, SFTP and Magnet.
 								</p>
-							</Button>
-						</FileTrigger>
+							</div>
+						</TextField>
+					)}
 
-						{selectedFile && (
-							<Button
-								isIconOnly
-								size="sm"
-								variant="secondary"
-								className="absolute top-2 right-2 rounded-full shadow-sm"
-								onPress={() => setSelectedFile(null)}
+					{selectedTab === `${baseId}-torrent` && (
+						<div className="flex flex-col gap-3 relative group">
+							<Label className="text-sm font-bold tracking-tight px-1">
+								Torrent or Metalink File
+							</Label>
+							<FileTrigger
+								acceptedFileTypes={[".torrent", ".metalink"]}
+								onSelect={handleSelect}
 							>
-								<IconXmark className="w-4 h-4" />
-							</Button>
-						)}
-					</div>
-				)}
+								<Button
+									variant="secondary"
+									className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-border rounded-[32px] text-muted gap-4 hover:border-accent hover:text-accent transition-all cursor-pointer w-full h-auto bg-default/5 hover:bg-accent/5 overflow-hidden"
+								>
+									<div className="w-16 h-16 bg-background rounded-3xl flex items-center justify-center shadow-sm border border-border group-hover:scale-110 transition-transform duration-500">
+										<IconFileArrowUp
+											className={cn(
+												"w-8 h-8 transition-colors",
+												selectedFile ? "text-accent" : "opacity-30",
+											)}
+										/>
+									</div>
+									<div className="flex flex-col gap-1 items-center">
+										<p className="text-center w-full font-bold">
+											{selectedFile
+												? selectedFile.name
+												: "Click to browse or drop file here"}
+										</p>
+										{!selectedFile && (
+											<p className="text-[10px] uppercase font-black tracking-widest opacity-60">
+												Supports .torrent and .metalink
+											</p>
+										)}
+									</div>
+								</Button>
+							</FileTrigger>
 
-				<Accordion>
-					<Accordion.Item id={`${baseId}-advanced-item`}>
+							{selectedFile && (
+								<Button
+									isIconOnly
+									size="sm"
+									variant="secondary"
+									className="absolute top-10 right-2 rounded-2xl shadow-md border border-border"
+									onPress={() => setSelectedFile(null)}
+								>
+									<IconXmark className="w-4 h-4" />
+								</Button>
+							)}
+						</div>
+					)}
+				</div>
+
+				<Accordion className="px-0">
+					<Accordion.Item
+						id={`${baseId}-advanced-item`}
+						className="border-none bg-default/5 rounded-3xl overflow-hidden px-2 py-1"
+					>
 						<Accordion.Heading>
-							<Accordion.Trigger className="flex items-center gap-2 text-accent hover:underline py-2 outline-none">
-								<IconChevronRight className="w-4 h-4 group-data-[expanded=true]:rotate-90 transition-transform" />
-								<span className="font-semibold text-sm">Advanced Options</span>
+							<Accordion.Trigger className="px-4 py-3 hover:bg-default/10 rounded-2xl transition-all outline-none group">
+								<div className="flex items-center gap-3">
+									<div className="w-8 h-8 bg-background rounded-xl flex items-center justify-center shadow-sm border border-border group-data-[expanded=true]:text-accent group-data-[expanded=true]:border-accent/30">
+										<IconChevronDown className="w-4 h-4 group-data-[expanded=true]:rotate-180 transition-transform duration-300" />
+									</div>
+									<span className="font-bold text-sm tracking-tight">
+										Advanced Download Options
+									</span>
+								</div>
 							</Accordion.Trigger>
 						</Accordion.Heading>
 						<Accordion.Panel>
-							<Accordion.Body className="pt-4 pb-2 space-y-4">
-								<TextField>
-									<Label className="text-sm font-medium mb-1 block">
-										Download Directory
-									</Label>
-									<Input
-										placeholder="/home/user/downloads"
-										value={options.dir || ""}
-										onChange={(e) =>
-											setOptions({ ...options, dir: e.target.value })
-										}
-									/>
+							<Accordion.Body className="px-6 pb-6 pt-4">
+								<TextField
+									value={options.dir || ""}
+									onChange={(val) => setOptions({ ...options, dir: val })}
+								>
+									<div className="flex flex-col gap-2">
+										<Label className="text-xs font-bold tracking-tight uppercase text-muted">
+											Override Download Directory
+										</Label>
+										<Input
+											placeholder="/path/to/downloads"
+											className="w-full h-11 px-4 bg-background rounded-2xl text-sm border border-border focus:border-accent/30 transition-all outline-none"
+										/>
+										<p className="text-[10px] text-muted leading-relaxed">
+											Leave empty to use the default directory configured in
+											aria2.
+										</p>
+									</div>
 								</TextField>
 							</Accordion.Body>
 						</Accordion.Panel>
 					</Accordion.Item>
 				</Accordion>
 
-				<div className="flex justify-end gap-3 pt-6 border-t border-border">
+				<div className="flex justify-end gap-3 pt-4">
 					<Button
 						variant="ghost"
+						className="px-6 h-12 rounded-2xl font-bold"
 						onPress={() => navigate({ to: "/tasks/all" })}
 					>
 						Cancel
 					</Button>
 					<Button
+						className="px-8 h-12 rounded-2xl font-bold shadow-lg shadow-accent/20 bg-accent text-accent-foreground"
 						onPress={handleSubmit}
 						isDisabled={
-							selectedTab === `${baseId}-links` ? !uris.trim() : !selectedFile
+							selectedTab === `${baseId}-links`
+								? validateUris(uris) !== true
+								: !selectedFile
 						}
 					>
-						Download Now
+						Start Download
 					</Button>
 				</div>
 			</div>

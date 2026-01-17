@@ -1,4 +1,4 @@
-import { Chip, Description, Input, Label, TextField } from "@heroui/react";
+import { Chip, FieldError, Input, Label, TextField } from "@heroui/react";
 import type React from "react";
 import IconCircleInfo from "~icons/gravity-ui/circle-info";
 import { useAria2Version } from "../../../hooks/useAria2";
@@ -7,6 +7,24 @@ import { useSettingsStore } from "../../../store/useSettingsStore";
 export const ConnectionSettings: React.FC = () => {
 	const { rpcUrl, setRpcUrl, rpcSecret, setRpcSecret } = useSettingsStore();
 	const { data: version } = useAria2Version();
+
+	const validateUrl = (val: string) => {
+		if (!val) return "URL is required";
+		try {
+			const url = new URL(val);
+			if (
+				url.protocol !== "http:" &&
+				url.protocol !== "https:" &&
+				url.protocol !== "ws:" &&
+				url.protocol !== "wss:"
+			) {
+				return "Must be http/https or ws/wss";
+			}
+		} catch {
+			return "Invalid URL format";
+		}
+		return true;
+	};
 
 	return (
 		<div className="space-y-8">
@@ -18,31 +36,43 @@ export const ConnectionSettings: React.FC = () => {
 					</p>
 				</div>
 
-				<TextField>
-					<Label className="text-sm font-medium block mb-2">
-						RPC Server URL
-					</Label>
-					<Input
-						value={rpcUrl}
-						onChange={(e) => setRpcUrl(e.target.value)}
-						placeholder="http://localhost:6800/jsonrpc"
-					/>
-					<Description>
-						The JSON-RPC endpoint of your aria2 instance.
-					</Description>
+				<TextField
+					value={rpcUrl}
+					onChange={setRpcUrl}
+					validate={validateUrl}
+					validationBehavior="aria"
+				>
+					<div className="flex flex-col gap-2">
+						<Label className="text-sm font-bold tracking-tight">
+							RPC Server URL
+						</Label>
+						<div className="relative">
+							<Input
+								className="w-full h-11 px-4 bg-default/10 rounded-2xl text-sm border border-transparent focus:bg-default/20 focus:border-accent/30 transition-all outline-none data-[invalid=true]:border-danger/50"
+								placeholder="http://localhost:6800/jsonrpc"
+							/>
+							<FieldError className="absolute -bottom-5 right-0 text-[10px] text-danger font-bold uppercase tracking-tight" />
+						</div>
+						<p className="text-xs text-muted">
+							The JSON-RPC endpoint (HTTP or WebSocket).
+						</p>
+					</div>
 				</TextField>
 
-				<TextField>
-					<Label className="text-sm font-medium block mb-2">
-						RPC Secret Token
-					</Label>
-					<Input
-						type="password"
-						value={rpcSecret}
-						onChange={(e) => setRpcSecret(e.target.value)}
-						placeholder="Leave empty if not set"
-					/>
-					<Description>Passed as 'token:SECRET' in RPC calls.</Description>
+				<TextField value={rpcSecret} onChange={setRpcSecret}>
+					<div className="flex flex-col gap-2">
+						<Label className="text-sm font-bold tracking-tight">
+							RPC Secret Token
+						</Label>
+						<Input
+							type="password"
+							className="w-full h-11 px-4 bg-default/10 rounded-2xl text-sm border border-transparent focus:bg-default/20 focus:border-accent/30 transition-all outline-none"
+							placeholder="Leave empty if not set"
+						/>
+						<p className="text-xs text-muted">
+							Passed as 'token:SECRET' in RPC calls.
+						</p>
+					</div>
 				</TextField>
 			</div>
 
@@ -55,9 +85,9 @@ export const ConnectionSettings: React.FC = () => {
 						</h4>
 					</div>
 
-					<div className="bg-muted-background p-4 rounded-2xl border border-border space-y-4">
+					<div className="bg-muted-background p-5 rounded-3xl border border-border space-y-5 shadow-sm">
 						<div className="flex justify-between items-center">
-							<span className="text-sm text-muted">Version</span>
+							<span className="text-sm font-bold">Version</span>
 							<Chip
 								size="sm"
 								variant="soft"
@@ -68,17 +98,17 @@ export const ConnectionSettings: React.FC = () => {
 							</Chip>
 						</div>
 
-						<div className="space-y-2">
-							<span className="text-xs text-muted uppercase font-black">
+						<div className="space-y-3">
+							<span className="text-xs text-muted uppercase font-black tracking-widest">
 								Enabled Features
 							</span>
-							<div className="flex flex-wrap gap-1.5">
+							<div className="flex flex-wrap gap-2">
 								{version.enabledFeatures.map((feature) => (
 									<Chip
 										key={feature}
 										size="sm"
 										variant="soft"
-										className="text-[10px] uppercase font-bold"
+										className="text-[10px] uppercase font-bold bg-default/10"
 									>
 										{feature}
 									</Chip>
