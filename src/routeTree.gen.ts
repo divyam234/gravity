@@ -12,6 +12,10 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as AddRouteImport } from './routes/add'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as TasksWaitingRouteImport } from './routes/tasks.waiting'
+import { Route as TasksStoppedRouteImport } from './routes/tasks.stopped'
+import { Route as TasksAllRouteImport } from './routes/tasks.all'
+import { Route as TasksActiveRouteImport } from './routes/tasks.active'
 import { Route as TaskGidRouteImport } from './routes/task.$gid'
 
 const SettingsRoute = SettingsRouteImport.update({
@@ -29,6 +33,26 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TasksWaitingRoute = TasksWaitingRouteImport.update({
+  id: '/tasks/waiting',
+  path: '/tasks/waiting',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TasksStoppedRoute = TasksStoppedRouteImport.update({
+  id: '/tasks/stopped',
+  path: '/tasks/stopped',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TasksAllRoute = TasksAllRouteImport.update({
+  id: '/tasks/all',
+  path: '/tasks/all',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TasksActiveRoute = TasksActiveRouteImport.update({
+  id: '/tasks/active',
+  path: '/tasks/active',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TaskGidRoute = TaskGidRouteImport.update({
   id: '/task/$gid',
   path: '/task/$gid',
@@ -40,12 +64,20 @@ export interface FileRoutesByFullPath {
   '/add': typeof AddRoute
   '/settings': typeof SettingsRoute
   '/task/$gid': typeof TaskGidRoute
+  '/tasks/active': typeof TasksActiveRoute
+  '/tasks/all': typeof TasksAllRoute
+  '/tasks/stopped': typeof TasksStoppedRoute
+  '/tasks/waiting': typeof TasksWaitingRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/add': typeof AddRoute
   '/settings': typeof SettingsRoute
   '/task/$gid': typeof TaskGidRoute
+  '/tasks/active': typeof TasksActiveRoute
+  '/tasks/all': typeof TasksAllRoute
+  '/tasks/stopped': typeof TasksStoppedRoute
+  '/tasks/waiting': typeof TasksWaitingRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -53,13 +85,42 @@ export interface FileRoutesById {
   '/add': typeof AddRoute
   '/settings': typeof SettingsRoute
   '/task/$gid': typeof TaskGidRoute
+  '/tasks/active': typeof TasksActiveRoute
+  '/tasks/all': typeof TasksAllRoute
+  '/tasks/stopped': typeof TasksStoppedRoute
+  '/tasks/waiting': typeof TasksWaitingRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/add' | '/settings' | '/task/$gid'
+  fullPaths:
+    | '/'
+    | '/add'
+    | '/settings'
+    | '/task/$gid'
+    | '/tasks/active'
+    | '/tasks/all'
+    | '/tasks/stopped'
+    | '/tasks/waiting'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/add' | '/settings' | '/task/$gid'
-  id: '__root__' | '/' | '/add' | '/settings' | '/task/$gid'
+  to:
+    | '/'
+    | '/add'
+    | '/settings'
+    | '/task/$gid'
+    | '/tasks/active'
+    | '/tasks/all'
+    | '/tasks/stopped'
+    | '/tasks/waiting'
+  id:
+    | '__root__'
+    | '/'
+    | '/add'
+    | '/settings'
+    | '/task/$gid'
+    | '/tasks/active'
+    | '/tasks/all'
+    | '/tasks/stopped'
+    | '/tasks/waiting'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -67,6 +128,10 @@ export interface RootRouteChildren {
   AddRoute: typeof AddRoute
   SettingsRoute: typeof SettingsRoute
   TaskGidRoute: typeof TaskGidRoute
+  TasksActiveRoute: typeof TasksActiveRoute
+  TasksAllRoute: typeof TasksAllRoute
+  TasksStoppedRoute: typeof TasksStoppedRoute
+  TasksWaitingRoute: typeof TasksWaitingRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -92,6 +157,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/tasks/waiting': {
+      id: '/tasks/waiting'
+      path: '/tasks/waiting'
+      fullPath: '/tasks/waiting'
+      preLoaderRoute: typeof TasksWaitingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tasks/stopped': {
+      id: '/tasks/stopped'
+      path: '/tasks/stopped'
+      fullPath: '/tasks/stopped'
+      preLoaderRoute: typeof TasksStoppedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tasks/all': {
+      id: '/tasks/all'
+      path: '/tasks/all'
+      fullPath: '/tasks/all'
+      preLoaderRoute: typeof TasksAllRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tasks/active': {
+      id: '/tasks/active'
+      path: '/tasks/active'
+      fullPath: '/tasks/active'
+      preLoaderRoute: typeof TasksActiveRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/task/$gid': {
       id: '/task/$gid'
       path: '/task/$gid'
@@ -107,6 +200,10 @@ const rootRouteChildren: RootRouteChildren = {
   AddRoute: AddRoute,
   SettingsRoute: SettingsRoute,
   TaskGidRoute: TaskGidRoute,
+  TasksActiveRoute: TasksActiveRoute,
+  TasksAllRoute: TasksAllRoute,
+  TasksStoppedRoute: TasksStoppedRoute,
+  TasksWaitingRoute: TasksWaitingRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -5,17 +5,8 @@ import {
 	useQueryClient,
 	useSuspenseQuery,
 } from "@tanstack/react-query";
-import { useEffect } from "react";
 import { aria2 } from "../lib/aria2-rpc";
 import { useSettingsStore } from "../store/useSettingsStore";
-
-export function useSyncAria2() {
-	const { rpcUrl, rpcSecret } = useSettingsStore();
-
-	useEffect(() => {
-		aria2.updateConfig(rpcUrl, rpcSecret);
-	}, [rpcUrl, rpcSecret]);
-}
 
 // --- Query Options ---
 

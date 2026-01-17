@@ -1,4 +1,4 @@
-import { Button, Tabs } from "@heroui/react";
+import { Button, ScrollShadow, Tabs } from "@heroui/react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import React, { useId } from "react";
 import IconChevronLeft from "~icons/gravity-ui/chevron-left";
@@ -20,6 +20,7 @@ export const Route = createFileRoute("/settings")({
 	component: SettingsPage,
 	loader: async ({ context: { queryClient } }) => {
 		const { rpcUrl } = useSettingsStore.getState();
+		if (!rpcUrl) return;
 		await queryClient.ensureQueryData(globalOptionOptions(rpcUrl));
 	},
 });
@@ -31,21 +32,21 @@ function SettingsPage() {
 	const baseId = useId();
 
 	return (
-		<div className="max-w-6xl mx-auto space-y-6">
-			<div className="flex items-center gap-4">
+		<div className="flex flex-col h-full space-y-6">
+			<div className="flex items-center gap-4 shrink-0">
 				<Button
 					variant="ghost"
 					isIconOnly
-					onPress={() => navigate({ to: "/" })}
+					onPress={() => navigate({ to: "/", search: { status: "all" } })}
 				>
 					<IconChevronLeft className="w-5 h-5" />
 				</Button>
 				<h2 className="text-2xl font-bold tracking-tight">Settings</h2>
 			</div>
 
-			<div className="bg-default-50/50 rounded-3xl border border-default-100 flex flex-col md:flex-row overflow-hidden min-h-[600px]">
+			<div className="flex-1 bg-default-50/50 rounded-3xl border border-default-100 flex flex-col md:flex-row overflow-hidden min-h-0">
 				{/* Sidebar Tabs */}
-				<div className="w-full md:w-64 border-b md:border-b-0 md:border-r border-default-100 p-6 bg-default-50/30">
+				<div className="w-full md:w-64 border-b md:border-b-0 md:border-r border-default-100 p-6 bg-default-50/30 overflow-y-auto shrink-0">
 					<Tabs
 						aria-label="Settings Categories"
 						orientation="vertical"
@@ -103,27 +104,29 @@ function SettingsPage() {
 				</div>
 
 				{/* Content Area */}
-				<div className="flex-1 overflow-y-auto p-8 bg-background">
-					{selectedTab === `${baseId}-connection` && <ConnectionSettings />}
-					{selectedTab === `${baseId}-app` && <AppSettings />}
-					{selectedTab === `${baseId}-all-aria2` && options && (
-						<Aria2FullOptionsSettings options={options} />
-					)}
+				<ScrollShadow className="flex-1 p-8 bg-background overflow-y-auto">
+					<div className="max-w-4xl mx-auto">
+						{selectedTab === `${baseId}-connection` && <ConnectionSettings />}
+						{selectedTab === `${baseId}-app` && <AppSettings />}
+						{selectedTab === `${baseId}-all-aria2` && options && (
+							<Aria2FullOptionsSettings options={options} />
+						)}
 
-					{options && (
-						<div className="max-w-3xl">
-							{selectedTab === `${baseId}-general` && (
-								<Aria2GeneralSettings options={options} />
-							)}
-							{selectedTab === `${baseId}-connection-aria2` && (
-								<Aria2NetworkSettings options={options} />
-							)}
-							{selectedTab === `${baseId}-advanced` && (
-								<Aria2AdvancedSettings options={options} />
-							)}
-						</div>
-					)}
-				</div>
+						{options && (
+							<div>
+								{selectedTab === `${baseId}-general` && (
+									<Aria2GeneralSettings options={options} />
+								)}
+								{selectedTab === `${baseId}-connection-aria2` && (
+									<Aria2NetworkSettings options={options} />
+								)}
+								{selectedTab === `${baseId}-advanced` && (
+									<Aria2AdvancedSettings options={options} />
+								)}
+							</div>
+						)}
+					</div>
+				</ScrollShadow>
 			</div>
 		</div>
 	);

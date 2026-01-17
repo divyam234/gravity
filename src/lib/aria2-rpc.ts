@@ -65,10 +65,7 @@ export class Aria2Client {
 	private url: string;
 	private secret: string;
 
-	constructor(
-		url: string = "http://localhost:6800/jsonrpc",
-		secret: string = "",
-	) {
+	constructor(url: string = "", secret: string = "") {
 		this.url = url;
 		this.secret = secret;
 	}

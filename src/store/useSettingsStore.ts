@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { aria2 } from "../lib/aria2-rpc";
 
 interface SettingsState {
 	rpcUrl: string;
@@ -15,7 +16,7 @@ interface SettingsState {
 export const useSettingsStore = create<SettingsState>()(
 	persist(
 		(set) => ({
-			rpcUrl: "http://localhost:6800/jsonrpc",
+			rpcUrl: "",
 			rpcSecret: "",
 			pollingInterval: 1000,
 			theme: "dark",
@@ -29,3 +30,14 @@ export const useSettingsStore = create<SettingsState>()(
 		},
 	),
 );
+
+// Synchronously initialize the aria2 client with persisted settings
+const initSettings = useSettingsStore.getState();
+if (initSettings.rpcUrl) {
+	aria2.updateConfig(initSettings.rpcUrl, initSettings.rpcSecret);
+}
+
+// Subscribe to store changes to keep the aria2 client in sync
+useSettingsStore.subscribe((state) => {
+	aria2.updateConfig(state.rpcUrl, state.rpcSecret);
+});

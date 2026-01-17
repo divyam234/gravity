@@ -54,31 +54,38 @@ function AddDownloadPage() {
 	};
 
 	const handleSubmit = async () => {
+		const onSuccess = () => navigate({ to: "/tasks/active" });
+
 		if (selectedTab === `${baseId}-links` && uris.trim()) {
 			const uriList = uris.split("\n").filter((u) => u.trim());
-			addUri.mutate({
-				uris: uriList,
-				options: options as Record<string, string>,
-			});
-			setUris("");
-			navigate({ to: "/" });
+			addUri.mutate(
+				{
+					uris: uriList,
+					options: options as Record<string, string>,
+				},
+				{ onSuccess },
+			);
 		} else if (selectedTab === `${baseId}-torrent` && selectedFile) {
 			const reader = new FileReader();
 			reader.onload = () => {
 				const base64 = (reader.result as string).split(",")[1];
 				if (selectedFile.name.endsWith(".torrent")) {
-					addTorrent.mutate({
-						torrent: base64,
-						options: options as Record<string, string>,
-					});
+					addTorrent.mutate(
+						{
+							torrent: base64,
+							options: options as Record<string, string>,
+						},
+						{ onSuccess },
+					);
 				} else if (selectedFile.name.endsWith(".metalink")) {
-					addMetalink.mutate({
-						metalink: base64,
-						options: options as Record<string, string>,
-					});
+					addMetalink.mutate(
+						{
+							metalink: base64,
+							options: options as Record<string, string>,
+						},
+						{ onSuccess },
+					);
 				}
-				setSelectedFile(null);
-				navigate({ to: "/" });
 			};
 			reader.readAsDataURL(selectedFile);
 		}
@@ -90,7 +97,7 @@ function AddDownloadPage() {
 				<Button
 					variant="ghost"
 					isIconOnly
-					onPress={() => navigate({ to: "/" })}
+					onPress={() => navigate({ to: "/tasks/all" })}
 				>
 					<IconChevronLeft className="w-5 h-5" />
 				</Button>
@@ -186,9 +193,7 @@ function AddDownloadPage() {
 						<Accordion.Heading>
 							<Accordion.Trigger className="flex items-center gap-2 text-accent hover:underline py-2 outline-none">
 								<IconChevronRight className="w-4 h-4 group-data-[expanded=true]:rotate-90 transition-transform" />
-								<span className="font-semibold text-sm">
-									Advanced Options
-								</span>
+								<span className="font-semibold text-sm">Advanced Options</span>
 							</Accordion.Trigger>
 						</Accordion.Heading>
 						<Accordion.Panel>
@@ -211,7 +216,10 @@ function AddDownloadPage() {
 				</Accordion>
 
 				<div className="flex justify-end gap-3 pt-6 border-t border-default-100">
-					<Button variant="ghost" onPress={() => navigate({ to: "/" })}>
+					<Button
+						variant="ghost"
+						onPress={() => navigate({ to: "/tasks/all" })}
+					>
 						Cancel
 					</Button>
 					<Button
