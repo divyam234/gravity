@@ -104,6 +104,11 @@ export const taskServersOptions = (rpcUrl: string, gid: string) =>
 
 // --- Hooks ---
 
+export function useAria2Version() {
+	const { rpcUrl } = useSettingsStore();
+	return useSuspenseQuery(aria2VersionOptions(rpcUrl));
+}
+
 export function useGlobalStat() {
 	const { pollingInterval, rpcUrl } = useSettingsStore();
 	return useSuspenseQuery(globalStatOptions(rpcUrl, pollingInterval));
@@ -245,6 +250,10 @@ export function useAria2Actions() {
 		onSuccess: invalidateTasks,
 	});
 
+	const saveSession = useMutation({
+		mutationFn: () => aria2.saveSession(),
+	});
+
 	return {
 		addUri,
 		addTorrent,
@@ -254,5 +263,6 @@ export function useAria2Actions() {
 		remove,
 		forceRemove,
 		purgeDownloadResult,
+		saveSession,
 	};
 }

@@ -1,6 +1,6 @@
+import { createRouter, RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import ReactDOM from "react-dom/client";
-import { RouterProvider, createRouter } from "@tanstack/react-router";
 
 import * as TanStackQueryProvider from "./integrations/tanstack-query/root-provider.tsx";
 
@@ -8,7 +8,6 @@ import * as TanStackQueryProvider from "./integrations/tanstack-query/root-provi
 import { routeTree } from "./routeTree.gen";
 
 import "./styles.css";
-import reportWebVitals from "./reportWebVitals.ts";
 
 // Create a new router instance
 
@@ -43,8 +42,3 @@ if (rootElement && !rootElement.innerHTML) {
 		</StrictMode>,
 	);
 }
-
-// If you want to start measuring performance in your app, pass a function
-// to log results (for example: reportWebVitals(console.log))
-// or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
-reportWebVitals();

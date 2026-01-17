@@ -252,6 +252,10 @@ export class Aria2Client {
 		return this.request<string>("aria2.purgeDownloadResult");
 	}
 
+	async saveSession() {
+		return this.request<string>("aria2.saveSession");
+	}
+
 	// --- System ---
 
 	async multicall(methods: { methodName: string; params: any[] }[]) {
