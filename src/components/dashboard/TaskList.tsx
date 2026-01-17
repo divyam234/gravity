@@ -1,4 +1,4 @@
-import { Button, Checkbox, Spinner, Tabs, Tooltip } from "@heroui/react";
+import { Button, Card, Checkbox, Skeleton, Tabs, Tooltip } from "@heroui/react";
 import React, { useId } from "react";
 import IconArchive from "~icons/gravity-ui/archive";
 import IconChevronDown from "~icons/gravity-ui/chevron-down";
@@ -69,8 +69,27 @@ export const TaskList: React.FC = () => {
 
 	if (isLoading) {
 		return (
-			<div className="flex justify-center p-8">
-				<Spinner size="lg" />
+			<div className="space-y-4">
+				<Skeleton className="w-1/2 h-10 rounded-xl" />
+				{[1, 2, 3].map((i) => (
+					<Card key={i} className="p-4 space-y-4 shadow-sm border-default-100">
+						<div className="flex justify-between items-start gap-4">
+							<div className="flex-1 space-y-2">
+								<Skeleton className="w-1/2 h-5 rounded-lg" />
+								<Skeleton className="w-1/4 h-3 rounded-lg" />
+							</div>
+							<div className="flex gap-2">
+								<Skeleton className="w-8 h-8 rounded-lg" />
+								<Skeleton className="w-8 h-8 rounded-lg" />
+							</div>
+						</div>
+						<Skeleton className="w-full h-3 rounded-full" />
+						<div className="flex justify-between">
+							<Skeleton className="w-1/4 h-3 rounded-lg" />
+							<Skeleton className="w-1/4 h-3 rounded-lg" />
+						</div>
+					</Card>
+				))}
 			</div>
 		);
 	}

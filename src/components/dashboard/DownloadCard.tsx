@@ -1,4 +1,4 @@
-import { Button, Card, Tooltip } from "@heroui/react";
+import { Button, Card, Kbd, Tooltip } from "@heroui/react";
 import { Link } from "@tanstack/react-router";
 import type React from "react";
 import IconListUl from "~icons/gravity-ui/list-ul";
@@ -39,7 +39,7 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({ task }) => {
 	const isComplete = task.status === "complete";
 
 	return (
-		<Card className="w-full">
+		<Card className="w-full shadow-sm border-default-100 hover:shadow-md transition-shadow">
 			<Card.Content className="p-4 space-y-4">
 				<div className="flex justify-between items-start gap-4">
 					<Link
@@ -48,14 +48,14 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({ task }) => {
 						className="flex-1 min-w-0 cursor-pointer group outline-none"
 					>
 						<h3
-							className="text-lg font-semibold truncate group-hover:text-primary transition-colors"
+							className="text-lg font-bold truncate group-hover:text-primary transition-colors leading-tight"
 							title={fileName}
 						>
 							{fileName}
 						</h3>
-						<div className="flex items-center gap-2 mt-1">
+						<div className="flex items-center gap-2 mt-1.5">
 							<StatusChip status={task.status} />
-							<span className="text-small text-default-500">
+							<span className="text-small text-default-500 font-medium">
 								{formatBytes(completedLength)} / {formatBytes(totalLength)}
 							</span>
 						</div>
@@ -70,7 +70,9 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({ task }) => {
 									</Button>
 								</Link>
 							</Tooltip.Trigger>
-							<Tooltip.Content>Files & Details</Tooltip.Content>
+							<Tooltip.Content className="p-2 text-tiny">
+								Files & Details
+							</Tooltip.Content>
 						</Tooltip>
 
 						{isActive && (
@@ -82,10 +84,12 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({ task }) => {
 										variant="ghost"
 										onPress={() => pause.mutate(task.gid)}
 									>
-										<IconPause className="w-4.5 h-4.5" />
+										<IconPause className="w-4.5 h-4.5 text-warning" />
 									</Button>
 								</Tooltip.Trigger>
-								<Tooltip.Content>Pause</Tooltip.Content>
+								<Tooltip.Content className="p-2 text-tiny flex items-center gap-2">
+									Pause <Kbd>P</Kbd>
+								</Tooltip.Content>
 							</Tooltip>
 						)}
 
@@ -98,10 +102,12 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({ task }) => {
 										variant="ghost"
 										onPress={() => unpause.mutate(task.gid)}
 									>
-										<IconPlay className="w-4.5 h-4.5" />
+										<IconPlay className="w-4.5 h-4.5 text-success" />
 									</Button>
 								</Tooltip.Trigger>
-								<Tooltip.Content>Resume</Tooltip.Content>
+								<Tooltip.Content className="p-2 text-tiny flex items-center gap-2">
+									Resume <Kbd>R</Kbd>
+								</Tooltip.Content>
 							</Tooltip>
 						)}
 
@@ -117,7 +123,9 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({ task }) => {
 									<IconTrashBin className="w-4.5 h-4.5" />
 								</Button>
 							</Tooltip.Trigger>
-							<Tooltip.Content>Remove</Tooltip.Content>
+							<Tooltip.Content className="p-2 text-tiny">
+								Remove
+							</Tooltip.Content>
 						</Tooltip>
 					</div>
 				</div>
@@ -129,24 +137,30 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({ task }) => {
 					showValueLabel
 				/>
 
-				<div className="flex justify-between items-center text-small text-default-500 bg-default-50 p-2 rounded-lg">
+				<div className="flex justify-between items-center text-small text-default-500 bg-default-50/50 p-2 rounded-xl border border-default-50">
 					<div className="flex gap-4">
-						<span className="flex items-center gap-1">
-							⬇ {formatBytes(downloadSpeed)}/s
+						<span className="flex items-center gap-1.5 font-bold text-success/80">
+							<div className="w-1.5 h-1.5 rounded-full bg-success" />
+							{formatBytes(downloadSpeed)}/s
 						</span>
-						<span className="flex items-center gap-1">
-							⬆ {formatBytes(uploadSpeed)}/s
+						<span className="flex items-center gap-1.5 font-bold text-primary/80">
+							<div className="w-1.5 h-1.5 rounded-full bg-primary" />
+							{formatBytes(uploadSpeed)}/s
 						</span>
 					</div>
 
-					<div className="flex gap-4">
+					<div className="flex gap-4 font-medium">
 						{isActive && <span>ETA: {formatTime(eta)}</span>}
 						{task.numSeeders && (
-							<span>
+							<span className="bg-default-100 px-2 py-0.5 rounded text-[10px] uppercase font-black">
 								Peers: {task.connections} (S:{task.numSeeders})
 							</span>
 						)}
-						{!task.numSeeders && <span>Conn: {task.connections}</span>}
+						{!task.numSeeders && (
+							<span className="bg-default-100 px-2 py-0.5 rounded text-[10px] uppercase font-black">
+								Conn: {task.connections}
+							</span>
+						)}
 					</div>
 				</div>
 			</Card.Content>

@@ -1,10 +1,11 @@
 import {
+	Avatar,
 	Button,
 	Card,
-	Checkbox,
 	Chip,
+	ListBox,
 	ScrollShadow,
-	Spinner,
+	Skeleton,
 	Tabs,
 } from "@heroui/react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
@@ -44,9 +45,7 @@ function TaskDetailsPage() {
 		selectedTab === `${baseId}-servers`,
 	);
 
-	const [selectedIndices, setSelectedIndices] = React.useState<Set<string>>(
-		new Set(),
-	);
+	const [selectedKeys, setSelectedKeys] = React.useState<any>(new Set());
 
 	React.useEffect(() => {
 		if (files) {
@@ -55,26 +54,33 @@ function TaskDetailsPage() {
 					.filter((f: Aria2File) => f.selected === "true")
 					.map((f: Aria2File) => f.index),
 			);
-			setSelectedIndices(selected);
+			setSelectedKeys(selected);
 		}
 	}, [files]);
 
-	const handleToggleFile = (index: string, isSelected: boolean) => {
-		const newSelected = new Set(selectedIndices);
-		if (isSelected) newSelected.add(index);
-		else newSelected.delete(index);
+	const handleSelectionChange = (keys: any) => {
+		setSelectedKeys(keys);
+		if (keys === "all") return;
 
-		setSelectedIndices(newSelected);
-
-		// Apply to aria2
-		const selectFileStr = Array.from(newSelected).sort().join(",");
+		const selectFileStr = Array.from(keys).sort().join(",");
 		aria2.changeOption(gid, { "select-file": selectFileStr });
 	};
 
 	if (isStatusLoading) {
 		return (
-			<div className="flex items-center justify-center min-h-[400px]">
-				<Spinner size="lg" />
+			<div className="max-w-6xl mx-auto space-y-6">
+				<div className="flex items-center gap-4 animate-pulse">
+					<div className="w-10 h-10 bg-default-200 rounded-lg" />
+					<div className="w-48 h-8 bg-default-200 rounded-lg" />
+				</div>
+				<div className="flex flex-col md:flex-row gap-6">
+					<div className="w-full md:w-64 space-y-2">
+						{[1, 2, 3, 4].map((i) => (
+							<Skeleton key={i} className="h-12 rounded-xl" />
+						))}
+					</div>
+					<Skeleton className="flex-1 min-h-[500px] rounded-3xl" />
+				</div>
 			</div>
 		);
 	}
@@ -89,7 +95,7 @@ function TaskDetailsPage() {
 				>
 					<IconChevronLeft className="w-5 h-5" />
 				</Button>
-				<h2 className="text-2xl font-bold">Task Details</h2>
+				<h2 className="text-2xl font-bold tracking-tight">Task Details</h2>
 				<code className="text-xs bg-default-100 px-2 py-1 rounded text-default-500">
 					{gid}
 				</code>
@@ -98,7 +104,7 @@ function TaskDetailsPage() {
 			<div className="flex flex-col md:flex-row gap-6">
 				{/* Sidebar / Tabs */}
 				<div className="w-full md:w-64">
-					<Card className="p-2">
+					<Card className="p-2 shadow-sm border-default-100">
 						<Tabs
 							aria-label="Task Details Sections"
 							orientation="vertical"
@@ -144,18 +150,21 @@ function TaskDetailsPage() {
 
 				{/* Content Area */}
 				<div className="flex-1 min-h-[500px]">
-					<Card className="h-full overflow-hidden flex flex-col bg-default-50/30">
+					<Card className="h-full overflow-hidden flex flex-col bg-default-50/30 shadow-sm border-default-100">
 						{selectedTab === `${baseId}-overview` && task && (
 							<ScrollShadow className="flex-1 p-6">
-								<div className="space-y-8">
+								<div className="space-y-8 text-foreground">
 									<section>
-										<h3 className="text-lg font-bold mb-4">Identity</h3>
-										<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+										<h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+											<div className="w-1.5 h-1.5 rounded-full bg-primary" />
+											Identity
+										</h3>
+										<div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-background p-6 rounded-2xl border border-default-100">
 											<div className="space-y-1">
 												<p className="text-tiny text-default-500 uppercase font-bold">
 													Filename
 												</p>
-												<p className="text-small break-all">
+												<p className="text-medium font-semibold break-all">
 													{task.bittorrent?.info?.name ||
 														task.files[0]?.path?.split("/").pop() ||
 														gid}
@@ -165,14 +174,16 @@ function TaskDetailsPage() {
 												<p className="text-tiny text-default-500 uppercase font-bold">
 													GID
 												</p>
-												<p className="font-mono text-small">{gid}</p>
+												<p className="font-mono text-small bg-default-50 px-2 py-0.5 rounded border border-default-100 inline-block">
+													{gid}
+												</p>
 											</div>
 											{task.infoHash && (
-												<div className="space-y-1 md:col-span-2">
+												<div className="space-y-1 md:col-span-2 pt-2 border-t border-default-50">
 													<p className="text-tiny text-default-500 uppercase font-bold">
 														Info Hash
 													</p>
-													<p className="font-mono text-small break-all">
+													<p className="font-mono text-small break-all text-primary">
 														{task.infoHash}
 													</p>
 												</div>
@@ -181,21 +192,29 @@ function TaskDetailsPage() {
 									</section>
 
 									<section>
-										<h3 className="text-lg font-bold mb-4">Location</h3>
-										<div className="grid grid-cols-1 gap-4">
+										<h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+											<div className="w-1.5 h-1.5 rounded-full bg-primary" />
+											Location
+										</h3>
+										<div className="bg-background p-6 rounded-2xl border border-default-100">
 											<div className="space-y-1">
 												<p className="text-tiny text-default-500 uppercase font-bold">
 													Download Directory
 												</p>
-												<p className="text-small break-all">{task.dir}</p>
+												<p className="text-small font-medium break-all">
+													{task.dir}
+												</p>
 											</div>
 										</div>
 									</section>
 
 									<section>
-										<h3 className="text-lg font-bold mb-4">Status</h3>
+										<h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+											<div className="w-1.5 h-1.5 rounded-full bg-primary" />
+											Status
+										</h3>
 										<div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-											<div className="p-4 bg-background rounded-2xl border border-default-100">
+											<div className="p-4 bg-background rounded-2xl border border-default-100 shadow-sm">
 												<p className="text-tiny text-default-500 uppercase font-bold mb-1">
 													State
 												</p>
@@ -208,13 +227,13 @@ function TaskDetailsPage() {
 													{task.status}
 												</Chip>
 											</div>
-											<div className="p-4 bg-background rounded-2xl border border-default-100">
+											<div className="p-4 bg-background rounded-2xl border border-default-100 shadow-sm">
 												<p className="text-tiny text-default-500 uppercase font-bold mb-1">
 													Connections
 												</p>
 												<p className="text-xl font-bold">{task.connections}</p>
 											</div>
-											<div className="p-4 bg-background rounded-2xl border border-default-100">
+											<div className="p-4 bg-background rounded-2xl border border-default-100 shadow-sm">
 												<p className="text-tiny text-default-500 uppercase font-bold mb-1">
 													Total Size
 												</p>
@@ -222,7 +241,7 @@ function TaskDetailsPage() {
 													{formatBytes(task.totalLength)}
 												</p>
 											</div>
-											<div className="p-4 bg-background rounded-2xl border border-default-100">
+											<div className="p-4 bg-background rounded-2xl border border-default-100 shadow-sm">
 												<p className="text-tiny text-default-500 uppercase font-bold mb-1">
 													Uploaded
 												</p>
@@ -238,57 +257,74 @@ function TaskDetailsPage() {
 
 						{selectedTab === `${baseId}-files` && (
 							<div className="flex flex-col h-full">
-								<div className="p-4 border-b border-default-100 flex justify-between items-center bg-default-50">
-									<span className="text-small font-medium text-default-500">
-										{files?.length} Files found
-									</span>
-									<Chip size="sm" variant="soft" color="accent">
-										Selective Download Enabled
+								<div className="p-6 border-b border-default-100 flex justify-between items-center bg-default-50/50">
+									<div>
+										<span className="text-xl font-bold block leading-tight">
+											Files
+										</span>
+										<span className="text-small text-default-500">
+											{files?.length} items • Toggle to enable/disable
+										</span>
+									</div>
+									<Chip
+										variant="soft"
+										color="accent"
+										size="sm"
+										className="font-bold"
+									>
+										SELECTIVE DOWNLOAD
 									</Chip>
 								</div>
-								<ScrollShadow className="flex-1 p-4">
-									<div className="space-y-3">
-										{files?.map((file: Aria2File) => (
-											<div
-												key={file.index}
-												className="flex items-start gap-4 p-4 rounded-2xl border border-default-100 bg-background hover:border-primary/50 hover:shadow-sm transition-all group"
-											>
-												<Checkbox
-													isSelected={selectedIndices.has(file.index)}
-													onChange={(isSelected) =>
-														handleToggleFile(file.index, isSelected)
-													}
-												>
-													<Checkbox.Control>
-														<Checkbox.Indicator />
-													</Checkbox.Control>
-												</Checkbox>
 
-												<div className="flex-1 min-w-0">
-													<div className="flex items-center gap-2">
-														<IconFile className="w-4.5 h-4.5 text-default-400 group-hover:text-primary transition-colors shrink-0" />
-														<span
-															className="text-medium font-semibold truncate"
-															title={file.path}
-														>
-															{file.path.split("/").pop() || "Unknown File"}
-														</span>
-													</div>
-													<div className="flex gap-4 mt-2 text-small text-default-500">
-														<span>{formatBytes(file.length)}</span>
-														<span className="text-success font-medium">
-															{(
-																(Number(file.completedLength) /
-																	Number(file.length)) *
-																100
-															).toFixed(1)}
-															%
-														</span>
+								<ScrollShadow className="flex-1">
+									<ListBox
+										aria-label="Files list"
+										selectionMode="multiple"
+										selectedKeys={selectedKeys}
+										onSelectionChange={handleSelectionChange}
+										className="p-4"
+										variant="default"
+									>
+										{(files || []).map((file: Aria2File) => (
+											<ListBox.Item
+												key={file.index}
+												id={file.index}
+												textValue={file.path}
+												className="mb-2 p-4 rounded-2xl border border-default-100 bg-background hover:border-primary/50 transition-all group data-[selected=true]:border-primary/40 data-[selected=true]:bg-primary/5"
+											>
+												<div className="flex items-start gap-4 w-full">
+													<ListBox.ItemIndicator className="mt-1" />
+
+													<div className="flex-1 min-w-0">
+														<div className="flex items-center gap-2">
+															<IconFile className="w-4.5 h-4.5 text-default-400 group-hover:text-primary transition-colors shrink-0" />
+															<span
+																className="text-medium font-semibold truncate"
+																title={file.path}
+															>
+																{file.path.split("/").pop() || "Unknown File"}
+															</span>
+														</div>
+														<div className="flex gap-4 mt-2 text-small text-default-500">
+															<span className="flex items-center gap-1.5">
+																<div className="w-1 h-1 rounded-full bg-default-300" />
+																{formatBytes(file.length)}
+															</span>
+															<span className="flex items-center gap-1.5 text-success font-medium">
+																<div className="w-1 h-1 rounded-full bg-success" />
+																{(
+																	(Number(file.completedLength) /
+																		Number(file.length)) *
+																	100
+																).toFixed(1)}
+																% complete
+															</span>
+														</div>
 													</div>
 												</div>
-											</div>
+											</ListBox.Item>
 										))}
-									</div>
+									</ListBox>
 								</ScrollShadow>
 							</div>
 						)}
@@ -297,38 +333,52 @@ function TaskDetailsPage() {
 							<ScrollShadow className="flex-1 p-4">
 								{!peers || peers.length === 0 ? (
 									<div className="flex flex-col items-center justify-center h-full text-default-400 gap-4">
-										<IconPersons className="w-12 h-12 opacity-20" />
-										<p>No peers connected</p>
+										<div className="p-6 rounded-full bg-default-50">
+											<IconPersons className="w-12 h-12 opacity-20" />
+										</div>
+										<p className="font-medium">No peers connected</p>
 									</div>
 								) : (
 									<div className="space-y-3">
 										{peers.map((peer: any) => (
 											<div
 												key={`${peer.ip}-${peer.port}`}
-												className="flex items-center justify-between p-4 rounded-2xl border border-default-100 bg-background"
+												className="flex items-center justify-between p-5 rounded-2xl border border-default-100 bg-background shadow-sm hover:border-primary/30 transition-colors"
 											>
-												<div className="flex flex-col">
-													<span className="text-small font-bold">
-														{peer.ip}:{peer.port}
-													</span>
-													<span className="text-tiny text-default-500">
-														{peer.peerId}
-													</span>
+												<div className="flex items-center gap-4">
+													<Avatar className="w-10 h-10 font-bold bg-primary/10 text-primary">
+														<Avatar.Fallback>
+															{peer.peerId.slice(1, 3).toUpperCase()}
+														</Avatar.Fallback>
+													</Avatar>
+													<div className="flex flex-col gap-1">
+														<div className="flex items-center gap-2">
+															<span className="text-small font-bold">
+																{peer.ip}
+															</span>
+															<span className="text-tiny bg-default-100 px-1.5 py-0.5 rounded text-default-500">
+																:{peer.port}
+															</span>
+														</div>
+														<span className="text-tiny font-mono text-default-400 truncate max-w-[200px]">
+															{peer.peerId}
+														</span>
+													</div>
 												</div>
-												<div className="flex gap-6 text-small">
+												<div className="flex gap-8">
 													<div className="flex flex-col items-end">
-														<span className="text-tiny text-default-400 uppercase font-bold">
+														<span className="text-[10px] text-default-400 uppercase font-black tracking-wider">
 															Down
 														</span>
-														<span className="text-success font-bold">
+														<span className="text-small text-success font-bold">
 															{formatBytes(peer.downloadSpeed)}/s
 														</span>
 													</div>
-													<div className="flex flex-col items-end">
-														<span className="text-tiny text-default-400 uppercase font-bold">
+													<div className="flex flex-col items-end border-l border-default-100 pl-8">
+														<span className="text-[10px] text-default-400 uppercase font-black tracking-wider">
 															Up
 														</span>
-														<span className="text-primary font-bold">
+														<span className="text-small text-primary font-bold">
 															{formatBytes(peer.uploadSpeed)}/s
 														</span>
 													</div>
@@ -344,40 +394,60 @@ function TaskDetailsPage() {
 							<ScrollShadow className="flex-1 p-4">
 								{!servers || servers.length === 0 ? (
 									<div className="flex flex-col items-center justify-center h-full text-default-400 gap-4">
-										<IconNodesDown className="w-12 h-12 opacity-20" />
-										<p>No server information available</p>
+										<div className="p-6 rounded-full bg-default-50">
+											<IconNodesDown className="w-12 h-12 opacity-20" />
+										</div>
+										<p className="font-medium">
+											No server information available
+										</p>
 									</div>
 								) : (
-									<div className="space-y-4">
+									<div className="space-y-6">
 										{servers.map((srv: any) => (
 											<div key={srv.index} className="space-y-3">
-												<div className="text-tiny font-bold text-default-400 uppercase px-2">
-													File Index: {srv.index}
-												</div>
-												{srv.servers.map((s: any) => (
-													<div
-														key={s.uri}
-														className="p-4 rounded-2xl border border-default-100 bg-background flex justify-between items-center"
-													>
-														<div className="flex flex-col min-w-0">
-															<span className="text-small font-bold truncate">
-																{s.uri}
-															</span>
-															<span className="text-tiny text-default-500">
-																Status: {s.currentPriority} | Current:{" "}
-																{s.uri === srv.currentUri ? "Yes" : "No"}
-															</span>
-														</div>
-														<div className="flex flex-col items-end shrink-0">
-															<span className="text-tiny text-default-400 uppercase font-bold">
-																Speed
-															</span>
-															<span className="text-success font-bold">
-																{formatBytes(s.downloadSpeed)}/s
-															</span>
-														</div>
+												<div className="flex items-center gap-2 px-2">
+													<div className="w-1 h-3 rounded-full bg-primary" />
+													<div className="text-tiny font-black text-default-400 uppercase tracking-widest">
+														File Index: {srv.index}
 													</div>
-												))}
+												</div>
+												<div className="space-y-2">
+													{srv.servers.map((s: any) => (
+														<div
+															key={s.uri}
+															className="p-4 rounded-2xl border border-default-100 bg-background flex justify-between items-center shadow-sm hover:border-primary/20 transition-colors"
+														>
+															<div className="flex flex-col min-w-0 gap-1">
+																<span className="text-small font-bold truncate text-primary/80">
+																	{s.uri}
+																</span>
+																<div className="flex items-center gap-2">
+																	{s.uri === srv.currentUri && (
+																		<Chip
+																			size="sm"
+																			variant="soft"
+																			color="success"
+																			className="h-4 text-[10px] font-bold"
+																		>
+																			CURRENT
+																		</Chip>
+																	)}
+																	<span className="text-tiny text-default-500 font-medium">
+																		Priority: {s.currentPriority}
+																	</span>
+																</div>
+															</div>
+															<div className="flex flex-col items-end shrink-0 ml-4">
+																<span className="text-[10px] text-default-400 uppercase font-black">
+																	Speed
+																</span>
+																<span className="text-small text-success font-bold">
+																	{formatBytes(s.downloadSpeed)}/s
+																</span>
+															</div>
+														</div>
+													))}
+												</div>
 											</div>
 										))}
 									</div>

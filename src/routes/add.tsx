@@ -10,12 +10,15 @@ import {
 } from "@heroui/react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import React, { useId } from "react";
+import { FileTrigger } from "react-aria-components";
 import IconChevronLeft from "~icons/gravity-ui/chevron-left";
 import IconChevronRight from "~icons/gravity-ui/chevron-right";
 import IconFileArrowUp from "~icons/gravity-ui/file-arrow-up";
 import IconLink from "~icons/gravity-ui/link";
+import IconXmark from "~icons/gravity-ui/xmark";
 import { useAria2Actions } from "../hooks/useAria2";
 import { cn } from "../lib/utils";
+import { useFileStore } from "../store/useFileStore";
 
 export const Route = createFileRoute("/add")({
 	component: AddDownloadPage,
@@ -24,29 +27,27 @@ export const Route = createFileRoute("/add")({
 function AddDownloadPage() {
 	const navigate = useNavigate();
 	const baseId = useId();
+	const { pendingFile, clearPendingFile } = useFileStore();
 	const [selectedTab, setSelectedTab] = React.useState<React.Key>(
 		`${baseId}-links`,
 	);
 	const [uris, setUris] = React.useState("");
 	const [options, setOptions] = React.useState<{ dir?: string }>({});
-	const fileInputRef = React.useRef<HTMLInputElement>(null);
 	const [selectedFile, setSelectedFile] = React.useState<File | null>(null);
 
+	// Handle file from global drop
 	React.useEffect(() => {
-		const handleFileDrop = (e: any) => {
-			if (e.detail) {
-				setSelectedFile(e.detail);
-				setSelectedTab(`${baseId}-torrent`);
-			}
-		};
-		window.addEventListener("aria2-file-drop", handleFileDrop);
-		return () => window.removeEventListener("aria2-file-drop", handleFileDrop);
-	}, [baseId]);
+		if (pendingFile) {
+			setSelectedFile(pendingFile);
+			setSelectedTab(`${baseId}-torrent`);
+			clearPendingFile();
+		}
+	}, [pendingFile, clearPendingFile, baseId]);
 
 	const { addUri, addTorrent, addMetalink } = useAria2Actions();
 
-	const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-		const file = e.target.files?.[0];
+	const handleSelect = (e: FileList | null) => {
+		const file = e?.[0];
 		if (file) {
 			setSelectedFile(file);
 		}
@@ -93,10 +94,10 @@ function AddDownloadPage() {
 				>
 					<IconChevronLeft className="w-5 h-5" />
 				</Button>
-				<h2 className="text-2xl font-bold">Add Download</h2>
+				<h2 className="text-2xl font-bold tracking-tight">Add Download</h2>
 			</div>
 
-			<div className="bg-default-50/50 p-6 rounded-2xl border border-default-100 space-y-6">
+			<div className="bg-default-50/50 p-6 rounded-3xl border border-default-100 space-y-6">
 				<Tabs
 					aria-label="Download Type"
 					selectedKey={selectedTab as string}
@@ -143,52 +144,51 @@ function AddDownloadPage() {
 				)}
 
 				{selectedTab === `${baseId}-torrent` && (
-					<div className="flex flex-col gap-6">
-						<button
-							type="button"
-							className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-default-200 rounded-2xl text-default-400 gap-4 hover:border-primary/50 transition-colors cursor-pointer w-full text-left"
-							onClick={() => fileInputRef.current?.click()}
+					<div className="flex flex-col gap-6 relative group">
+						<FileTrigger
+							acceptedFileTypes={[".torrent", ".metalink"]}
+							onSelect={handleSelect}
 						>
-							<input
-								type="file"
-								ref={fileInputRef}
-								className="hidden"
-								accept=".torrent,.metalink"
-								onChange={handleFileChange}
-							/>
-							<IconFileArrowUp
-								className={cn(
-									"w-12 h-12",
-									selectedFile ? "text-primary opacity-100" : "opacity-20",
-								)}
-							/>
-							<p className="text-center w-full">
-								{selectedFile
-									? selectedFile.name
-									: "Click to browse or drag and drop .torrent or .metalink files here"}
-							</p>
-							{selectedFile && (
-								<Button
-									size="sm"
-									variant="tertiary"
-									onClick={(e) => {
-										e.stopPropagation();
-										setSelectedFile(null);
-									}}
-								>
-									Clear File
-								</Button>
-							)}
-						</button>
+							<Button
+								variant="tertiary"
+								className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-default-200 rounded-3xl text-default-400 gap-4 hover:border-primary transition-all cursor-pointer w-full h-auto bg-transparent hover:bg-primary/5"
+							>
+								<IconFileArrowUp
+									className={cn(
+										"w-12 h-12 transition-transform duration-300 group-hover:-translate-y-1",
+										selectedFile ? "text-primary opacity-100" : "opacity-20",
+									)}
+								/>
+								<p className="text-center w-full font-medium">
+									{selectedFile
+										? selectedFile.name
+										: "Click to browse or drag and drop files here"}
+								</p>
+							</Button>
+						</FileTrigger>
+
+						{selectedFile && (
+							<Button
+								isIconOnly
+								size="sm"
+								variant="secondary"
+								className="absolute top-2 right-2 rounded-full shadow-sm"
+								onPress={() => setSelectedFile(null)}
+							>
+								<IconXmark className="w-4 h-4" />
+							</Button>
+						)}
 					</div>
 				)}
 
 				<Accordion>
 					<Accordion.Item id={`${baseId}-advanced-item`}>
 						<Accordion.Heading>
-							<Accordion.Trigger className="flex items-center gap-2 text-primary hover:underline py-2">
+							<Accordion.Trigger className="flex items-center gap-2 text-primary hover:underline py-2 outline-none">
 								<IconChevronRight className="w-4 h-4 group-data-[expanded=true]:rotate-90 transition-transform" />
-								<span>Advanced Options</span>
+								<span className="font-semibold text-small">
+									Advanced Options
+								</span>
 							</Accordion.Trigger>
 						</Accordion.Heading>
 						<Accordion.Panel>
