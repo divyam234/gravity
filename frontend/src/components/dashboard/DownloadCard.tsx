@@ -27,6 +27,11 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
 	const downloadSpeed = Number(task.downloadSpeed);
 	const uploadSpeed = Number(task.uploadSpeed);
 
+	// Rclone upload stats
+	const rcloneSpeed = task.rclone?.speed ?? 0;
+	const rcloneEta = task.rclone?.eta ?? 0;
+	const rclonePercentage = task.rclone?.percentage ?? 0;
+
 	const progress = totalLength > 0 ? (completedLength / totalLength) * 100 : 0;
 	const eta =
 		downloadSpeed > 0 ? (totalLength - completedLength) / downloadSpeed : 0;
@@ -45,13 +50,20 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
 	// Rclone Status Logic
 	const isUploading = task.rclone?.status === "uploading";
 	const isUploadError = task.rclone?.status === "error";
+	const isUploadComplete = task.rclone?.status === "complete";
 
 	// Determine effective status for the Chip
 	let displayStatus: string = task.status;
-	if (isComplete) {
+	if (isComplete || isUploadComplete) {
 		if (isUploading) displayStatus = "uploading";
 		else if (isUploadError) displayStatus = "error";
+		else if (isUploadComplete) displayStatus = "complete";
 	}
+
+	// For uploading tasks, show upload progress
+	const effectiveProgress = isUploading ? rclonePercentage : progress;
+	const effectiveSpeed = isUploading ? rcloneSpeed : downloadSpeed;
+	const effectiveEta = isUploading ? rcloneEta : eta;
 
 	const handleRemove = () => {
 		if (isComplete || isError || task.status === "removed") {
@@ -89,24 +101,41 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
 
 					<div className="w-48 shrink-0 hidden sm:block">
 						<ProgressBar
-						value={progress}
+						value={isUploading ? effectiveProgress : progress}
 						size="sm"
 						color={
-							isError || isUploadError ? "danger" : isComplete ? "success" : "accent"
+							isError || isUploadError ? "danger" : 
+							isUploading ? "default" :
+							isComplete ? "success" : "accent"
 						}
-						className="h-2"
-						isIndeterminate={isUploading}
+						className={isUploading ? "h-2 [&>div]:bg-cyan-500" : "h-2"}
+						isIndeterminate={isUploading && effectiveProgress === 0}
 					/>
 					</div>
 
 					<div className="w-32 shrink-0 hidden md:flex flex-col items-end gap-0.5">
-						<span className="text-xs font-black text-success/80">
-							↓ {formatBytes(downloadSpeed)}/s
-						</span>
-						{isActive && (
-							<span className="text-[10px] text-muted font-bold uppercase tracking-wider">
-								{formatTime(eta)}
-							</span>
+						{isUploading ? (
+							<>
+								<span className="text-xs font-black text-cyan-500">
+									↑ {formatBytes(effectiveSpeed)}/s
+								</span>
+								{effectiveEta > 0 && (
+									<span className="text-[10px] text-muted font-bold uppercase tracking-wider">
+										{formatTime(effectiveEta)}
+									</span>
+								)}
+							</>
+						) : (
+							<>
+								<span className="text-xs font-black text-success/80">
+									↓ {formatBytes(downloadSpeed)}/s
+								</span>
+								{isActive && (
+									<span className="text-[10px] text-muted font-bold uppercase tracking-wider">
+										{formatTime(eta)}
+									</span>
+								)}
+							</>
 						)}
 					</div>
 				</Link>
@@ -239,35 +268,53 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
 				</div>
 
 				<ProgressBar
-					value={progress}
+					value={isUploading ? effectiveProgress : progress}
 					size="md"
 					color={
-						isError || isUploadError ? "danger" : isComplete ? "success" : "accent"
+						isError || isUploadError ? "danger" : 
+						isUploading ? "default" :
+						isComplete ? "success" : "accent"
 					}
-					showValueLabel={!isUploading}
-					isIndeterminate={isUploading}
+					className={isUploading ? "[&>div]:bg-cyan-500" : ""}
+					showValueLabel={!isUploading || effectiveProgress > 0}
+					isIndeterminate={isUploading && effectiveProgress === 0}
 				/>
 
 				<div className="flex justify-between items-center text-sm text-muted bg-muted-background/50 p-2 rounded-xl border border-border/50">
 					<div className="flex gap-4">
-						<span className="flex items-center gap-1.5 font-bold text-success/80">
-							<div className="w-1.5 h-1.5 rounded-full bg-success" />
-							{formatBytes(downloadSpeed)}/s
-						</span>
-						<span className="flex items-center gap-1.5 font-bold text-accent/80">
-							<div className="w-1.5 h-1.5 rounded-full bg-accent" />
-							{formatBytes(uploadSpeed)}/s
-						</span>
+						{isUploading ? (
+							<span className="flex items-center gap-1.5 font-bold text-cyan-500">
+								<div className="w-1.5 h-1.5 rounded-full bg-cyan-500" />
+								↑ {formatBytes(effectiveSpeed)}/s
+							</span>
+						) : (
+							<>
+								<span className="flex items-center gap-1.5 font-bold text-success/80">
+									<div className="w-1.5 h-1.5 rounded-full bg-success" />
+									{formatBytes(downloadSpeed)}/s
+								</span>
+								<span className="flex items-center gap-1.5 font-bold text-accent/80">
+									<div className="w-1.5 h-1.5 rounded-full bg-accent" />
+									{formatBytes(uploadSpeed)}/s
+								</span>
+							</>
+						)}
 					</div>
 
 					<div className="flex gap-4 font-medium">
+						{isUploading && effectiveEta > 0 && <span>ETA: {formatTime(effectiveEta)}</span>}
 						{isActive && <span>ETA: {formatTime(eta)}</span>}
-						{task.numSeeders && (
+						{isUploading && task.rclone?.targetRemote && (
+							<span className="bg-cyan-500/20 text-cyan-600 px-2 py-0.5 rounded text-[10px] uppercase font-black">
+								→ {task.rclone.targetRemote}
+							</span>
+						)}
+						{!isUploading && task.numSeeders && (
 							<span className="bg-default/30 px-2 py-0.5 rounded text-[10px] uppercase font-black">
 								Peers: {task.connections} (S:{task.numSeeders})
 							</span>
 						)}
-						{!task.numSeeders && (
+						{!isUploading && !task.numSeeders && (
 							<span className="bg-default/30 px-2 py-0.5 rounded text-[10px] uppercase font-black">
 								Conn: {task.connections}
 							</span>

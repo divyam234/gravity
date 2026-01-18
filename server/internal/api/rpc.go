@@ -2,9 +2,11 @@ package api
 
 import (
 	"bytes"
+	"compress/gzip"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -30,6 +32,15 @@ func NewRPCHandler(aria2Addr, rcloneAddr, rpcSecret string, db *store.DB) *RPCHa
 	aURL, _ := url.Parse(aria2Addr)
 	rURL, _ := url.Parse(rcloneAddr)
 	proxy := httputil.NewSingleHostReverseProxy(aURL)
+
+	// Modify outgoing request to prevent compressed responses from Aria2
+	originalDirector := proxy.Director
+	proxy.Director = func(req *http.Request) {
+		originalDirector(req)
+		// Remove Accept-Encoding to get plain text responses we can parse
+		req.Header.Del("Accept-Encoding")
+	}
+
 	proxy.ModifyResponse = func(r *http.Response) error {
 		r.Header.Del("Access-Control-Allow-Origin")
 		return nil
@@ -141,6 +152,11 @@ func (h *RPCHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if req.Method == "aria2.tellStatus" {
 		h.handleTellStatus(w, r, req)
+		return
+	}
+
+	if req.Method == "aria2.getGlobalStat" {
+		h.handleGetGlobalStat(w, r, req)
 		return
 	}
 
@@ -298,16 +314,23 @@ func (h *RPCHandler) handleAddMetalink(w http.ResponseWriter, r *http.Request, r
 }
 
 func (h *RPCHandler) handleChangeOption(w http.ResponseWriter, r *http.Request, req JsonRpcRequest) {
-	rec := httptestRecorder()
+	rec := NewResponseBuffer()
 	h.aria2Proxy.ServeHTTP(rec, r)
 
-	for k, v := range rec.Result().Header {
-		w.Header()[k] = v
+	respBody, err := rec.Bytes()
+	if err != nil {
+		log.Printf("ChangeOption: Failed to read response: %v", err)
+		rec.WriteRawTo(w)
+		return
 	}
-	w.WriteHeader(rec.Result().StatusCode)
-	respBody := rec.Body.Bytes()
+
+	// Write response to client
+	rec.CopyHeadersTo(w)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(rec.Code)
 	w.Write(respBody)
 
+	// Update DB if successful
 	var res JsonRpcResponse
 	if err := json.Unmarshal(respBody, &res); err == nil && res.Error == nil {
 		if len(req.Params) >= 3 {
@@ -322,28 +345,34 @@ func (h *RPCHandler) handleChangeOption(w http.ResponseWriter, r *http.Request, 
 }
 
 func (h *RPCHandler) handleRemove(w http.ResponseWriter, r *http.Request, req JsonRpcRequest) {
-	rec := httptestRecorder()
+	rec := NewResponseBuffer()
 	h.aria2Proxy.ServeHTTP(rec, r)
 
-	for k, v := range rec.Result().Header {
-		w.Header()[k] = v
+	respBody, err := rec.Bytes()
+	if err != nil {
+		log.Printf("Remove: Failed to read response: %v", err)
+		rec.WriteRawTo(w)
+		return
 	}
-	w.WriteHeader(rec.Result().StatusCode)
-	respBody := rec.Body.Bytes()
+
+	// Write response to client
+	rec.CopyHeadersTo(w)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(rec.Code)
 	w.Write(respBody)
 
+	// Cleanup if successful
 	var res JsonRpcResponse
 	if err := json.Unmarshal(respBody, &res); err == nil && res.Error == nil {
 		if len(req.Params) >= 2 {
 			if gid, ok := req.Params[1].(string); ok {
-				// 1. Stop active upload if any
+				// Stop active upload if any
 				if upload, err := h.db.GetUpload(gid); err == nil && upload.Status == "uploading" && upload.JobID != "" {
 					log.Printf("Stopping Rclone Job %s for removed task %s", upload.JobID, gid)
 					h.rcloneClient.StopJob(upload.JobID)
 				}
-
-				// 2. Mark as removed
-				h.db.UpdateStatus(gid, "removed", 0)
+				// Mark as removed
+				h.db.UpdateStatus(gid, "removed", "")
 				log.Printf("Marked GID %s as removed", gid)
 			}
 		}
@@ -414,37 +443,129 @@ func (h *RPCHandler) handleAddUri(w http.ResponseWriter, r *http.Request, req Js
 }
 
 func (h *RPCHandler) handleTellStatus(w http.ResponseWriter, r *http.Request, req JsonRpcRequest) {
-	rec := httptestRecorder()
+	rec := NewResponseBuffer()
 	h.aria2Proxy.ServeHTTP(rec, r)
 
-	respBody := rec.Body.Bytes()
-	var res JsonRpcResponse
-	if err := json.Unmarshal(respBody, &res); err != nil {
-		w.Write(respBody)
+	respBody, err := rec.Bytes()
+	if err != nil {
+		log.Printf("TellStatus: Failed to read response: %v", err)
+		rec.WriteRawTo(w)
 		return
 	}
 
+	var res JsonRpcResponse
+	if err := json.Unmarshal(respBody, &res); err != nil {
+		log.Printf("TellStatus: Failed to unmarshal (len=%d): %v", len(respBody), err)
+		rec.WriteRawTo(w)
+		return
+	}
+
+	// Augment with rclone state if available
 	if res.Result != nil {
-		task, ok := res.Result.(map[string]interface{})
-		if ok {
-			gid := task["gid"].(string)
-			upload, err := h.db.GetUpload(gid)
-			if err == nil {
-				rcloneState := map[string]interface{}{
-					"status":       upload.Status,
-					"targetRemote": upload.TargetRemote,
+		if task, ok := res.Result.(map[string]interface{}); ok {
+			if gidVal, ok := task["gid"]; ok {
+				if gid, ok := gidVal.(string); ok {
+					upload, err := h.db.GetUpload(gid)
+					if err == nil {
+						rcloneState := map[string]interface{}{
+							"status":       upload.Status,
+							"targetRemote": upload.TargetRemote,
+						}
+						if upload.JobID != "" {
+							rcloneState["jobId"] = upload.JobID
+
+							// If uploading, get live stats from Rclone
+							if upload.Status == "uploading" {
+								if jobStats, err := h.rcloneClient.Call("core/stats", nil); err == nil {
+									if speed, ok := jobStats["speed"].(float64); ok {
+										rcloneState["speed"] = speed
+									}
+									if bytes, ok := jobStats["bytes"].(float64); ok {
+										rcloneState["bytes"] = bytes
+									}
+									if totalBytes, ok := jobStats["totalBytes"].(float64); ok {
+										rcloneState["totalBytes"] = totalBytes
+									}
+									if eta, ok := jobStats["eta"].(float64); ok {
+										rcloneState["eta"] = eta
+									}
+									// Get transfer progress if available
+									if transfers, ok := jobStats["transferring"].([]interface{}); ok && len(transfers) > 0 {
+										if t, ok := transfers[0].(map[string]interface{}); ok {
+											if pct, ok := t["percentage"].(float64); ok {
+												rcloneState["percentage"] = pct
+											}
+										}
+									}
+								}
+							}
+						}
+						task["rclone"] = rcloneState
+					}
 				}
-				if upload.RcloneJobID != 0 {
-					rcloneState["jobId"] = upload.RcloneJobID
-				}
-				task["rclone"] = rcloneState
 			}
 		}
 	}
 
-	newRespBody, _ := json.Marshal(res)
+	h.writeJSON(w, res)
+}
+
+func (h *RPCHandler) handleGetGlobalStat(w http.ResponseWriter, r *http.Request, req JsonRpcRequest) {
+	rec := NewResponseBuffer()
+	h.aria2Proxy.ServeHTTP(rec, r)
+
+	respBody, err := rec.Bytes()
+	if err != nil {
+		rec.WriteRawTo(w)
+		return
+	}
+
+	var res JsonRpcResponse
+	if err := json.Unmarshal(respBody, &res); err != nil {
+		rec.WriteRawTo(w)
+		return
+	}
+
+	// Augment with Rclone stats and DB stats
+	if res.Result != nil {
+		if stats, ok := res.Result.(map[string]interface{}); ok {
+			// Get Rclone stats
+			rcloneStats, err := h.rcloneClient.Call("core/stats", nil)
+			if err == nil {
+				// Add cloud upload speed
+				if speed, ok := rcloneStats["speed"].(float64); ok {
+					stats["cloudUploadSpeed"] = fmt.Sprintf("%.0f", speed)
+				}
+				// Add number of active transfers
+				if transfers, ok := rcloneStats["transfers"].(float64); ok {
+					stats["numUploading"] = fmt.Sprintf("%.0f", transfers)
+				}
+			}
+
+			// Get uploading count from DB
+			uploadingCount, err := h.db.GetUploadingCount()
+			if err == nil && uploadingCount > 0 {
+				stats["numUploading"] = fmt.Sprintf("%d", uploadingCount)
+			}
+
+			// Get persistent stats from DB
+			dbStats, err := h.db.GetGlobalStats()
+			if err == nil && dbStats != nil {
+				stats["totalDownloaded"] = fmt.Sprintf("%d", dbStats.TotalDownloaded)
+				stats["totalUploaded"] = fmt.Sprintf("%d", dbStats.TotalUploaded)
+				stats["totalTasks"] = fmt.Sprintf("%d", dbStats.TotalTasks)
+				stats["completedTasks"] = fmt.Sprintf("%d", dbStats.CompletedTasks)
+				stats["uploadedTasks"] = fmt.Sprintf("%d", dbStats.UploadedTasks)
+			}
+		}
+	}
+
+	h.writeJSON(w, res)
+}
+
+func (h *RPCHandler) writeJSON(w http.ResponseWriter, v interface{}) {
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(newRespBody)
+	json.NewEncoder(w).Encode(v)
 }
 
 func (h *RPCHandler) writeResponse(w http.ResponseWriter, id interface{}, result interface{}, err error) {
@@ -459,39 +580,89 @@ func (h *RPCHandler) writeResponse(w http.ResponseWriter, id interface{}, result
 			"message": err.Error(),
 		}
 	}
-	json.NewEncoder(w).Encode(resp)
+	h.writeJSON(w, resp)
 }
 
-type ResponseRecorder struct {
+// ResponseBuffer captures HTTP responses for interception/modification.
+// Custom implementation to avoid httptest dependency.
+type ResponseBuffer struct {
 	Code      int
 	HeaderMap http.Header
 	Body      *bytes.Buffer
 }
 
-func httptestRecorder() *ResponseRecorder {
-	return &ResponseRecorder{
+func NewResponseBuffer() *ResponseBuffer {
+	return &ResponseBuffer{
 		Code:      http.StatusOK,
 		HeaderMap: make(http.Header),
 		Body:      new(bytes.Buffer),
 	}
 }
 
-func (rw *ResponseRecorder) Header() http.Header {
-	return rw.HeaderMap
+func (rb *ResponseBuffer) Header() http.Header {
+	return rb.HeaderMap
 }
 
-func (rw *ResponseRecorder) Write(buf []byte) (int, error) {
-	return rw.Body.Write(buf)
+func (rb *ResponseBuffer) Write(b []byte) (int, error) {
+	return rb.Body.Write(b)
 }
 
-func (rw *ResponseRecorder) WriteHeader(code int) {
-	rw.Code = code
+func (rb *ResponseBuffer) WriteHeader(statusCode int) {
+	rb.Code = statusCode
 }
 
-func (rw *ResponseRecorder) Result() *http.Response {
-	return &http.Response{
-		StatusCode: rw.Code,
-		Header:     rw.HeaderMap,
-		Body:       io.NopCloser(rw.Body),
+// Bytes returns the response body, automatically decompressing gzip if needed.
+func (rb *ResponseBuffer) Bytes() ([]byte, error) {
+	raw := rb.Body.Bytes()
+	if len(raw) == 0 {
+		return raw, nil
 	}
+
+	// Check Content-Encoding header
+	if strings.EqualFold(rb.HeaderMap.Get("Content-Encoding"), "gzip") {
+		return decompressGzip(raw)
+	}
+
+	// Also detect gzip by magic bytes (0x1f 0x8b) as fallback
+	if len(raw) >= 2 && raw[0] == 0x1f && raw[1] == 0x8b {
+		return decompressGzip(raw)
+	}
+
+	return raw, nil
+}
+
+// decompressGzip decompresses gzip-encoded data.
+func decompressGzip(data []byte) ([]byte, error) {
+	reader, err := gzip.NewReader(bytes.NewReader(data))
+	if err != nil {
+		return nil, fmt.Errorf("gzip reader error: %w", err)
+	}
+	defer reader.Close()
+
+	decompressed, err := io.ReadAll(reader)
+	if err != nil {
+		return nil, fmt.Errorf("gzip decompress error: %w", err)
+	}
+	return decompressed, nil
+}
+
+// CopyHeadersTo copies headers from the buffer to a ResponseWriter,
+// excluding Content-Encoding and Content-Length (since we may modify the body).
+func (rb *ResponseBuffer) CopyHeadersTo(w http.ResponseWriter) {
+	for k, v := range rb.HeaderMap {
+		// Skip encoding/length headers - we handle these ourselves
+		if strings.EqualFold(k, "Content-Encoding") || strings.EqualFold(k, "Content-Length") {
+			continue
+		}
+		w.Header()[k] = v
+	}
+}
+
+// WriteRawTo writes the original (possibly compressed) response to w.
+func (rb *ResponseBuffer) WriteRawTo(w http.ResponseWriter) {
+	for k, v := range rb.HeaderMap {
+		w.Header()[k] = v
+	}
+	w.WriteHeader(rb.Code)
+	w.Write(rb.Body.Bytes())
 }

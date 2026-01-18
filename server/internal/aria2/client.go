@@ -2,9 +2,11 @@ package aria2
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"strings"
@@ -73,14 +75,34 @@ func (c *Client) Call(method string, params ...interface{}) (interface{}, error)
 		return nil, err
 	}
 
-	resp, err := http.Post(c.httpUrl, "application/json", bytes.NewBuffer(jsonData))
+	req, err := http.NewRequest("POST", c.httpUrl, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	// Explicitly request no compression to avoid gzip issues
+	req.Header.Set("Accept-Encoding", "identity")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 
+	// Handle potential gzip response (in case server ignores Accept-Encoding)
+	var reader io.Reader = resp.Body
+	if resp.Header.Get("Content-Encoding") == "gzip" {
+		gzReader, err := gzip.NewReader(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("gzip decode error: %w", err)
+		}
+		defer gzReader.Close()
+		reader = gzReader
+	}
+
 	var rpcResp JsonRpcResponse
-	if err := json.NewDecoder(resp.Body).Decode(&rpcResp); err != nil {
+	if err := json.NewDecoder(reader).Decode(&rpcResp); err != nil {
 		return nil, err
 	}
 

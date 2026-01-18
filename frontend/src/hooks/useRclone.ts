@@ -16,3 +16,10 @@ export function useRcloneVersion() {
 		queryFn: () => aria2.rcloneGetVersion(),
 	});
 }
+
+export function useRcloneRemotes() {
+	return useQuery({
+		queryKey: ["rclone", "remotes"],
+		queryFn: () => aria2.rcloneListRemotes(),
+	});
+}

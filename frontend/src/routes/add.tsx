@@ -20,7 +20,7 @@ import IconGlobe from "~icons/gravity-ui/globe";
 import IconLink from "~icons/gravity-ui/link";
 import IconShieldCheck from "~icons/gravity-ui/shield-check";
 import { useAria2Actions } from "../hooks/useAria2";
-import { aria2 } from "../lib/aria2-rpc";
+import { useRcloneRemotes } from "../hooks/useRclone";
 import { useFileStore } from "../store/useFileStore";
 import { useSettingsStore } from "../store/useSettingsStore";
 import { tasksLinkOptions } from "./tasks";
@@ -34,7 +34,7 @@ function AddDownloadPage() {
   const baseId = useId();
 
   const { pendingFile, clearPendingFile } = useFileStore();
-  const { rcloneTargetRemote } = useSettingsStore();
+  const { rcloneTargetRemote, setRcloneTargetRemote } = useSettingsStore();
 
   const [selectedTab, setSelectedTab] = React.useState<React.Key>(
     `${baseId}-links`,
@@ -54,19 +54,9 @@ function AddDownloadPage() {
     "seed-time": "0",
   });
 
-  const [remotes, setRemotes] = React.useState<string[]>([]);
-  const [targetRemote, setTargetRemote] = React.useState<string>(
-    rcloneTargetRemote || "",
-  );
+  const { data: remotes = [] } = useRcloneRemotes();
 
-  React.useEffect(() => {
-    aria2
-      .rcloneListRemotes()
-      .then((list) => {
-        setRemotes(list || []);
-      })
-      .catch(console.error);
-  }, []);
+  const remoteOptions = remotes.map((r) => ({ id: r, name: r }));
 
   const { addUri, addTorrent, addMetalink } = useAria2Actions();
 
@@ -130,8 +120,8 @@ function AddDownloadPage() {
       Object.entries(options).filter(([_, v]) => v !== ""),
     );
 
-    if (targetRemote) {
-      cleanOptions["rclone-target"] = targetRemote;
+    if (rcloneTargetRemote) {
+      cleanOptions["rclone-target"] = rcloneTargetRemote;
     }
 
     if (selectedTab === `${baseId}-links` && validateUris(uris) === true) {
@@ -495,6 +485,7 @@ function AddDownloadPage() {
                     </div>
                   </div>
                 )}
+
                 {optionsTab === `${baseId}-opt-cloud` && (
                   <div className="space-y-6">
                     <div className="flex flex-col gap-2">
@@ -502,9 +493,11 @@ function AddDownloadPage() {
                         Target Remote
                       </Label>
                       <Select
-                        selectedKey={targetRemote || "none"}
-                        onSelectionChange={(key) =>
-                          setTargetRemote(key === "none" ? "" : (key as string))
+                        value={rcloneTargetRemote || "none"}
+                        onChange={(key) =>
+                          setRcloneTargetRemote(
+                            key === "none" ? "" : (key as string),
+                          )
                         }
                         placeholder="Select a remote..."
                       >
@@ -514,13 +507,17 @@ function AddDownloadPage() {
                             <IconChevronLeft className="w-4 h-4 -rotate-90" />
                           </Select.Indicator>
                         </Select.Trigger>
-                        <Select.Popover className="min-w-[240px] p-2 bg-background border border-border rounded-2xl shadow-xl">
-                          <ListBox>
-                            {(item) => {
-                              <ListBox.Item className="rounded-lg px-2 py-1.5 text-sm font-medium hover:bg-default/10 cursor-pointer transition-colors">
-                                {remote}
-                              </ListBox.Item>;
-                            }}
+                        <Select.Popover className="min-w-240 p-2 bg-background border border-border rounded-2xl shadow-xl">
+                          <ListBox items={remoteOptions}>
+                            {(item) => (
+                              <ListBox.Item
+                                id={item.id}
+                                textValue={item.name}
+                                className="rounded-lg px-2 py-1.5 text-sm font-medium hover:bg-default/10 cursor-pointer transition-colors flex items-center justify-between"
+                              >
+                                <Label>{item.name}</Label>
+                              </ListBox.Item>
+                            )}
                           </ListBox>
                         </Select.Popover>
                       </Select>

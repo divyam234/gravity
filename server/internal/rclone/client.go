@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 )
 
 type Client struct {
@@ -88,8 +89,12 @@ func (c *Client) CopyFileAsync(srcFs, srcRemote, dstFs, dstRemote string, custom
 }
 
 func (c *Client) JobStatus(jobId string) (string, error) {
-	// job/status returns { finished: bool, success: bool, error: string }
-	params := map[string]string{"jobid": jobId}
+	// job/status expects jobid as integer
+	jobIdInt, err := strconv.ParseInt(jobId, 10, 64)
+	if err != nil {
+		return "", fmt.Errorf("invalid job id: %w", err)
+	}
+	params := map[string]int64{"jobid": jobIdInt}
 	res, err := c.Call("job/status", params)
 	if err != nil {
 		return "", err
@@ -109,7 +114,11 @@ func (c *Client) JobStatus(jobId string) (string, error) {
 }
 
 func (c *Client) StopJob(jobId string) error {
-	params := map[string]string{"jobid": jobId}
-	_, err := c.Call("job/stop", params)
+	jobIdInt, err := strconv.ParseInt(jobId, 10, 64)
+	if err != nil {
+		return fmt.Errorf("invalid job id: %w", err)
+	}
+	params := map[string]int64{"jobid": jobIdInt}
+	_, err = c.Call("job/stop", params)
 	return err
 }

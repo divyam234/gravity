@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -102,6 +103,10 @@ func main() {
 		}
 	}()
 
+	// Create cancellable context for background tasks
+	bgCtx, bgCancel := context.WithCancel(context.Background())
+	defer bgCancel()
+
 	// 5. Restore Session & Connect to Aria2 WebSocket
 	go func() {
 		time.Sleep(2 * time.Second) // Wait for Aria2 to fully start
@@ -114,9 +119,13 @@ func main() {
 		go func() {
 			ticker := time.NewTicker(30 * time.Second)
 			defer ticker.Stop()
-			for range ticker.C {
-				poller.Sync()
-
+			for {
+				select {
+				case <-bgCtx.Done():
+					return
+				case <-ticker.C:
+					poller.Sync()
+				}
 			}
 		}()
 
@@ -194,6 +203,14 @@ func main() {
 				return
 			}
 
+			// Record download stats
+			if totalLength, ok := status["totalLength"].(string); ok {
+				if bytes, err := strconv.ParseInt(totalLength, 10, 64); err == nil && bytes > 0 {
+					db.AddDownloadedBytes(bytes)
+					db.IncrementCompletedTasks()
+				}
+			}
+
 			// Magnet Handoff: Check for followedBy
 			if followedBy, ok := status["followedBy"].([]interface{}); ok && len(followedBy) > 0 {
 				for _, child := range followedBy {
@@ -218,8 +235,16 @@ func main() {
 				log.Printf("No files found for %s", gid)
 				return
 			}
-			file0 := files[0].(map[string]interface{})
-			path := file0["path"].(string)
+			file0, ok := files[0].(map[string]interface{})
+			if !ok {
+				log.Printf("Invalid file structure for %s", gid)
+				return
+			}
+			path, ok := file0["path"].(string)
+			if !ok || path == "" {
+				log.Printf("No file path for %s", gid)
+				return
+			}
 
 			// Trigger Rclone
 			// For local files, srcFs should be the directory, srcRemote the filename
@@ -228,12 +253,12 @@ func main() {
 			remotePath := filename // Destination path relative to remote root
 
 			// Async Upload
-			db.UpdateStatus(gid, "uploading", 0)
+			db.UpdateStatus(gid, "uploading", "")
 			customJobId := utils.HexGidToInt64(gid)
 			jobId, err := rcloneClient.CopyFileAsync(dir, filename, upload.TargetRemote, remotePath, customJobId)
 			if err != nil {
 				log.Printf("Failed to start async upload for %s: %v", gid, err)
-				db.UpdateStatus(gid, "error", 0)
+				db.UpdateStatus(gid, "error", "")
 			} else {
 				log.Printf("Started async upload for %s (Job: %s)", gid, jobId)
 				db.UpdateJob(gid, jobId)
@@ -241,8 +266,10 @@ func main() {
 		})
 
 		log.Println("Connecting to Aria2 WebSocket...")
-		if err := aria2Client.Listen(context.Background()); err != nil {
-			log.Printf("Aria2 Listener stopped: %v", err)
+		if err := aria2Client.Listen(bgCtx); err != nil {
+			if bgCtx.Err() == nil {
+				log.Printf("Aria2 Listener stopped: %v", err)
+			}
 		}
 	}()
 

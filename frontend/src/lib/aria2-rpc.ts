@@ -5,6 +5,14 @@ export interface Aria2GlobalStat {
 	numWaiting: string;
 	numStopped: string;
 	numStoppedTotal: string;
+	// Augmented stats from backend
+	cloudUploadSpeed?: string;
+	numUploading?: string;
+	totalDownloaded?: string;
+	totalUploaded?: string;
+	totalTasks?: string;
+	completedTasks?: string;
+	uploadedTasks?: string;
 }
 
 export interface Aria2Task {
@@ -36,7 +44,13 @@ export interface Aria2Task {
 	rclone?: {
 		status: string;
 		targetRemote: string;
-		jobId?: number;
+		jobId?: string;
+		// Live upload stats
+		speed?: number;
+		bytes?: number;
+		totalBytes?: number;
+		eta?: number;
+		percentage?: number;
 	};
 }
 

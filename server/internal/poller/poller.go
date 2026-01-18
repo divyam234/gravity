@@ -3,6 +3,7 @@ package poller
 import (
 	"log"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"aria2-rclone-ui/internal/aria2"
@@ -48,7 +49,7 @@ func (p *Poller) syncUploadingTask(task store.UploadState) {
 		// If empty, maybe it's a legacy synchronous upload or stuck.
 		// Reset to pending to retry.
 		log.Printf("Poller: Task %s is 'uploading' but no JobID. Resetting.", task.Gid)
-		p.db.UpdateStatus(task.Gid, "pending", 0)
+		p.db.UpdateStatus(task.Gid, "pending", "")
 		return
 	}
 
@@ -59,17 +60,27 @@ func (p *Poller) syncUploadingTask(task store.UploadState) {
 		// Retry logic?
 		if task.RetryCount < 3 {
 			p.db.IncrementRetry(task.Gid)
-			p.db.UpdateStatus(task.Gid, "pending", 0)
+			p.db.UpdateStatus(task.Gid, "pending", "")
 			log.Printf("Poller: Retrying task %s (Attempt %d)", task.Gid, task.RetryCount+1)
 		} else {
-			p.db.UpdateStatus(task.Gid, "error", 0)
+			p.db.UpdateStatus(task.Gid, "error", "")
 		}
 		return
 	}
 
 	if status == "success" {
 		log.Printf("Poller: Upload Job %s for GID %s succeeded", task.JobID, task.Gid)
-		p.db.UpdateStatus(task.Gid, "complete", 0)
+		p.db.UpdateStatus(task.Gid, "complete", "")
+
+		// Record upload stats - get file size from Aria2 status
+		if ariaStatus, err := p.aria2Client.TellStatus(task.Gid); err == nil {
+			if totalLength, ok := ariaStatus["totalLength"].(string); ok {
+				if bytes, err := strconv.ParseInt(totalLength, 10, 64); err == nil && bytes > 0 {
+					p.db.AddUploadedBytes(bytes)
+					p.db.IncrementUploadedTasks()
+				}
+			}
+		}
 	}
 	// If "running", do nothing
 }
@@ -85,7 +96,7 @@ func (p *Poller) syncPendingTask(task store.UploadState) {
 			// For now, let's just log. The main restoration loop handles restart.
 			// If it's 404, it means it's NOT in Aria2.
 			log.Printf("Poller: Task %s not found in Aria2. Marking error.", task.Gid)
-			p.db.UpdateStatus(task.Gid, "error", 0)
+			p.db.UpdateStatus(task.Gid, "error", "")
 		}
 		return
 	}
@@ -120,20 +131,19 @@ func (p *Poller) syncPendingTask(task store.UploadState) {
 	if ariaStatus == "complete" {
 		log.Printf("Poller: Detected complete task %s (Missed WebSocket?). Triggering upload.", task.Gid)
 
-		// Trigger Upload Logic (Duplicated from main.go - should be refactored)
-		files, ok := status["files"].([]interface{})
-		if !ok || len(files) == 0 {
+		// Trigger Upload Logic
+		path := extractFilePath(status)
+		if path == "" {
+			log.Printf("Poller: No file path found for task %s", task.Gid)
 			return
 		}
-		file0 := files[0].(map[string]interface{})
-		path := file0["path"].(string)
 
 		// For local files, srcFs is dir, srcRemote is filename
 		dir := filepath.Dir(path)
 		filename := filepath.Base(path)
 		remotePath := filename
 
-		p.db.UpdateStatus(task.Gid, "uploading", 0)
+		p.db.UpdateStatus(task.Gid, "uploading", "")
 
 		// Use Async Upload
 		// Pass deterministic Job ID (Hex GID -> Int64)
@@ -142,12 +152,26 @@ func (p *Poller) syncPendingTask(task store.UploadState) {
 		jobId, err := p.rcloneClient.CopyFileAsync(dir, filename, task.TargetRemote, remotePath, customJobId)
 		if err != nil {
 			log.Printf("Failed to start async upload for %s: %v", task.Gid, err)
-			p.db.UpdateStatus(task.Gid, "error", 0)
+			p.db.UpdateStatus(task.Gid, "error", "")
 		} else {
 			log.Printf("Started async upload for %s (Job: %s)", task.Gid, jobId)
 			p.db.UpdateJob(task.Gid, jobId)
 		}
 	} else if ariaStatus == "error" || ariaStatus == "removed" {
-		p.db.UpdateStatus(task.Gid, "error", 0)
+		p.db.UpdateStatus(task.Gid, "error", "")
 	}
+}
+
+// extractFilePath safely extracts the first file path from an Aria2 status response.
+func extractFilePath(status map[string]interface{}) string {
+	files, ok := status["files"].([]interface{})
+	if !ok || len(files) == 0 {
+		return ""
+	}
+	file0, ok := files[0].(map[string]interface{})
+	if !ok {
+		return ""
+	}
+	path, _ := file0["path"].(string)
+	return path
 }

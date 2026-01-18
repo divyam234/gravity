@@ -2,6 +2,7 @@ import { Card } from "@heroui/react";
 import type React from "react";
 import IconArrowDown from "~icons/gravity-ui/arrow-down";
 import IconArrowUp from "~icons/gravity-ui/arrow-up";
+import IconCloud from "~icons/gravity-ui/cloud-arrow-up-in";
 import IconPulse from "~icons/gravity-ui/pulse";
 import { useGlobalStat } from "../../hooks/useAria2";
 import { useSpeedHistory } from "../../hooks/useSpeedHistory";
@@ -12,8 +13,11 @@ export const StatsOverview: React.FC = () => {
 	const { data: stats } = useGlobalStat();
 	const { downloadHistory, uploadHistory } = useSpeedHistory();
 
+	const numUploading = Number(stats?.numUploading ?? 0);
+	const cloudUploadSpeed = Number(stats?.cloudUploadSpeed ?? 0);
+
 	return (
-		<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+		<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
 			<Card className="overflow-hidden shadow-sm border-border">
 				<Card.Content className="p-4 flex flex-col gap-2">
 					<div className="flex items-center gap-4">
@@ -58,6 +62,28 @@ export const StatsOverview: React.FC = () => {
 				</Card.Content>
 			</Card>
 
+			<Card className="overflow-hidden shadow-sm border-border">
+				<Card.Content className="p-4 flex flex-col gap-2">
+					<div className="flex items-center gap-4">
+						<div className="p-3 rounded-full bg-cyan-500/10 text-cyan-500">
+							<IconCloud className="w-6 h-6" />
+						</div>
+						<div>
+							<p className="text-sm text-muted font-medium">Cloud Upload</p>
+							<h4 className="text-2xl font-bold">
+								{formatBytes(cloudUploadSpeed)}/s
+							</h4>
+						</div>
+					</div>
+					<div className="mt-2 flex items-center justify-between text-xs text-muted">
+						<span>{numUploading} uploading</span>
+						<span>
+							{formatBytes(stats?.totalUploaded ?? 0)} total
+						</span>
+					</div>
+				</Card.Content>
+			</Card>
+
 			<Card className="shadow-sm border-border">
 				<Card.Content className="p-4 flex items-center h-full gap-4">
 					<div className="p-3 rounded-full bg-warning/10 text-warning">
@@ -70,6 +96,9 @@ export const StatsOverview: React.FC = () => {
 							<span className="text-sm text-muted">
 								({stats?.numWaiting ?? 0} waiting)
 							</span>
+						</div>
+						<div className="text-xs text-muted mt-1">
+							{formatBytes(stats?.totalDownloaded ?? 0)} downloaded
 						</div>
 					</div>
 				</Card.Content>
