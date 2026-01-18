@@ -179,6 +179,9 @@ export const useSettingsStore = create<SettingsState>()(
 				servers: state.servers,
 				activeServerId: state.activeServerId,
 				pollingInterval: state.pollingInterval,
+				// Include these for migration and instant rehydration
+				rpcUrl: state.rpcUrl,
+				rpcSecret: state.rpcSecret,
 			}),
 			onRehydrateStorage: () => (state) => {
 				if (!state) return;
@@ -194,6 +197,17 @@ export const useSettingsStore = create<SettingsState>()(
 					};
 					state.servers = [defaultServer];
 					state.activeServerId = defaultId;
+				}
+
+				// Ensure rpcUrl/rpcSecret are synced with the active server if they are empty
+				if (state.activeServerId && state.servers.length > 0 && !state.rpcUrl) {
+					const active = state.servers.find(
+						(s) => s.id === state.activeServerId,
+					);
+					if (active) {
+						state.rpcUrl = active.rpcUrl;
+						state.rpcSecret = active.rpcSecret;
+					}
 				}
 			},
 		},

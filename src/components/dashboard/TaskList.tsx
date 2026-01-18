@@ -1,10 +1,8 @@
-import { Button, Checkbox, Dropdown, ListBox, Tooltip } from "@heroui/react";
+import { Checkbox, Dropdown, ListBox } from "@heroui/react";
 import React, { useId } from "react";
 import { useDragAndDrop } from "react-aria-components";
 import IconArchive from "~icons/gravity-ui/archive";
 import IconCopy from "~icons/gravity-ui/copy";
-import IconLayoutCellsLarge from "~icons/gravity-ui/layout-cells-large";
-import IconListUl from "~icons/gravity-ui/list-ul";
 import IconPause from "~icons/gravity-ui/pause";
 import IconPlay from "~icons/gravity-ui/play";
 import IconTrashBin from "~icons/gravity-ui/trash-bin";
@@ -25,33 +23,16 @@ export const TaskList: React.FC<TaskListProps> = ({ status }) => {
 	const baseId = useId();
 	const {
 		viewMode,
-		setViewMode,
 		searchQuery,
 		isSelectionMode,
-		setIsSelectionMode,
 		selectedGids,
 		toggleGidSelection,
-		setSelectedGids,
 	} = useSettingsStore();
 
 	const allTasks = React.useMemo(
 		() => [...active, ...waiting, ...stopped],
 		[active, waiting, stopped],
 	);
-
-	const isAllSelected =
-		allTasks.length > 0 && selectedGids.size === allTasks.length;
-	const isIndeterminate =
-		selectedGids.size > 0 && selectedGids.size < allTasks.length;
-
-	const handleBatchAction = async (action: "pause" | "unpause") => {
-		const gids = Array.from(selectedGids);
-		for (const gid of gids) {
-			if (action === "pause") pause.mutate(gid);
-			if (action === "unpause") unpause.mutate(gid);
-		}
-		setIsSelectionMode(false);
-	};
 
 	const tasks = React.useMemo(() => {
 		let t: Aria2Task[] = [];
@@ -104,96 +85,6 @@ export const TaskList: React.FC<TaskListProps> = ({ status }) => {
 
 	return (
 		<div className="space-y-4">
-			<div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-muted-background/20 p-2 rounded-2xl border border-border">
-				<div className="flex items-center gap-2">
-					{isSelectionMode ? (
-						<div className="flex items-center gap-2 animate-in fade-in zoom-in duration-200">
-							<div className="flex items-center px-2 gap-3">
-								<Checkbox
-									isSelected={isAllSelected}
-									isIndeterminate={isIndeterminate}
-									onChange={(selected) => {
-										if (selected)
-											setSelectedGids(new Set(allTasks.map((t) => t.gid)));
-										else setSelectedGids(new Set());
-									}}
-								/>
-								<span className="text-xs font-black uppercase text-muted whitespace-nowrap tracking-widest">
-									{selectedGids.size} Selected
-								</span>
-							</div>
-							<div className="w-px h-4 bg-border mx-1" />
-							<Button
-								size="sm"
-								variant="ghost"
-								onPress={() => handleBatchAction("unpause")}
-								className="h-8 text-xs font-bold"
-							>
-								Start
-							</Button>
-							<Button
-								size="sm"
-								variant="ghost"
-								onPress={() => handleBatchAction("pause")}
-								className="h-8 text-xs font-bold"
-							>
-								Pause
-							</Button>
-							<Button
-								size="sm"
-								variant="secondary"
-								onPress={() => {
-									setIsSelectionMode(false);
-								}}
-								className="h-8 text-xs font-bold px-4"
-							>
-								Done
-							</Button>
-						</div>
-					) : (
-						<Button
-							size="sm"
-							variant="ghost"
-							onPress={() => setIsSelectionMode(true)}
-							className="h-9 px-4 text-xs font-bold rounded-xl"
-						>
-							Select Mode
-						</Button>
-					)}
-				</div>
-
-				<div className="flex items-center gap-1.5 bg-default/10 p-1 rounded-xl">
-					<Tooltip>
-						<Tooltip.Trigger>
-							<Button
-								isIconOnly
-								size="sm"
-								variant={viewMode === "list" ? "secondary" : "ghost"}
-								onPress={() => setViewMode("list")}
-								className="h-8 w-8 min-w-0"
-							>
-								<IconListUl className="w-4 h-4" />
-							</Button>
-						</Tooltip.Trigger>
-						<Tooltip.Content>List View</Tooltip.Content>
-					</Tooltip>
-					<Tooltip>
-						<Tooltip.Trigger>
-							<Button
-								isIconOnly
-								size="sm"
-								variant={viewMode === "grid" ? "secondary" : "ghost"}
-								onPress={() => setViewMode("grid")}
-								className="h-8 w-8 min-w-0"
-							>
-								<IconLayoutCellsLarge className="w-4 h-4" />
-							</Button>
-						</Tooltip.Trigger>
-						<Tooltip.Content>Grid View</Tooltip.Content>
-					</Tooltip>
-				</div>
-			</div>
-
 			<div className="flex flex-col gap-4">
 				{tasks.length === 0 ? (
 					<div className="flex flex-col items-center justify-center py-12 text-muted">
