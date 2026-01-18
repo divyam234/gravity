@@ -6,13 +6,14 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatBytes(bytes: number | string, decimals = 2) {
-	if (!bytes) return "0 B";
+	const num = Number(bytes);
+	if (isNaN(num) || num <= 0) return "0 B";
 	const k = 1024;
 	const dm = decimals < 0 ? 0 : decimals;
 	const sizes = ["B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
 
-	const i = Math.floor(Math.log(Number(bytes)) / Math.log(k));
-	return `${parseFloat((Number(bytes) / k ** i).toFixed(dm))} ${sizes[i]}`;
+	const i = Math.floor(Math.log(num) / Math.log(k));
+	return `${parseFloat((num / k ** i).toFixed(dm))} ${sizes[i]}`;
 }
 
 export function formatTime(seconds: number | string) {

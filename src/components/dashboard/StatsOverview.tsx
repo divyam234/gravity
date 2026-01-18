@@ -21,11 +21,9 @@ export const StatsOverview: React.FC = () => {
 							<IconArrowDown className="w-6 h-6" />
 						</div>
 						<div>
-							<p className="text-sm text-muted font-medium">
-								Download Speed
-							</p>
+							<p className="text-sm text-muted font-medium">Download Speed</p>
 							<h4 className="text-2xl font-bold">
-								{formatBytes(stats.downloadSpeed)}/s
+								{formatBytes(stats?.downloadSpeed ?? 0)}/s
 							</h4>
 						</div>
 					</div>
@@ -45,11 +43,9 @@ export const StatsOverview: React.FC = () => {
 							<IconArrowUp className="w-6 h-6" />
 						</div>
 						<div>
-							<p className="text-sm text-muted font-medium">
-								Upload Speed
-							</p>
+							<p className="text-sm text-muted font-medium">Upload Speed</p>
 							<h4 className="text-2xl font-bold">
-								{formatBytes(stats.uploadSpeed)}/s
+								{formatBytes(stats?.uploadSpeed ?? 0)}/s
 							</h4>
 						</div>
 					</div>
@@ -70,9 +66,9 @@ export const StatsOverview: React.FC = () => {
 					<div>
 						<p className="text-sm text-muted font-medium">Active Tasks</p>
 						<div className="flex gap-2 items-baseline">
-							<h4 className="text-2xl font-bold">{stats.numActive}</h4>
+							<h4 className="text-2xl font-bold">{stats?.numActive ?? 0}</h4>
 							<span className="text-sm text-muted">
-								({stats.numWaiting} waiting)
+								({stats?.numWaiting ?? 0} waiting)
 							</span>
 						</div>
 					</div>

@@ -8,66 +8,34 @@ import { useNotifications } from "../hooks/useNotifications";
 import { useSettingsStore } from "../store/useSettingsStore";
 
 export const Route = createFileRoute("/")({
-	component: Dashboard,
-	loader: async ({ context: { queryClient } }) => {
-		const { rpcUrl, pollingInterval } = useSettingsStore.getState();
+  component: Dashboard,
+  loader: async ({ context: { queryClient } }) => {
+    const { rpcUrl, pollingInterval } = useSettingsStore.getState();
 
-		if (!rpcUrl) return;
+    if (!rpcUrl) return;
 
-		// Prefetch essential data for the dashboard
-		await queryClient.ensureQueryData(
-			globalStatOptions(rpcUrl, pollingInterval),
-		);
-	},
+    // Prefetch essential data for the dashboard
+    await queryClient.ensureQueryData(
+      globalStatOptions(rpcUrl, pollingInterval),
+    );
+  },
 });
 
 function Dashboard() {
-	useNotifications();
-	const navigate = useNavigate();
-	const { purgeDownloadResult } = useAria2Actions();
+  useNotifications();
 
-	return (
-		<div className="space-y-6">
-			{/* Toolbar */}
-			<div className="flex justify-between items-center">
-				<h2 className="text-2xl font-bold tracking-tight">Dashboard</h2>
-				<div className="flex gap-2">
-					<Tooltip>
-						<Tooltip.Trigger>
-							<Button
-								variant="tertiary"
-								onPress={() => purgeDownloadResult.mutate()}
-								isDisabled={purgeDownloadResult.isPending}
-							>
-								<IconTrashBin className="w-4.5 h-4.5" />
-								Purge Finished
-							</Button>
-						</Tooltip.Trigger>
-						<Tooltip.Content className="p-2 text-xs flex items-center gap-2">
-							Clear finished tasks <Kbd>Shift + C</Kbd>
-						</Tooltip.Content>
-					</Tooltip>
+  return (
+    <div className="space-y-6">
+      {/* Toolbar */}
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold tracking-tight">Dashboard</h2>
+      </div>
 
-					<Tooltip>
-						<Tooltip.Trigger>
-							<Button onPress={() => navigate({ to: "/add" })}>
-								<IconPlus className="w-5 h-5" />
-								Add Task
-							</Button>
-						</Tooltip.Trigger>
-						<Tooltip.Content className="p-2 text-xs flex items-center gap-2">
-							New download <Kbd>Shift + A</Kbd>
-						</Tooltip.Content>
-					</Tooltip>
-				</div>
-			</div>
+      <StatsOverview />
 
-			{/* Stats */}
-			<StatsOverview />
-
-			<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-				{/* You could add more overview cards here later */}
-			</div>
-		</div>
-	);
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* You could add more overview cards here later */}
+      </div>
+    </div>
+  );
 }
