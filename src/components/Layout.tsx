@@ -3,6 +3,7 @@ import {
 	Button,
 	Chip,
 	Input,
+	Kbd,
 	Label,
 	ListBox,
 	Popover,
@@ -49,7 +50,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({
 	} = useSettingsStore();
 	const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
 
-	const isTaskListPage = location.pathname.startsWith("/tasks/");
+	const isTaskListPage = location.pathname.startsWith("/tasks");
 
 	// Safe query that only runs when configured
 	const { isError, isLoading } = useQuery({
@@ -169,7 +170,26 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({
 									<IconPlus className="w-5 h-5" />
 								</Button>
 							</Tooltip.Trigger>
-							<Tooltip.Content>Add New Download</Tooltip.Content>
+							<Tooltip.Content className="p-2 text-xs flex items-center gap-2">
+								Add Download <Kbd>Shift+A</Kbd>
+							</Tooltip.Content>
+						</Tooltip>
+
+						<Tooltip>
+							<Tooltip.Trigger>
+								<Button
+									isIconOnly
+									variant="ghost"
+									onPress={() => purgeDownloadResult.mutate()}
+									className="text-muted hover:text-danger h-9 w-9 min-w-0"
+									aria-label="Purge"
+								>
+									<IconMagicWand className="w-5 h-5" />
+								</Button>
+							</Tooltip.Trigger>
+							<Tooltip.Content className="p-2 text-xs flex items-center gap-2">
+								Purge Finished <Kbd>Shift+C</Kbd>
+							</Tooltip.Content>
 						</Tooltip>
 
 						{servers.length > 1 && (
@@ -270,21 +290,6 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({
 								</Popover.Dialog>
 							</Popover.Content>
 						</Popover>
-
-						<Tooltip>
-							<Tooltip.Trigger>
-								<Button
-									isIconOnly
-									variant="ghost"
-									onPress={() => purgeDownloadResult.mutate()}
-									className="text-muted hover:text-danger"
-									aria-label="Purge"
-								>
-									<IconMagicWand className="w-5 h-5" />
-								</Button>
-							</Tooltip.Trigger>
-							<Tooltip.Content>Purge Finished Tasks</Tooltip.Content>
-						</Tooltip>
 
 						<div className="w-px h-6 bg-default/30 mx-1" />
 

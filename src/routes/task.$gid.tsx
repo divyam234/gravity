@@ -30,6 +30,7 @@ import type { Aria2File } from "../lib/aria2-rpc";
 import { aria2 } from "../lib/aria2-rpc";
 import { cn, formatBytes } from "../lib/utils";
 import { useSettingsStore } from "../store/useSettingsStore";
+import { tasksLinkOptions } from "./tasks";
 
 export const Route = createFileRoute("/task/$gid")({
 	component: TaskDetailsPage,
@@ -93,7 +94,7 @@ function TaskDetailsPage() {
 				<Button
 					variant="ghost"
 					isIconOnly
-					onPress={() => navigate({ to: "/tasks/all" })}
+					onPress={() => navigate(tasksLinkOptions("all"))}
 				>
 					<IconChevronLeft className="w-5 h-5" />
 				</Button>

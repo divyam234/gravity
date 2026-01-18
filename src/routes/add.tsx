@@ -17,6 +17,7 @@ import IconFileArrowUp from "~icons/gravity-ui/file-arrow-up";
 import IconLink from "~icons/gravity-ui/link";
 import { useAria2Actions } from "../hooks/useAria2";
 import { useFileStore } from "../store/useFileStore";
+import { tasksLinkOptions } from "./tasks";
 
 export const Route = createFileRoute("/add")({
 	component: AddDownloadPage,
@@ -43,7 +44,7 @@ function AddDownloadPage() {
 				const reader = new FileReader();
 				reader.onload = () => {
 					const base64 = (reader.result as string).split(",")[1];
-					const onSuccess = () => navigate({ to: "/tasks/active" });
+					const onSuccess = () => navigate(tasksLinkOptions("active"));
 
 					if (file.name.endsWith(".torrent")) {
 						addTorrent.mutate(
@@ -90,7 +91,7 @@ function AddDownloadPage() {
 	};
 
 	const handleSubmit = async () => {
-		const onSuccess = () => navigate({ to: "/tasks/active" });
+		const onSuccess = () => navigate(tasksLinkOptions("active"));
 
 		if (selectedTab === `${baseId}-links` && validateUris(uris) === true) {
 			const uriList = uris.split("\n").filter((u) => u.trim());
@@ -110,7 +111,7 @@ function AddDownloadPage() {
 				<Button
 					variant="ghost"
 					isIconOnly
-					onPress={() => navigate({ to: "/tasks/all" })}
+					onPress={() => navigate(tasksLinkOptions("all"))}
 				>
 					<IconChevronLeft className="w-5 h-5" />
 				</Button>
@@ -248,7 +249,7 @@ function AddDownloadPage() {
 					<Button
 						variant="ghost"
 						className="px-6 h-12 rounded-2xl font-bold"
-						onPress={() => navigate({ to: "/tasks/all" })}
+						onPress={() => navigate(tasksLinkOptions("all"))}
 					>
 						Cancel
 					</Button>

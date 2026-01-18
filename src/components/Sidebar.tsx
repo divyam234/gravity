@@ -1,5 +1,5 @@
 import { Accordion, Button, ListBox, ScrollShadow } from "@heroui/react";
-import { useLocation } from "@tanstack/react-router";
+import { useLocation, useNavigate } from "@tanstack/react-router";
 import React from "react";
 import IconArrowDown from "~icons/gravity-ui/arrow-down";
 import IconCheck from "~icons/gravity-ui/check";
@@ -15,12 +15,14 @@ import IconXmark from "~icons/gravity-ui/xmark";
 import { useAllTasks, useGlobalStat } from "../hooks/useAria2";
 import { aria2GlobalAvailableOptions } from "../lib/aria2-options";
 import { cn, formatBytes, formatCategoryName } from "../lib/utils";
+import { tasksLinkOptions } from "../routes/tasks";
 
 interface SidebarContentProps {
 	onClose?: () => void;
 }
 
 export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
+	const navigate = useNavigate();
 	const { active, waiting, stopped } = useAllTasks();
 	const { data: stats } = useGlobalStat();
 	const activeCount = active.length;
@@ -43,14 +45,14 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
 				key: "all",
 				label: "All Tasks",
 				icon: <IconPulse className="w-5 h-5" />,
-				to: "/tasks/all",
+				linkOptions: tasksLinkOptions("all"),
 				count: allCount,
 			},
 			{
 				key: "active",
 				label: "Active",
 				icon: <IconArrowDown className="w-5 h-5" />,
-				to: "/tasks/active",
+				linkOptions: tasksLinkOptions("active"),
 				count: activeCount,
 				color: "text-success",
 			},
@@ -58,7 +60,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
 				key: "waiting",
 				label: "Queued",
 				icon: <IconClock className="w-5 h-5" />,
-				to: "/tasks/waiting",
+				linkOptions: tasksLinkOptions("waiting"),
 				count: waitingCount,
 				color: "text-warning",
 			},
@@ -66,7 +68,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
 				key: "stopped",
 				label: "Finished",
 				icon: <IconCheck className="w-5 h-5" />,
-				to: "/tasks/stopped",
+				linkOptions: tasksLinkOptions("stopped"),
 				count: stoppedCount,
 				color: "text-danger",
 			},
@@ -122,6 +124,12 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
 	// Determine selected key based on current path
 	const selectedKey = React.useMemo(() => {
 		const path = location.pathname;
+		const search = location.search as any;
+
+		// Check Tasks with Search Params
+		if (path === "/tasks") {
+			return search.status || "all";
+		}
 
 		// Check Settings
 		const foundSetting = settingsNavItems.find((item) => item.to === path);
@@ -131,14 +139,9 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
 		const foundMain = mainNavItems.find((item) => item.to === path);
 		if (foundMain) return foundMain.key;
 
-		// Fallback
-		if (path.startsWith("/tasks/active")) return "active";
-		if (path.startsWith("/tasks/waiting")) return "waiting";
-		if (path.startsWith("/tasks/stopped")) return "stopped";
-		if (path.startsWith("/tasks/all")) return "all";
 		if (path === "/") return "dashboard";
 		return null;
-	}, [location.pathname, mainNavItems, settingsNavItems]);
+	}, [location.pathname, location.search, mainNavItems, settingsNavItems]);
 
 	const isSettingsActive = location.pathname.startsWith("/settings");
 
@@ -176,16 +179,19 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
 					selectionMode="single"
 					selectedKeys={selectedKey ? [selectedKey] : []}
 					className="p-0 gap-1 mb-2"
-					items={mainNavItems}
 				>
-					{(item) => (
+					{mainNavItems.map((item) => (
 						<ListBox.Item
 							key={item.key}
+							id={item.key}
 							textValue={item.label}
-							href={item.to as any}
-							onPress={onClose}
+							onPress={() => {
+								if (item.linkOptions) navigate(item.linkOptions);
+								else if (item.to) navigate({ to: item.to });
+								if (onClose) onClose();
+							}}
 							className={cn(
-								"px-4 py-3 rounded-2xl data-[hover=true]:bg-default/10 transition-colors",
+								"px-4 py-3 rounded-2xl data-[hover=true]:bg-default/10 transition-colors cursor-pointer outline-none",
 								selectedKey === item.key &&
 									"bg-accent text-accent-foreground shadow-lg shadow-accent/20",
 							)}
@@ -219,7 +225,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
 								)}
 							</div>
 						</ListBox.Item>
-					)}
+					))}
 				</ListBox>
 
 				{/* Settings Accordion */}
@@ -249,11 +255,14 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
 								{settingsNavItems.map((item) => (
 									<ListBox.Item
 										key={item.key}
+										id={item.key}
 										textValue={item.label}
-										href={item.to as any}
-										onPress={onClose}
+										onPress={() => {
+											navigate({ to: item.to });
+											if (onClose) onClose();
+										}}
 										className={cn(
-											"px-4 py-2 rounded-xl data-[hover=true]:bg-default/10 transition-colors",
+											"px-4 py-2 rounded-xl data-[hover=true]:bg-default/10 transition-colors cursor-pointer outline-none",
 											selectedKey === item.key &&
 												"bg-default/30 text-foreground font-bold",
 										)}
