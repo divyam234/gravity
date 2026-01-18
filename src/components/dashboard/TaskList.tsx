@@ -29,11 +29,6 @@ export const TaskList: React.FC<TaskListProps> = ({ status }) => {
 		toggleGidSelection,
 	} = useSettingsStore();
 
-	const allTasks = React.useMemo(
-		() => [...active, ...waiting, ...stopped],
-		[active, waiting, stopped],
-	);
-
 	const tasks = React.useMemo(() => {
 		let t: Aria2Task[] = [];
 		switch (status) {
@@ -46,8 +41,6 @@ export const TaskList: React.FC<TaskListProps> = ({ status }) => {
 			case "stopped":
 				t = stopped;
 				break;
-			default:
-				t = allTasks;
 		}
 
 		if (searchQuery) {
@@ -62,7 +55,7 @@ export const TaskList: React.FC<TaskListProps> = ({ status }) => {
 		}
 
 		return t;
-	}, [status, active, waiting, stopped, allTasks, searchQuery]);
+	}, [status, active, waiting, stopped, searchQuery]);
 
 	const { dragAndDropHooks } = useDragAndDrop({
 		getItems: (keys) => [...keys].map((key) => ({ "text/plain": String(key) })),

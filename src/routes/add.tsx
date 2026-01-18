@@ -1,9 +1,9 @@
 import {
-	Accordion,
 	Button,
 	FieldError,
 	Input,
 	Label,
+	Switch,
 	Tabs,
 	TextArea,
 	TextField,
@@ -11,10 +11,12 @@ import {
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import React, { useId } from "react";
 import { FileTrigger } from "react-aria-components";
-import IconChevronDown from "~icons/gravity-ui/chevron-down";
 import IconChevronLeft from "~icons/gravity-ui/chevron-left";
 import IconFileArrowUp from "~icons/gravity-ui/file-arrow-up";
+import IconGear from "~icons/gravity-ui/gear";
+import IconGlobe from "~icons/gravity-ui/globe";
 import IconLink from "~icons/gravity-ui/link";
+import IconShieldCheck from "~icons/gravity-ui/shield-check";
 import { useAria2Actions } from "../hooks/useAria2";
 import { useFileStore } from "../store/useFileStore";
 import { tasksLinkOptions } from "./tasks";
@@ -26,12 +28,25 @@ export const Route = createFileRoute("/add")({
 function AddDownloadPage() {
 	const navigate = useNavigate();
 	const baseId = useId();
+
 	const { pendingFile, clearPendingFile } = useFileStore();
 	const [selectedTab, setSelectedTab] = React.useState<React.Key>(
 		`${baseId}-links`,
 	);
+	const [optionsTab, setOptionsTab] = React.useState<React.Key>(
+		`${baseId}-opt-general`,
+	);
+
 	const [uris, setUris] = React.useState("");
-	const [options, setOptions] = React.useState<{ dir?: string }>({});
+	const [options, setOptions] = React.useState<Record<string, string>>({
+		dir: "",
+		split: "5",
+		"max-connection-per-server": "1",
+		"user-agent": "",
+		referer: "",
+		"seed-ratio": "1.0",
+		"seed-time": "0",
+	});
 
 	const { addUri, addTorrent, addMetalink } = useAria2Actions();
 
@@ -50,7 +65,7 @@ function AddDownloadPage() {
 						addTorrent.mutate(
 							{
 								torrent: base64,
-								options: options as Record<string, string>,
+								options: options,
 							},
 							{ onSuccess },
 						);
@@ -58,7 +73,7 @@ function AddDownloadPage() {
 						addMetalink.mutate(
 							{
 								metalink: base64,
-								options: options as Record<string, string>,
+								options: options,
 							},
 							{ onSuccess },
 						);
@@ -70,7 +85,6 @@ function AddDownloadPage() {
 		[addTorrent, addMetalink, options, navigate],
 	);
 
-	// Handle file from global drop
 	React.useEffect(() => {
 		if (pendingFile) {
 			handleFileSelect([pendingFile] as any);
@@ -92,169 +106,53 @@ function AddDownloadPage() {
 
 	const handleSubmit = async () => {
 		const onSuccess = () => navigate(tasksLinkOptions("active"));
+		const cleanOptions = Object.fromEntries(
+			Object.entries(options).filter(([_, v]) => v !== ""),
+		);
 
 		if (selectedTab === `${baseId}-links` && validateUris(uris) === true) {
 			const uriList = uris.split("\n").filter((u) => u.trim());
 			addUri.mutate(
 				{
 					uris: uriList,
-					options: options as Record<string, string>,
+					options: cleanOptions,
 				},
 				{ onSuccess },
 			);
 		}
 	};
 
+	const updateOption = (key: string, value: string) => {
+		setOptions((prev) => ({ ...prev, [key]: value }));
+	};
+
 	return (
-		<div className="max-w-2xl mx-auto space-y-8 pb-12">
-			<div className="flex items-center gap-4">
-				<Button
-					variant="ghost"
-					isIconOnly
-					onPress={() => navigate(tasksLinkOptions("all"))}
-				>
-					<IconChevronLeft className="w-5 h-5" />
-				</Button>
-				<h2 className="text-2xl font-bold tracking-tight">Add Download</h2>
-			</div>
-
-			<div className="bg-muted-background/40 p-8 rounded-[40px] border border-border space-y-8 shadow-sm">
-				<Tabs
-					aria-label="Download Type"
-					selectedKey={selectedTab as string}
-					onSelectionChange={setSelectedTab}
-					className="w-full"
-				>
-					<Tabs.ListContainer className="bg-default/10 p-1.5 rounded-2xl">
-						<Tabs.List className="w-full">
-							<Tabs.Tab id={`${baseId}-links`} className="w-full py-2.5">
-								<div className="flex items-center justify-center gap-2">
-									<IconLink className="w-4 h-4" />
-									<span className="font-bold">Links</span>
-								</div>
-								<Tabs.Indicator className="bg-background rounded-xl shadow-sm" />
-							</Tabs.Tab>
-							<Tabs.Tab id={`${baseId}-torrent`} className="w-full py-2.5">
-								<div className="flex items-center justify-center gap-2">
-									<IconFileArrowUp className="w-4 h-4" />
-									<span className="font-bold">File</span>
-								</div>
-								<Tabs.Indicator className="bg-background rounded-xl shadow-sm" />
-							</Tabs.Tab>
-						</Tabs.List>
-					</Tabs.ListContainer>
-				</Tabs>
-
-				<div className="min-h-[200px]">
-					{selectedTab === `${baseId}-links` && (
-						<TextField
-							className="w-full"
-							value={uris}
-							onChange={setUris}
-							validate={validateUris}
-							validationBehavior="aria"
-						>
-							<div className="flex flex-col gap-3">
-								<Label className="text-sm font-bold tracking-tight px-1">
-									Download Links
-								</Label>
-								<div className="relative group">
-									<TextArea
-										placeholder="https://example.com/file.zip&#10;magnet:?xt=urn:btih:..."
-										className="w-full p-4 bg-default/10 rounded-2xl text-sm border border-transparent focus:bg-default/20 focus:border-accent/30 transition-all outline-none min-h-[160px] leading-relaxed data-[invalid=true]:border-danger/50"
-									/>
-									<FieldError className="absolute -bottom-6 right-1 text-[10px] text-danger font-black uppercase tracking-widest animate-in fade-in slide-in-from-top-1" />
-								</div>
-								<p className="text-[10px] text-muted uppercase font-black tracking-widest px-1">
-									Enter one URL per line. Supports HTTP, FTP, SFTP and Magnet.
-								</p>
-							</div>
-						</TextField>
-					)}
-
-					{selectedTab === `${baseId}-torrent` && (
-						<div className="flex flex-col gap-3 relative group">
-							<Label className="text-sm font-bold tracking-tight px-1">
-								Torrent or Metalink File
-							</Label>
-							<FileTrigger
-								acceptedFileTypes={[".torrent", ".metalink"]}
-								allowsMultiple
-								onSelect={handleFileSelect}
-							>
-								<Button
-									variant="secondary"
-									className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-border rounded-[32px] text-muted gap-4 hover:border-accent hover:text-accent transition-all cursor-pointer w-full h-auto bg-default/5 hover:bg-accent/5 overflow-hidden"
-								>
-									<div className="w-16 h-16 bg-background rounded-3xl flex items-center justify-center shadow-sm border border-border group-hover:scale-110 transition-transform duration-500">
-										<IconFileArrowUp className="w-8 h-8 opacity-30 text-accent group-hover:opacity-100" />
-									</div>
-									<div className="flex flex-col gap-1 items-center">
-										<p className="text-center w-full font-bold">
-											Click to browse files
-										</p>
-										<p className="text-[10px] uppercase font-black tracking-widest opacity-60">
-											Supports .torrent and .metalink
-										</p>
-									</div>
-								</Button>
-							</FileTrigger>
-						</div>
-					)}
-				</div>
-
-				<Accordion className="px-0">
-					<Accordion.Item
-						id={`${baseId}-advanced-item`}
-						className="border-none bg-default/5 rounded-3xl overflow-hidden px-2 py-1"
-					>
-						<Accordion.Heading>
-							<Accordion.Trigger className="px-4 py-3 hover:bg-default/10 rounded-2xl transition-all outline-none group">
-								<div className="flex items-center gap-3">
-									<div className="w-8 h-8 bg-background rounded-xl flex items-center justify-center shadow-sm border border-border group-data-[expanded=true]:text-accent group-data-[expanded=true]:border-accent/30">
-										<IconChevronDown className="w-4 h-4 group-data-[expanded=true]:rotate-180 transition-transform duration-300" />
-									</div>
-									<span className="font-bold text-sm tracking-tight">
-										Advanced Download Options
-									</span>
-								</div>
-							</Accordion.Trigger>
-						</Accordion.Heading>
-						<Accordion.Panel>
-							<Accordion.Body className="px-6 pb-6 pt-4">
-								<TextField
-									value={options.dir || ""}
-									onChange={(val) => setOptions({ ...options, dir: val })}
-								>
-									<div className="flex flex-col gap-2">
-										<Label className="text-xs font-bold tracking-tight uppercase text-muted">
-											Override Download Directory
-										</Label>
-										<Input
-											placeholder="/path/to/downloads"
-											className="w-full h-11 px-4 bg-background rounded-2xl text-sm border border-border focus:border-accent/30 transition-all outline-none"
-										/>
-										<p className="text-[10px] text-muted leading-relaxed">
-											Leave empty to use the default directory configured in
-											aria2.
-										</p>
-									</div>
-								</TextField>
-							</Accordion.Body>
-						</Accordion.Panel>
-					</Accordion.Item>
-				</Accordion>
-
-				<div className="flex justify-end gap-3 pt-4">
+		<div className="max-w-5xl mx-auto space-y-6 pb-20">
+			{/* Header */}
+			<div className="flex items-center justify-between bg-background p-4 rounded-3xl border border-border shadow-sm">
+				<div className="flex items-center gap-4">
 					<Button
 						variant="ghost"
-						className="px-6 h-12 rounded-2xl font-bold"
-						onPress={() => navigate(tasksLinkOptions("all"))}
+						isIconOnly
+						onPress={() => navigate(tasksLinkOptions("active"))}
+						className="h-10 w-10 rounded-xl"
+					>
+						<IconChevronLeft className="w-5 h-5" />
+					</Button>
+					<h2 className="text-xl font-black uppercase tracking-tight">
+						Add Download
+					</h2>
+				</div>
+				<div className="flex gap-2">
+					<Button
+						variant="ghost"
+						className="px-6 h-10 rounded-xl font-bold"
+						onPress={() => navigate(tasksLinkOptions("active"))}
 					>
 						Cancel
 					</Button>
 					<Button
-						className="px-8 h-12 rounded-2xl font-bold shadow-lg shadow-accent/20 bg-accent text-accent-foreground"
+						className="px-8 h-10 rounded-xl font-black uppercase tracking-widest shadow-lg shadow-accent/20 bg-accent text-accent-foreground"
 						onPress={handleSubmit}
 						isDisabled={
 							selectedTab === `${baseId}-links`
@@ -262,8 +160,311 @@ function AddDownloadPage() {
 								: false
 						}
 					>
-						Start Download
+						Start
 					</Button>
+				</div>
+			</div>
+
+			<div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+				{/* Input Section */}
+				<div className="lg:col-span-7 space-y-6">
+					<div className="bg-background p-8 rounded-[32px] border border-border shadow-sm">
+						<Tabs
+							aria-label="Download Type"
+							selectedKey={selectedTab as string}
+							onSelectionChange={setSelectedTab}
+							className="w-full mb-8"
+						>
+							<Tabs.ListContainer className="bg-default/10 p-1 rounded-2xl">
+								<Tabs.List className="w-full">
+									<Tabs.Tab id={`${baseId}-links`} className="w-full py-2">
+										<div className="flex items-center justify-center gap-2">
+											<IconLink className="w-4 h-4" />
+											<span className="font-bold text-sm">Links / Magnet</span>
+										</div>
+										<Tabs.Indicator className="bg-background rounded-xl shadow-sm" />
+									</Tabs.Tab>
+									<Tabs.Tab id={`${baseId}-torrent`} className="w-full py-2">
+										<div className="flex items-center justify-center gap-2">
+											<IconFileArrowUp className="w-4 h-4" />
+											<span className="font-bold text-sm">Torrent / File</span>
+										</div>
+										<Tabs.Indicator className="bg-background rounded-xl shadow-sm" />
+									</Tabs.Tab>
+								</Tabs.List>
+							</Tabs.ListContainer>
+						</Tabs>
+
+						<div className="min-h-[240px]">
+							{selectedTab === `${baseId}-links` && (
+								<TextField
+									className="w-full"
+									value={uris}
+									onChange={setUris}
+									validate={validateUris}
+									validationBehavior="aria"
+								>
+									<div className="flex flex-col gap-3">
+										<Label className="text-xs font-black uppercase tracking-widest text-muted px-1">
+											Download URLs
+										</Label>
+										<div className="relative group">
+											<TextArea
+												placeholder="Paste HTTP, FTP or Magnet links here..."
+												className="w-full p-6 bg-default/10 rounded-3xl text-sm border border-transparent focus:bg-default/15 focus:border-accent/30 transition-all outline-none min-h-[200px] leading-relaxed font-mono data-[invalid=true]:border-danger/50"
+											/>
+											<FieldError className="absolute -bottom-6 right-1 text-[10px] text-danger font-black uppercase tracking-widest animate-in fade-in slide-in-from-top-1" />
+										</div>
+									</div>
+								</TextField>
+							)}
+
+							{selectedTab === `${baseId}-torrent` && (
+								<div className="flex flex-col gap-3 h-full">
+									<Label className="text-xs font-black uppercase tracking-widest text-muted px-1">
+										Select Files
+									</Label>
+									<FileTrigger
+										acceptedFileTypes={[".torrent", ".metalink"]}
+										allowsMultiple
+										onSelect={handleFileSelect}
+									>
+										<Button
+											variant="secondary"
+											className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-border rounded-[40px] text-muted gap-4 hover:border-accent hover:text-accent transition-all cursor-pointer w-full h-[200px] bg-default/5 hover:bg-accent/5 overflow-hidden group"
+										>
+											<div className="w-20 h-20 bg-background rounded-full flex items-center justify-center shadow-lg border border-border group-hover:scale-110 group-hover:rotate-6 transition-all duration-500">
+												<IconFileArrowUp className="w-10 h-10 opacity-30 text-accent group-hover:opacity-100" />
+											</div>
+											<div className="flex flex-col gap-1 items-center">
+												<p className="text-center w-full font-bold">
+													Drop .torrent or .metalink files here
+												</p>
+												<p className="text-[10px] uppercase font-black tracking-widest opacity-60">
+													or click to browse local files
+												</p>
+											</div>
+										</Button>
+									</FileTrigger>
+								</div>
+							)}
+						</div>
+					</div>
+				</div>
+
+				{/* Options Section */}
+				<div className="lg:col-span-5 space-y-6">
+					<div className="bg-background rounded-[32px] border border-border shadow-sm overflow-hidden flex flex-col h-full">
+						<div className="p-6 border-b border-border bg-default/5 flex items-center gap-3">
+							<div className="p-2 bg-accent/10 rounded-xl text-accent">
+								<IconGear className="w-5 h-5" />
+							</div>
+							<div>
+								<h3 className="font-black uppercase tracking-widest text-xs">
+									Download Options
+								</h3>
+								<p className="text-[10px] text-muted font-bold">
+									Configuration for this task
+								</p>
+							</div>
+						</div>
+
+						<Tabs
+							aria-label="Option Categories"
+							selectedKey={optionsTab as string}
+							onSelectionChange={setOptionsTab}
+							className="flex-1 flex flex-col"
+						>
+							<Tabs.ListContainer className="p-3 border-b border-border bg-background">
+								<Tabs.List className="w-full gap-1">
+									<Tabs.Tab
+										id={`${baseId}-opt-general`}
+										className="flex-1 py-2"
+									>
+										<div className="flex flex-col items-center gap-1">
+											<IconGear className="w-4 h-4" />
+											<span className="text-[9px] font-black uppercase">
+												General
+											</span>
+										</div>
+										<Tabs.Indicator className="bg-accent/10 rounded-xl" />
+									</Tabs.Tab>
+									<Tabs.Tab id={`${baseId}-opt-http`} className="flex-1 py-2">
+										<div className="flex flex-col items-center gap-1">
+											<IconGlobe className="w-4 h-4" />
+											<span className="text-[9px] font-black uppercase">
+												HTTP
+											</span>
+										</div>
+										<Tabs.Indicator className="bg-accent/10 rounded-xl" />
+									</Tabs.Tab>
+									<Tabs.Tab id={`${baseId}-opt-bt`} className="flex-1 py-2">
+										<div className="flex flex-col items-center gap-1">
+											<IconShieldCheck className="w-4 h-4" />
+											<span className="text-[9px] font-black uppercase">
+												BT
+											</span>
+										</div>
+										<Tabs.Indicator className="bg-accent/10 rounded-xl" />
+									</Tabs.Tab>
+								</Tabs.List>
+							</Tabs.ListContainer>
+
+							<div className="p-6 flex-1 overflow-y-auto">
+								{optionsTab === `${baseId}-opt-general` && (
+									<div className="space-y-6">
+										<TextField
+											value={options.dir}
+											onChange={(v) => updateOption("dir", v)}
+										>
+											<div className="flex flex-col gap-2">
+												<Label className="text-[10px] font-black uppercase tracking-widest text-muted px-1">
+													Download Directory
+												</Label>
+												<Input
+													placeholder="/path/to/downloads"
+													className="w-full h-10 px-4 bg-default/10 rounded-xl text-sm border-none focus:bg-default/20 transition-all outline-none"
+												/>
+											</div>
+										</TextField>
+
+										<div className="grid grid-cols-2 gap-4">
+											<TextField
+												value={options.split}
+												onChange={(v) => updateOption("split", v)}
+											>
+												<div className="flex flex-col gap-2">
+													<Label className="text-[10px] font-black uppercase tracking-widest text-muted px-1">
+														Split Conn.
+													</Label>
+													<Input
+														type="number"
+														className="w-full h-10 px-4 bg-default/10 rounded-xl text-sm border-none focus:bg-default/20 transition-all outline-none"
+													/>
+												</div>
+											</TextField>
+											<TextField
+												value={options["max-connection-per-server"]}
+												onChange={(v) =>
+													updateOption("max-connection-per-server", v)
+												}
+											>
+												<div className="flex flex-col gap-2">
+													<Label className="text-[10px] font-black uppercase tracking-widest text-muted px-1">
+														Conn/Serv
+													</Label>
+													<Input
+														type="number"
+														className="w-full h-10 px-4 bg-default/10 rounded-xl text-sm border-none focus:bg-default/20 transition-all outline-none"
+													/>
+												</div>
+											</TextField>
+										</div>
+									</div>
+								)}
+
+								{optionsTab === `${baseId}-opt-http` && (
+									<div className="space-y-6">
+										<TextField
+											value={options["user-agent"]}
+											onChange={(v) => updateOption("user-agent", v)}
+										>
+											<div className="flex flex-col gap-2">
+												<Label className="text-[10px] font-black uppercase tracking-widest text-muted px-1">
+													User Agent
+												</Label>
+												<Input
+													placeholder="aria2/1.x"
+													className="w-full h-10 px-4 bg-default/10 rounded-xl text-sm border-none focus:bg-default/20 transition-all outline-none"
+												/>
+											</div>
+										</TextField>
+
+										<TextField
+											value={options.referer}
+											onChange={(v) => updateOption("referer", v)}
+										>
+											<div className="flex flex-col gap-2">
+												<Label className="text-[10px] font-black uppercase tracking-widest text-muted px-1">
+													Referer
+												</Label>
+												<Input
+													placeholder="https://..."
+													className="w-full h-10 px-4 bg-default/10 rounded-xl text-sm border-none focus:bg-default/20 transition-all outline-none"
+												/>
+											</div>
+										</TextField>
+
+										<div className="flex items-center justify-between p-4 rounded-2xl bg-default/5 border border-border/50">
+											<div className="flex flex-col gap-0.5">
+												<span className="text-xs font-bold">Integrity</span>
+												<span className="text-[9px] text-muted font-black uppercase">
+													Verify Piece Hashes
+												</span>
+											</div>
+											<Switch
+												isSelected={options["check-integrity"] === "true"}
+												onChange={(v) =>
+													updateOption("check-integrity", String(v))
+												}
+											/>
+										</div>
+									</div>
+								)}
+
+								{optionsTab === `${baseId}-opt-bt` && (
+									<div className="space-y-6">
+										<div className="grid grid-cols-2 gap-4">
+											<TextField
+												value={options["seed-ratio"]}
+												onChange={(v) => updateOption("seed-ratio", v)}
+											>
+												<div className="flex flex-col gap-2">
+													<Label className="text-[10px] font-black uppercase tracking-widest text-muted px-1">
+														Seed Ratio
+													</Label>
+													<Input
+														type="number"
+														step="0.1"
+														className="w-full h-10 px-4 bg-default/10 rounded-xl text-sm border-none focus:bg-default/20 transition-all outline-none"
+													/>
+												</div>
+											</TextField>
+											<TextField
+												value={options["seed-time"]}
+												onChange={(v) => updateOption("seed-time", v)}
+											>
+												<div className="flex flex-col gap-2">
+													<Label className="text-[10px] font-black uppercase tracking-widest text-muted px-1">
+														Seed Time (m)
+													</Label>
+													<Input
+														type="number"
+														className="w-full h-10 px-4 bg-default/10 rounded-xl text-sm border-none focus:bg-default/20 transition-all outline-none"
+													/>
+												</div>
+											</TextField>
+										</div>
+
+										<div className="flex items-center justify-between p-4 rounded-2xl bg-default/5 border border-border/50">
+											<div className="flex flex-col gap-0.5">
+												<span className="text-xs font-bold">Metadata</span>
+												<span className="text-[9px] text-muted font-black uppercase">
+													Metadata Only
+												</span>
+											</div>
+											<Switch
+												isSelected={options["bt-metadata-only"] === "true"}
+												onChange={(v) =>
+													updateOption("bt-metadata-only", String(v))
+												}
+											/>
+										</div>
+									</div>
+								)}
+							</div>
+						</Tabs>
+					</div>
 				</div>
 			</div>
 		</div>
