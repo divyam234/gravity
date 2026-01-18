@@ -3,7 +3,6 @@ import {
 	useMutation,
 	useQuery,
 	useQueryClient,
-	useSuspenseQuery,
 } from "@tanstack/react-query";
 import { aria2 } from "../lib/aria2-rpc";
 import { useSettingsStore } from "../store/useSettingsStore";
@@ -97,31 +96,42 @@ export const taskServersOptions = (rpcUrl: string, gid: string) =>
 
 export function useAria2Version() {
 	const { rpcUrl } = useSettingsStore();
-	return useSuspenseQuery(aria2VersionOptions(rpcUrl));
+	return useQuery({
+		...aria2VersionOptions(rpcUrl),
+		enabled: !!rpcUrl,
+	});
 }
 
 export function useGlobalStat() {
 	const { pollingInterval, rpcUrl } = useSettingsStore();
-	return useSuspenseQuery(globalStatOptions(rpcUrl, pollingInterval));
+	return useQuery({
+		...globalStatOptions(rpcUrl, pollingInterval),
+		enabled: !!rpcUrl,
+	});
 }
 
 export function useActiveTasks() {
 	const { pollingInterval, rpcUrl } = useSettingsStore();
-	return useSuspenseQuery(activeTasksOptions(rpcUrl, pollingInterval));
+	return useQuery({
+		...activeTasksOptions(rpcUrl, pollingInterval),
+		enabled: !!rpcUrl,
+	});
 }
 
 export function useWaitingTasks(offset = 0, num = 100) {
 	const { pollingInterval, rpcUrl } = useSettingsStore();
-	return useSuspenseQuery(
-		waitingTasksOptions(rpcUrl, pollingInterval, offset, num),
-	);
+	return useQuery({
+		...waitingTasksOptions(rpcUrl, pollingInterval, offset, num),
+		enabled: !!rpcUrl,
+	});
 }
 
 export function useStoppedTasks(offset = 0, num = 100) {
 	const { pollingInterval, rpcUrl } = useSettingsStore();
-	return useSuspenseQuery(
-		stoppedTasksOptions(rpcUrl, pollingInterval, offset, num),
-	);
+	return useQuery({
+		...stoppedTasksOptions(rpcUrl, pollingInterval, offset, num),
+		enabled: !!rpcUrl,
+	});
 }
 
 export function useAllTasks() {
@@ -134,28 +144,36 @@ export function useAllTasks() {
 		waiting: waiting.data || [],
 		stopped: stopped.data || [],
 		refetch: () => {
-			// Suspense queries handle refetching internally through options,
-			// but we can expose manual refetch if needed.
+			active.refetch();
+			waiting.refetch();
+			stopped.refetch();
 		},
 	};
 }
 
 export function useGlobalOption() {
 	const { rpcUrl } = useSettingsStore();
-	return useSuspenseQuery(globalOptionOptions(rpcUrl));
+	return useQuery({
+		...globalOptionOptions(rpcUrl),
+		enabled: !!rpcUrl,
+	});
 }
 
 export function useTaskOption(gid: string) {
 	const { rpcUrl } = useSettingsStore();
-	return useSuspenseQuery({
+	return useQuery({
 		queryKey: ["aria2", "option", gid, rpcUrl],
 		queryFn: () => aria2.getOption(gid),
+		enabled: !!rpcUrl && !!gid,
 	});
 }
 
 export function useTaskFiles(gid: string) {
 	const { rpcUrl } = useSettingsStore();
-	return useSuspenseQuery(taskFilesOptions(rpcUrl, gid));
+	return useQuery({
+		...taskFilesOptions(rpcUrl, gid),
+		enabled: !!rpcUrl && !!gid,
+	});
 }
 
 export function useTaskPeers(gid: string, enabled = false) {
@@ -176,7 +194,10 @@ export function useTaskServers(gid: string, enabled = false) {
 
 export function useTaskStatus(gid: string) {
 	const { rpcUrl } = useSettingsStore();
-	return useSuspenseQuery(taskStatusOptions(rpcUrl, gid));
+	return useQuery({
+		...taskStatusOptions(rpcUrl, gid),
+		enabled: !!rpcUrl && !!gid,
+	});
 }
 
 // Mutations

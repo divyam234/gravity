@@ -11,10 +11,8 @@ export const Route = createFileRoute("/")({
 
 		if (!rpcUrl) return;
 
-		// Prefetch essential data for the dashboard
-		await queryClient.ensureQueryData(
-			globalStatOptions(rpcUrl, pollingInterval),
-		);
+		// Prefetch essential data for the dashboard without blocking
+		queryClient.prefetchQuery(globalStatOptions(rpcUrl, pollingInterval));
 	},
 });
 

@@ -29,30 +29,19 @@ export const Route = createFileRoute("/tasks")({
 		const { rpcUrl, pollingInterval } = useSettingsStore.getState();
 		if (!rpcUrl) return;
 
-		const promises = [];
 		if (status === "active") {
-			promises.push(
-				queryClient.ensureQueryData(
-					activeTasksOptions(rpcUrl, pollingInterval),
-				),
-			);
+			queryClient.prefetchQuery(activeTasksOptions(rpcUrl, pollingInterval));
 		}
 		if (status === "waiting") {
-			promises.push(
-				queryClient.ensureQueryData(
-					waitingTasksOptions(rpcUrl, pollingInterval, 0, 50),
-				),
+			queryClient.prefetchQuery(
+				waitingTasksOptions(rpcUrl, pollingInterval, 0, 50),
 			);
 		}
 		if (status === "stopped") {
-			promises.push(
-				queryClient.ensureQueryData(
-					stoppedTasksOptions(rpcUrl, pollingInterval, 0, 50),
-				),
+			queryClient.prefetchQuery(
+				stoppedTasksOptions(rpcUrl, pollingInterval, 0, 50),
 			);
 		}
-
-		await Promise.all(promises);
 	},
 	component: TasksPage,
 });
