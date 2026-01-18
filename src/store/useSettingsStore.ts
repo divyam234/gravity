@@ -20,10 +20,20 @@ interface SettingsState {
 
 	pollingInterval: number;
 	theme: "light" | "dark" | "system";
+	viewMode: "list" | "grid";
+	searchQuery: string;
+	isSelectionMode: boolean;
+	selectedGids: Set<string>;
 
 	// Actions
 	setRpcUrl: (url: string) => void;
 	setRpcSecret: (secret: string) => void;
+
+	setSearchQuery: (query: string) => void;
+	setViewMode: (mode: "list" | "grid") => void;
+	setIsSelectionMode: (isSelectionMode: boolean) => void;
+	setSelectedGids: (gids: Set<string>) => void;
+	toggleGidSelection: (gid: string) => void;
 
 	addServer: (server: Omit<ServerConfig, "id">) => void;
 	updateServer: (id: string, updates: Partial<ServerConfig>) => void;
@@ -43,6 +53,10 @@ export const useSettingsStore = create<SettingsState>()(
 			activeServerId: null,
 			pollingInterval: 1000,
 			theme: "dark",
+			viewMode: "list",
+			searchQuery: "",
+			isSelectionMode: false,
+			selectedGids: new Set(),
 
 			setRpcUrl: (rpcUrl) => {
 				set((state) => {
@@ -60,6 +74,20 @@ export const useSettingsStore = create<SettingsState>()(
 						s.id === state.activeServerId ? { ...s, rpcSecret } : s,
 					);
 					return { rpcSecret, servers };
+				});
+			},
+
+			setSearchQuery: (searchQuery) => set({ searchQuery }),
+			setViewMode: (viewMode) => set({ viewMode }),
+			setIsSelectionMode: (isSelectionMode) =>
+				set({ isSelectionMode, selectedGids: new Set() }),
+			setSelectedGids: (selectedGids) => set({ selectedGids }),
+			toggleGidSelection: (gid) => {
+				set((state) => {
+					const newSelected = new Set(state.selectedGids);
+					if (newSelected.has(gid)) newSelected.delete(gid);
+					else newSelected.add(gid);
+					return { selectedGids: newSelected };
 				});
 			},
 
@@ -145,6 +173,13 @@ export const useSettingsStore = create<SettingsState>()(
 		}),
 		{
 			name: "aria2-settings",
+			partialize: (state) => ({
+				theme: state.theme,
+				viewMode: state.viewMode,
+				servers: state.servers,
+				activeServerId: state.activeServerId,
+				pollingInterval: state.pollingInterval,
+			}),
 			onRehydrateStorage: () => (state) => {
 				if (!state) return;
 

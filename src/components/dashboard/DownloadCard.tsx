@@ -13,9 +13,13 @@ import { StatusChip } from "../ui/StatusChip";
 
 interface DownloadCardProps {
 	task: Aria2Task;
+	variant?: "list" | "grid";
 }
 
-export const DownloadCard: React.FC<DownloadCardProps> = ({ task }) => {
+export const DownloadCard: React.FC<DownloadCardProps> = ({
+	task,
+	variant = "list",
+}) => {
 	const { pause, unpause, remove } = useAria2Actions();
 
 	const totalLength = Number(task.totalLength);
@@ -37,6 +41,90 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({ task }) => {
 	const isActive = task.status === "active";
 	const isError = task.status === "error";
 	const isComplete = task.status === "complete";
+
+	if (variant === "list") {
+		return (
+			<div className="w-full flex items-center gap-6 py-4 px-6 hover:bg-default/5 transition-colors rounded-xl group/item min-h-[72px]">
+				<Link
+					to="/task/$gid"
+					params={{ gid: task.gid }}
+					className="flex-1 min-w-0 cursor-pointer outline-none flex items-center gap-8"
+				>
+					<div className="flex-1 min-w-0">
+						<h3
+							className="text-base font-bold truncate group-hover/item:text-accent transition-colors leading-tight"
+							title={fileName}
+						>
+							{fileName}
+						</h3>
+						<div className="flex items-center gap-3 mt-1.5">
+							<StatusChip
+								status={task.status}
+								className="h-5 text-[10px] px-2"
+							/>
+							<span className="text-xs text-muted font-bold">
+								{formatBytes(completedLength)} / {formatBytes(totalLength)}
+							</span>
+						</div>
+					</div>
+
+					<div className="w-48 shrink-0 hidden sm:block">
+						<ProgressBar
+							value={progress}
+							size="sm"
+							color={isError ? "danger" : isComplete ? "success" : "accent"}
+							className="h-2"
+						/>
+					</div>
+
+					<div className="w-32 shrink-0 hidden md:flex flex-col items-end gap-0.5">
+						<span className="text-xs font-black text-success/80">
+							↓ {formatBytes(downloadSpeed)}/s
+						</span>
+						{isActive && (
+							<span className="text-[10px] text-muted font-bold uppercase tracking-wider">
+								{formatTime(eta)}
+							</span>
+						)}
+					</div>
+				</Link>
+
+				<div className="flex items-center gap-2 shrink-0 opacity-0 group-hover/item:opacity-100 transition-opacity ml-auto">
+					{isActive && (
+						<Button
+							isIconOnly
+							size="sm"
+							variant="ghost"
+							onPress={() => pause.mutate(task.gid)}
+							className="h-8 w-8 min-w-0"
+						>
+							<IconPause className="w-4 h-4 text-warning" />
+						</Button>
+					)}
+					{isPaused && (
+						<Button
+							isIconOnly
+							size="sm"
+							variant="ghost"
+							onPress={() => unpause.mutate(task.gid)}
+							className="h-8 w-8 min-w-0"
+						>
+							<IconPlay className="w-4 h-4 text-success" />
+						</Button>
+					)}
+					<Button
+						isIconOnly
+						size="sm"
+						variant="ghost"
+						className="text-danger h-8 w-8 min-w-0"
+						onPress={() => remove.mutate(task.gid)}
+					>
+						<IconTrashBin className="w-4 h-4" />
+					</Button>
+				</div>
+			</div>
+		);
+	}
 
 	return (
 		<Card className="w-full shadow-sm border-border hover:shadow-md transition-shadow">
@@ -123,9 +211,7 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({ task }) => {
 									<IconTrashBin className="w-4.5 h-4.5" />
 								</Button>
 							</Tooltip.Trigger>
-							<Tooltip.Content className="p-2 text-xs">
-								Remove
-							</Tooltip.Content>
+							<Tooltip.Content className="p-2 text-xs">Remove</Tooltip.Content>
 						</Tooltip>
 					</div>
 				</div>

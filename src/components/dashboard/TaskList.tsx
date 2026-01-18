@@ -1,22 +1,18 @@
-import {
-	Button,
-	Checkbox,
-	Dropdown,
-	Input,
-	ListBox,
-	Select,
-} from "@heroui/react";
+import { Button, Checkbox, Dropdown, ListBox, Tooltip } from "@heroui/react";
 import React, { useId } from "react";
-import { type Selection, useDragAndDrop } from "react-aria-components";
+import { useDragAndDrop } from "react-aria-components";
 import IconArchive from "~icons/gravity-ui/archive";
 import IconCopy from "~icons/gravity-ui/copy";
-import IconMagnifier from "~icons/gravity-ui/magnifier";
+import IconLayoutCellsLarge from "~icons/gravity-ui/layout-cells-large";
+import IconListUl from "~icons/gravity-ui/list-ul";
 import IconPause from "~icons/gravity-ui/pause";
 import IconPlay from "~icons/gravity-ui/play";
 import IconTrashBin from "~icons/gravity-ui/trash-bin";
 import { useAllTasks, useAria2Actions } from "../../hooks/useAria2";
 import type { Aria2Task } from "../../lib/aria2-rpc";
 import { aria2 } from "../../lib/aria2-rpc";
+import { cn } from "../../lib/utils";
+import { useSettingsStore } from "../../store/useSettingsStore";
 import { DownloadCard } from "./DownloadCard";
 
 interface TaskListProps {
@@ -27,15 +23,35 @@ export const TaskList: React.FC<TaskListProps> = ({ status }) => {
 	const { active, waiting, stopped, refetch } = useAllTasks();
 	const { pause, unpause, remove } = useAria2Actions();
 	const baseId = useId();
-	const [selectedGids, setSelectedGids] = React.useState<Selection>(new Set());
-	const [isSelectionMode, setIsSelectionMode] = React.useState(false);
-	const [searchQuery, setSearchQuery] = React.useState("");
-	const [sortBy, setSortBy] = React.useState<string>("default");
+	const {
+		viewMode,
+		setViewMode,
+		searchQuery,
+		isSelectionMode,
+		setIsSelectionMode,
+		selectedGids,
+		toggleGidSelection,
+		setSelectedGids,
+	} = useSettingsStore();
 
 	const allTasks = React.useMemo(
 		() => [...active, ...waiting, ...stopped],
 		[active, waiting, stopped],
 	);
+
+	const isAllSelected =
+		allTasks.length > 0 && selectedGids.size === allTasks.length;
+	const isIndeterminate =
+		selectedGids.size > 0 && selectedGids.size < allTasks.length;
+
+	const handleBatchAction = async (action: "pause" | "unpause") => {
+		const gids = Array.from(selectedGids);
+		for (const gid of gids) {
+			if (action === "pause") pause.mutate(gid);
+			if (action === "unpause") unpause.mutate(gid);
+		}
+		setIsSelectionMode(false);
+	};
 
 	const tasks = React.useMemo(() => {
 		let t: Aria2Task[] = [];
@@ -64,52 +80,8 @@ export const TaskList: React.FC<TaskListProps> = ({ status }) => {
 			});
 		}
 
-		if (sortBy !== "default") {
-			const sortMode = sortBy.replace(`${baseId}-sort-`, "");
-			t = [...t].sort((a, b) => {
-				if (sortMode === "name") {
-					const nameA = a.bittorrent?.info?.name || a.files[0]?.path || "";
-					const nameB = b.bittorrent?.info?.name || b.files[0]?.path || "";
-					return nameA.localeCompare(nameB);
-				}
-				if (sortMode === "size") {
-					return Number(b.totalLength) - Number(a.totalLength);
-				}
-				if (sortMode === "speed") {
-					return Number(b.downloadSpeed) - Number(a.downloadSpeed);
-				}
-				if (sortMode === "progress") {
-					const progA =
-						Number(a.totalLength) > 0
-							? Number(a.completedLength) / Number(a.totalLength)
-							: 0;
-					const progB =
-						Number(b.totalLength) > 0
-							? Number(b.completedLength) / Number(b.totalLength)
-							: 0;
-					return progB - progA;
-				}
-				return 0;
-			});
-		}
-
 		return t;
-	}, [status, active, waiting, stopped, allTasks, searchQuery, sortBy, baseId]);
-
-	const handleBatchAction = async (action: "pause" | "unpause" | "remove") => {
-		const gids =
-			selectedGids === "all"
-				? tasks.map((t) => t.gid)
-				: Array.from(selectedGids as Set<string>);
-
-		for (const gid of gids) {
-			if (action === "pause") pause.mutate(gid);
-			if (action === "unpause") unpause.mutate(gid);
-			if (action === "remove") remove.mutate(gid);
-		}
-		setSelectedGids(new Set());
-		setIsSelectionMode(false);
-	};
+	}, [status, active, waiting, stopped, allTasks, searchQuery]);
 
 	const { dragAndDropHooks } = useDragAndDrop({
 		getItems: (keys) => [...keys].map((key) => ({ "text/plain": String(key) })),
@@ -130,118 +102,95 @@ export const TaskList: React.FC<TaskListProps> = ({ status }) => {
 		},
 	});
 
-	const isAllSelected =
-		selectedGids === "all" ||
-		(selectedGids instanceof Set &&
-			selectedGids.size === tasks.length &&
-			tasks.length > 0);
-
-	const isIndeterminate =
-		selectedGids instanceof Set &&
-		selectedGids.size > 0 &&
-		selectedGids.size < tasks.length;
-
-	const selectionCount =
-		selectedGids === "all"
-			? tasks.length
-			: (selectedGids as Set<string>).size || 0;
-
 	return (
 		<div className="space-y-4">
-			<div className="flex flex-col gap-4">
-				<div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-					<div className="flex items-center gap-2 w-full md:w-auto ml-auto">
-						{isSelectionMode ? (
-							<div className="flex items-center gap-2 bg-default/30 p-1 rounded-xl animate-in fade-in zoom-in duration-200 w-full md:w-auto">
-								<div className="flex items-center px-3 gap-2">
-									<Checkbox
-										isSelected={isAllSelected}
-										isIndeterminate={isIndeterminate}
-										onChange={(selected) => {
-											if (selected) setSelectedGids("all");
-											else setSelectedGids(new Set());
-										}}
-									/>
-									<span className="text-xs font-bold uppercase text-muted whitespace-nowrap">
-										{selectionCount} Selected
-									</span>
-								</div>
-								<Button
-									size="sm"
-									variant="ghost"
-									onPress={() => handleBatchAction("unpause")}
-								>
-									Unpause
-								</Button>
-								<Button
-									size="sm"
-									variant="ghost"
-									onPress={() => handleBatchAction("pause")}
-								>
-									Pause
-								</Button>
-								<Button
-									size="sm"
-									variant="secondary"
-									onPress={() => {
-										setIsSelectionMode(false);
-										setSelectedGids(new Set());
+			<div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-muted-background/20 p-2 rounded-2xl border border-border">
+				<div className="flex items-center gap-2">
+					{isSelectionMode ? (
+						<div className="flex items-center gap-2 animate-in fade-in zoom-in duration-200">
+							<div className="flex items-center px-2 gap-3">
+								<Checkbox
+									isSelected={isAllSelected}
+									isIndeterminate={isIndeterminate}
+									onChange={(selected) => {
+										if (selected)
+											setSelectedGids(new Set(allTasks.map((t) => t.gid)));
+										else setSelectedGids(new Set());
 									}}
-								>
-									Done
-								</Button>
+								/>
+								<span className="text-xs font-black uppercase text-muted whitespace-nowrap tracking-widest">
+									{selectedGids.size} Selected
+								</span>
 							</div>
-						) : (
+							<div className="w-px h-4 bg-border mx-1" />
+							<Button
+								size="sm"
+								variant="ghost"
+								onPress={() => handleBatchAction("unpause")}
+								className="h-8 text-xs font-bold"
+							>
+								Start
+							</Button>
+							<Button
+								size="sm"
+								variant="ghost"
+								onPress={() => handleBatchAction("pause")}
+								className="h-8 text-xs font-bold"
+							>
+								Pause
+							</Button>
 							<Button
 								size="sm"
 								variant="secondary"
-								onPress={() => setIsSelectionMode(true)}
+								onPress={() => {
+									setIsSelectionMode(false);
+								}}
+								className="h-8 text-xs font-bold px-4"
 							>
-								Select Mode
+								Done
 							</Button>
-						)}
-					</div>
+						</div>
+					) : (
+						<Button
+							size="sm"
+							variant="ghost"
+							onPress={() => setIsSelectionMode(true)}
+							className="h-9 px-4 text-xs font-bold rounded-xl"
+						>
+							Select Mode
+						</Button>
+					)}
 				</div>
 
-				<div className="flex flex-col md:flex-row gap-3">
-					<div className="relative flex-1">
-						<IconMagnifier className="absolute left-3 top-1/2 -translate-y-1/2 text-muted z-10 w-4 h-4" />
-						<Input
-							placeholder="Search tasks by name..."
-							className="pl-10 h-11 border-border"
-							value={searchQuery}
-							onChange={(e) => setSearchQuery(e.target.value)}
-							fullWidth
-						/>
-					</div>
-					<Select
-						className="md:w-48"
-						aria-label="Sort by"
-						selectedKey={sortBy}
-						onSelectionChange={(key) => {
-							if (key) setSortBy(key as string);
-						}}
-					>
-						<Select.Trigger>
-							<Select.Value>
-								Sort by: {sortBy.replace(`${baseId}-sort-`, "")}
-							</Select.Value>
-							<Select.Indicator />
-						</Select.Trigger>
-						<Select.Popover>
-							<ListBox>
-								<ListBox.Item id={`${baseId}-sort-default`}>
-									Default
-								</ListBox.Item>
-								<ListBox.Item id={`${baseId}-sort-name`}>Name</ListBox.Item>
-								<ListBox.Item id={`${baseId}-sort-size`}>Size</ListBox.Item>
-								<ListBox.Item id={`${baseId}-sort-speed`}>Speed</ListBox.Item>
-								<ListBox.Item id={`${baseId}-sort-progress`}>
-									Progress
-								</ListBox.Item>
-							</ListBox>
-						</Select.Popover>
-					</Select>
+				<div className="flex items-center gap-1.5 bg-default/10 p-1 rounded-xl">
+					<Tooltip>
+						<Tooltip.Trigger>
+							<Button
+								isIconOnly
+								size="sm"
+								variant={viewMode === "list" ? "secondary" : "ghost"}
+								onPress={() => setViewMode("list")}
+								className="h-8 w-8 min-w-0"
+							>
+								<IconListUl className="w-4 h-4" />
+							</Button>
+						</Tooltip.Trigger>
+						<Tooltip.Content>List View</Tooltip.Content>
+					</Tooltip>
+					<Tooltip>
+						<Tooltip.Trigger>
+							<Button
+								isIconOnly
+								size="sm"
+								variant={viewMode === "grid" ? "secondary" : "ghost"}
+								onPress={() => setViewMode("grid")}
+								className="h-8 w-8 min-w-0"
+							>
+								<IconLayoutCellsLarge className="w-4 h-4" />
+							</Button>
+						</Tooltip.Trigger>
+						<Tooltip.Content>Grid View</Tooltip.Content>
+					</Tooltip>
 				</div>
 			</div>
 
@@ -260,32 +209,33 @@ export const TaskList: React.FC<TaskListProps> = ({ status }) => {
 					<ListBox
 						aria-label="Tasks"
 						dragAndDropHooks={dragAndDropHooks}
-						selectionMode={isSelectionMode ? "multiple" : "none"}
-						selectedKeys={selectedGids}
-						onSelectionChange={setSelectedGids}
-						className="space-y-4 outline-none border-none p-0 bg-transparent"
+						className={cn(
+							"outline-none border-none p-0 bg-transparent",
+							viewMode === "grid"
+								? "grid grid-cols-1 lg:grid-cols-2 gap-4"
+								: "flex flex-col border border-border rounded-[32px] bg-muted-background/20 overflow-hidden divide-y divide-border",
+						)}
 					>
 						{tasks.map((task) => (
 							<ListBox.Item
 								key={task.gid}
 								id={task.gid}
 								textValue={task.bittorrent?.info?.name || task.files[0]?.path}
-								className="outline-none focus:outline-none bg-transparent"
+								className="outline-none focus:outline-none bg-transparent p-0 w-full"
 							>
 								{/* @ts-ignore - contextMenu is valid at runtime for RAC triggers */}
 								<Dropdown trigger="contextMenu">
-									<div className="flex items-center gap-4 group">
+									<div className="flex items-center gap-4 group w-full">
 										{isSelectionMode && (
-											<Checkbox
-												isSelected={
-													selectedGids === "all" ||
-													(selectedGids instanceof Set &&
-														selectedGids.has(task.gid))
-												}
-											/>
+											<div className="pl-6">
+												<Checkbox
+													isSelected={selectedGids.has(task.gid)}
+													onChange={() => toggleGidSelection(task.gid)}
+												/>
+											</div>
 										)}
-										<div className="flex-1 min-w-0">
-											<DownloadCard task={task} />
+										<div className="flex-1 min-w-0 w-full">
+											<DownloadCard task={task} variant={viewMode} />
 										</div>
 									</div>
 

@@ -2,14 +2,16 @@ import {
 	Alert,
 	Button,
 	Chip,
+	Input,
 	Label,
 	ListBox,
 	Popover,
 	Select,
 	Slider,
+	Tooltip,
 } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import { useLocation, useNavigate } from "@tanstack/react-router";
 import React from "react";
 import IconBars from "~icons/gravity-ui/bars";
 import IconChevronDown from "~icons/gravity-ui/chevron-down";
@@ -17,7 +19,9 @@ import IconCloud from "~icons/gravity-ui/cloud";
 import IconCloudSlash from "~icons/gravity-ui/cloud-slash";
 import IconDisplayPulse from "~icons/gravity-ui/display-pulse";
 import IconMagicWand from "~icons/gravity-ui/magic-wand";
+import IconMagnifier from "~icons/gravity-ui/magnifier";
 import IconMoon from "~icons/gravity-ui/moon";
+import IconPlus from "~icons/gravity-ui/plus";
 import IconSun from "~icons/gravity-ui/sun";
 import IconTriangleExclamation from "~icons/gravity-ui/triangle-exclamation";
 import { globalStatOptions, useAria2Actions } from "../hooks/useAria2";
@@ -31,6 +35,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({
 }) => {
 	useShortcuts();
 	const navigate = useNavigate();
+	const location = useLocation();
 	const {
 		theme,
 		setTheme,
@@ -39,8 +44,12 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({
 		servers,
 		activeServerId,
 		setActiveServer,
+		searchQuery,
+		setSearchQuery,
 	} = useSettingsStore();
 	const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
+
+	const isTaskListPage = location.pathname.startsWith("/tasks/");
 
 	// Safe query that only runs when configured
 	const { isError, isLoading } = useQuery({
@@ -100,8 +109,8 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({
 
 			<div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
 				{/* Header */}
-				<header className="h-16 border-b border-border flex items-center justify-between px-4 md:px-8 bg-background shrink-0">
-					<div className="flex items-center gap-3">
+				<header className="h-16 border-b border-border flex items-center justify-between px-4 md:px-8 bg-background shrink-0 gap-4">
+					<div className="flex items-center gap-3 shrink-0">
 						{rpcUrl && (
 							<Button
 								isIconOnly
@@ -133,16 +142,45 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({
 						)}
 					</div>
 
-					<div className="flex items-center gap-2 md:gap-3">
+					{/* Global Search Bar */}
+					{isTaskListPage && (
+						<div className="flex-1 max-w-md relative hidden md:block">
+							<IconMagnifier className="absolute left-3 top-1/2 -translate-y-1/2 text-muted z-10 w-4 h-4" />
+							<Input
+								placeholder="Search downloads..."
+								className="pl-10 h-10 bg-default/10 rounded-xl border-none focus:bg-default/20 transition-all outline-none"
+								value={searchQuery}
+								onChange={(e) => setSearchQuery(e.target.value)}
+								fullWidth
+							/>
+						</div>
+					)}
+
+					<div className="flex items-center gap-2 md:gap-3 shrink-0">
+						<Tooltip>
+							<Tooltip.Trigger>
+								<Button
+									isIconOnly
+									variant="primary"
+									onPress={() => navigate({ to: "/add" })}
+									className="h-9 w-9 min-w-0 rounded-lg shadow-lg shadow-primary/20"
+									aria-label="Add Download"
+								>
+									<IconPlus className="w-5 h-5" />
+								</Button>
+							</Tooltip.Trigger>
+							<Tooltip.Content>Add New Download</Tooltip.Content>
+						</Tooltip>
+
 						{servers.length > 1 && (
 							<Select
-								className="w-40 hidden md:block"
+								className="w-36 hidden lg:block"
 								selectedKey={activeServerId || undefined}
 								onSelectionChange={(key) => setActiveServer(String(key))}
 								aria-label="Select Server"
 							>
 								<Select.Trigger className="h-9 px-3 bg-default/10 rounded-lg hover:bg-default/20 transition-colors border-none outline-none flex items-center justify-between gap-2">
-									<Select.Value className="text-xs font-bold truncate" />
+									<Select.Value className="text-[11px] font-bold truncate" />
 									<Select.Indicator className="text-muted">
 										<IconChevronDown className="w-3 h-3" />
 									</Select.Indicator>
@@ -233,15 +271,20 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({
 							</Popover.Content>
 						</Popover>
 
-						<Button
-							isIconOnly
-							variant="ghost"
-							onPress={() => purgeDownloadResult.mutate()}
-							className="text-muted hover:text-danger"
-							aria-label="Purge"
-						>
-							<IconMagicWand className="w-5 h-5" />
-						</Button>
+						<Tooltip>
+							<Tooltip.Trigger>
+								<Button
+									isIconOnly
+									variant="ghost"
+									onPress={() => purgeDownloadResult.mutate()}
+									className="text-muted hover:text-danger"
+									aria-label="Purge"
+								>
+									<IconMagicWand className="w-5 h-5" />
+								</Button>
+							</Tooltip.Trigger>
+							<Tooltip.Content>Purge Finished Tasks</Tooltip.Content>
+						</Tooltip>
 
 						<div className="w-px h-6 bg-default/30 mx-1" />
 
