@@ -5,6 +5,7 @@ import IconArchive from "~icons/gravity-ui/archive";
 import IconCopy from "~icons/gravity-ui/copy";
 import IconPause from "~icons/gravity-ui/pause";
 import IconPlay from "~icons/gravity-ui/play";
+import IconPulse from "~icons/gravity-ui/pulse";
 import IconTrashBin from "~icons/gravity-ui/trash-bin";
 import { useAllTasks, useAria2Actions } from "../../hooks/useAria2";
 import type { Aria2Task } from "../../lib/aria2-rpc";
@@ -18,7 +19,7 @@ interface TaskListProps {
 }
 
 export const TaskList: React.FC<TaskListProps> = ({ status }) => {
-	const { active, waiting, stopped, refetch } = useAllTasks();
+	const { active, waiting, stopped, refetch, isLoading } = useAllTasks();
 	const { pause, unpause, remove } = useAria2Actions();
 	const baseId = useId();
 	const {
@@ -79,7 +80,11 @@ export const TaskList: React.FC<TaskListProps> = ({ status }) => {
 	return (
 		<div className="space-y-4">
 			<div className="flex flex-col gap-4">
-				{tasks.length === 0 ? (
+				{isLoading && tasks.length === 0 ? (
+					<div className="flex justify-center py-12">
+						<IconPulse className="w-8 h-8 text-muted animate-pulse" />
+					</div>
+				) : tasks.length === 0 ? (
 					<div className="flex flex-col items-center justify-center py-12 text-muted">
 						<IconArchive className="w-12 h-12 mb-4 opacity-50" />
 						<p className="text-lg font-medium">No tasks found</p>

@@ -120,7 +120,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
 
 		// Check Tasks with Search Params
 		if (path === "/tasks") {
-			return search.status || "all";
+			return search.status || "active";
 		}
 
 		// Check Settings

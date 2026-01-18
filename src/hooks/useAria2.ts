@@ -143,6 +143,7 @@ export function useAllTasks() {
 		active: active.data || [],
 		waiting: waiting.data || [],
 		stopped: stopped.data || [],
+		isLoading: active.isLoading || waiting.isLoading || stopped.isLoading,
 		refetch: () => {
 			active.refetch();
 			waiting.refetch();

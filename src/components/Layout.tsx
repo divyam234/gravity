@@ -26,6 +26,7 @@ import IconMagicWand from "~icons/gravity-ui/magic-wand";
 import IconMagnifier from "~icons/gravity-ui/magnifier";
 import IconMoon from "~icons/gravity-ui/moon";
 import IconPlus from "~icons/gravity-ui/plus";
+import IconPulse from "~icons/gravity-ui/pulse";
 import IconServer from "~icons/gravity-ui/server";
 import IconSun from "~icons/gravity-ui/sun";
 import IconTriangleExclamation from "~icons/gravity-ui/triangle-exclamation";
@@ -58,7 +59,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({
 	const isTaskListPage = location.pathname.startsWith("/tasks");
 
 	// Safe query that only runs when configured
-	const { isError, isLoading } = useQuery({
+	const { isError, isLoading, isFetching } = useQuery({
 		...globalStatOptions(rpcUrl, pollingInterval),
 		enabled: !!rpcUrl,
 	});
@@ -127,21 +128,27 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({
 								<IconBars className="w-5 h-5" />
 							</Button>
 						)}
-						{!isLoading && (
+						{rpcUrl && (
 							<Chip
 								size="sm"
 								variant="soft"
-								color={isError ? "danger" : "success"}
-								className="h-6"
+								color={isError ? "danger" : isLoading ? "warning" : "success"}
+								className="h-7 px-3"
 							>
-								<div className="flex items-center gap-1.5">
+								<div className="flex items-center gap-2">
 									{isError ? (
-										<IconCloudSlash className="w-3 h-3" />
+										<IconCloudSlash className="w-3.5 h-3.5" />
+									) : isLoading || isFetching ? (
+										<IconPulse className="w-3.5 h-3.5 animate-pulse" />
 									) : (
-										<IconCloud className="w-3 h-3" />
+										<IconCloud className="w-3.5 h-3.5" />
 									)}
-									<span className="text-[10px] uppercase font-black hidden sm:inline">
-										{isError ? "Offline" : "Connected"}
+									<span className="text-[10px] uppercase font-black hidden sm:inline tracking-widest">
+										{isError
+											? "Offline"
+											: isLoading || isFetching
+												? "Connecting"
+												: "Connected"}
 									</span>
 								</div>
 							</Chip>
@@ -359,7 +366,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({
 						<div className="mb-6">
 							<Alert
 								status="accent"
-								className="rounded-2xl border-accent-soft-hover shadow-lg shadow-accent/5 animate-in slide-in-from-top duration-300"
+								className="rounded-2xl border-accent-soft-hover"
 							>
 								<Alert.Indicator>
 									<IconGear className="w-5 h-5" />

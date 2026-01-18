@@ -116,7 +116,7 @@ function SettingsPage() {
 					<Button
 						variant="ghost"
 						isIconOnly
-						onPress={() => navigate({ to: "/", search: { status: "all" } })}
+						onPress={() => navigate({ to: "/" })}
 					>
 						<IconChevronLeft className="w-5 h-5" />
 					</Button>
