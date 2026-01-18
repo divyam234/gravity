@@ -16,6 +16,7 @@ import {
 	aria2AllOptions,
 	aria2GlobalAvailableOptions,
 } from "../lib/aria2-options";
+import { formatCategoryName } from "../lib/utils";
 import { useSettingsStore } from "../store/useSettingsStore";
 
 export const Route = createFileRoute("/settings/$category")({
@@ -103,13 +104,7 @@ function SettingsPage() {
 				const key = Object.keys(aria2GlobalAvailableOptions).find(
 					(k) => k.toLowerCase().replace(/[^a-z0-9]+/g, "-") === category,
 				);
-				return key
-					? key
-							.replace(/([A-Z])/g, " $1")
-							.replace(/^./, (s) => s.toUpperCase())
-							.replace("SFtp", "SFTP")
-							.trim()
-					: "Settings";
+				return key ? formatCategoryName(key) : "Settings";
 			}
 		}
 	};

@@ -24,3 +24,29 @@ export function formatTime(seconds: number | string) {
 	const s = Math.floor(sec % 60);
 	return `${h}h ${m}m ${s}s`.replace(/^0h /, "").replace(/^0m /, "");
 }
+
+export function formatCategoryName(key: string) {
+	const mapping: Record<string, string> = {
+		basicOptions: "General",
+		httpFtpSFtpOptions: "HTTP / FTP / SFTP",
+		httpOptions: "HTTP",
+		ftpSFtpOptions: "FTP / SFTP",
+		btOptions: "BitTorrent",
+		metalinkOptions: "Metalink",
+		rpcOptions: "RPC",
+		advancedOptions: "Advanced",
+	};
+
+	if (mapping[key]) return mapping[key];
+
+	return key
+		.replace(/([A-Z])/g, " $1")
+		.replace(/^./, (str) => str.toUpperCase())
+		.replace("S Ftp", "SFTP")
+		.replace("Ftp", "FTP")
+		.replace("Http", "HTTP")
+		.replace("Bt", "BitTorrent")
+		.replace("Rpc", "RPC")
+		.replace("Options", "")
+		.trim();
+}

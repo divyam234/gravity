@@ -13,8 +13,8 @@ import IconPulse from "~icons/gravity-ui/pulse";
 import IconShieldCheck from "~icons/gravity-ui/shield-check";
 import IconXmark from "~icons/gravity-ui/xmark";
 import { useAllTasks, useGlobalStat } from "../hooks/useAria2";
-import { cn, formatBytes } from "../lib/utils";
 import { aria2GlobalAvailableOptions } from "../lib/aria2-options";
+import { cn, formatBytes, formatCategoryName } from "../lib/utils";
 
 interface SidebarContentProps {
 	onClose?: () => void;
@@ -34,7 +34,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
 		() => [
 			{
 				key: "dashboard",
-				label: "Dashboard",
+				label: "Overview",
 				icon: <IconLayoutHeaderCellsLarge className="w-5 h-5" />,
 				to: "/",
 				count: null,
@@ -48,7 +48,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
 			},
 			{
 				key: "active",
-				label: "Downloading",
+				label: "Active",
 				icon: <IconArrowDown className="w-5 h-5" />,
 				to: "/tasks/active",
 				count: activeCount,
@@ -56,7 +56,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
 			},
 			{
 				key: "waiting",
-				label: "Waiting",
+				label: "Queued",
 				icon: <IconClock className="w-5 h-5" />,
 				to: "/tasks/waiting",
 				count: waitingCount,
@@ -64,7 +64,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
 			},
 			{
 				key: "stopped",
-				label: "Stopped",
+				label: "Finished",
 				icon: <IconCheck className="w-5 h-5" />,
 				to: "/tasks/stopped",
 				count: stoppedCount,
@@ -85,33 +85,36 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
 			},
 			{
 				key: "app",
-				label: "App Preferences",
+				label: "Preferences",
 				icon: <IconDisplay className="w-4 h-4" />,
 				to: "/settings/app",
 			},
 		];
 
-		const categoryItems = Object.keys(aria2GlobalAvailableOptions).map((key) => {
-			const label = key
-				.replace(/([A-Z])/g, " $1")
-				.replace(/^./, (str) => str.toUpperCase())
-				.replace("SFtp", "SFTP")
-				.trim();
+		const categoryItems = Object.keys(aria2GlobalAvailableOptions).map(
+			(key) => {
+				const label = formatCategoryName(key);
 
-			let icon = <IconGear className="w-4 h-4" />;
-			if (key.includes("http") || key.includes("ftp") || key.includes("rpc")) {
-				icon = <IconNodesDown className="w-4 h-4" />;
-			} else if (key.includes("bt") || key.includes("metalink")) {
-				icon = <IconShieldCheck className="w-4 h-4" />;
-			}
+				let icon = <IconGear className="w-4 h-4" />;
+				const lKey = key.toLowerCase();
+				if (
+					lKey.includes("http") ||
+					lKey.includes("ftp") ||
+					lKey.includes("rpc")
+				) {
+					icon = <IconNodesDown className="w-4 h-4" />;
+				} else if (lKey.includes("bt") || lKey.includes("metalink")) {
+					icon = <IconShieldCheck className="w-4 h-4" />;
+				}
 
-			return {
-				key: key.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
-				label,
-				icon,
-				to: `/settings/${key.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
-			};
-		});
+				return {
+					key: key.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+					label,
+					icon,
+					to: `/settings/${key.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+				};
+			},
+		);
 
 		return [...baseItems, ...categoryItems];
 	}, []);
@@ -242,9 +245,8 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
 								selectionMode="single"
 								selectedKeys={selectedKey ? [selectedKey] : []}
 								className="p-0 gap-1 pl-4"
-								items={settingsNavItems}
 							>
-								{(item) => (
+								{settingsNavItems.map((item) => (
 									<ListBox.Item
 										key={item.key}
 										textValue={item.label}
@@ -261,7 +263,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
 											<span className="text-sm font-medium">{item.label}</span>
 										</div>
 									</ListBox.Item>
-								)}
+								))}
 							</ListBox>
 						</Accordion.Panel>
 					</Accordion.Item>
