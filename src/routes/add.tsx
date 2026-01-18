@@ -15,9 +15,7 @@ import IconChevronDown from "~icons/gravity-ui/chevron-down";
 import IconChevronLeft from "~icons/gravity-ui/chevron-left";
 import IconFileArrowUp from "~icons/gravity-ui/file-arrow-up";
 import IconLink from "~icons/gravity-ui/link";
-import IconXmark from "~icons/gravity-ui/xmark";
 import { useAria2Actions } from "../hooks/useAria2";
-import { cn } from "../lib/utils";
 import { useFileStore } from "../store/useFileStore";
 
 export const Route = createFileRoute("/add")({
@@ -33,31 +31,59 @@ function AddDownloadPage() {
 	);
 	const [uris, setUris] = React.useState("");
 	const [options, setOptions] = React.useState<{ dir?: string }>({});
-	const [selectedFile, setSelectedFile] = React.useState<File | null>(null);
+
+	const { addUri, addTorrent, addMetalink } = useAria2Actions();
+
+	const handleFileSelect = React.useCallback(
+		async (files: FileList | null) => {
+			if (!files) return;
+			const fileList = Array.from(files);
+
+			for (const file of fileList) {
+				const reader = new FileReader();
+				reader.onload = () => {
+					const base64 = (reader.result as string).split(",")[1];
+					const onSuccess = () => navigate({ to: "/tasks/active" });
+
+					if (file.name.endsWith(".torrent")) {
+						addTorrent.mutate(
+							{
+								torrent: base64,
+								options: options as Record<string, string>,
+							},
+							{ onSuccess },
+						);
+					} else if (file.name.endsWith(".metalink")) {
+						addMetalink.mutate(
+							{
+								metalink: base64,
+								options: options as Record<string, string>,
+							},
+							{ onSuccess },
+						);
+					}
+				};
+				reader.readAsDataURL(file);
+			}
+		},
+		[addTorrent, addMetalink, options, navigate],
+	);
 
 	// Handle file from global drop
 	React.useEffect(() => {
 		if (pendingFile) {
-			setSelectedFile(pendingFile);
-			setSelectedTab(`${baseId}-torrent`);
+			handleFileSelect([pendingFile] as any);
 			clearPendingFile();
 		}
-	}, [pendingFile, clearPendingFile, baseId]);
-
-	const { addUri, addTorrent, addMetalink } = useAria2Actions();
-
-	const handleSelect = (e: FileList | null) => {
-		const file = e?.[0];
-		if (file) {
-			setSelectedFile(file);
-		}
-	};
+	}, [pendingFile, clearPendingFile, handleFileSelect]);
 
 	const validateUris = (val: string) => {
 		if (!val.trim()) return "Enter at least one link";
 		const lines = val.split("\n").filter((l) => l.trim());
 		const invalid = lines.find(
-			(l) => !/^(http|https|ftp|sftp|magnet):/i.test(l.trim()),
+			(l) =>
+				!/^(http|https|ftp|sftp|magnet):/i.test(l.trim()) &&
+				!/^[a-f0-9]{40}$/i.test(l.trim()),
 		);
 		if (invalid) return "Invalid protocol in one of the links";
 		return true;
@@ -75,29 +101,6 @@ function AddDownloadPage() {
 				},
 				{ onSuccess },
 			);
-		} else if (selectedTab === `${baseId}-torrent` && selectedFile) {
-			const reader = new FileReader();
-			reader.onload = () => {
-				const base64 = (reader.result as string).split(",")[1];
-				if (selectedFile.name.endsWith(".torrent")) {
-					addTorrent.mutate(
-						{
-							torrent: base64,
-							options: options as Record<string, string>,
-						},
-						{ onSuccess },
-					);
-				} else if (selectedFile.name.endsWith(".metalink")) {
-					addMetalink.mutate(
-						{
-							metalink: base64,
-							options: options as Record<string, string>,
-						},
-						{ onSuccess },
-					);
-				}
-			};
-			reader.readAsDataURL(selectedFile);
 		}
 	};
 
@@ -175,46 +178,26 @@ function AddDownloadPage() {
 							</Label>
 							<FileTrigger
 								acceptedFileTypes={[".torrent", ".metalink"]}
-								onSelect={handleSelect}
+								allowsMultiple
+								onSelect={handleFileSelect}
 							>
 								<Button
 									variant="secondary"
 									className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-border rounded-[32px] text-muted gap-4 hover:border-accent hover:text-accent transition-all cursor-pointer w-full h-auto bg-default/5 hover:bg-accent/5 overflow-hidden"
 								>
 									<div className="w-16 h-16 bg-background rounded-3xl flex items-center justify-center shadow-sm border border-border group-hover:scale-110 transition-transform duration-500">
-										<IconFileArrowUp
-											className={cn(
-												"w-8 h-8 transition-colors",
-												selectedFile ? "text-accent" : "opacity-30",
-											)}
-										/>
+										<IconFileArrowUp className="w-8 h-8 opacity-30 text-accent group-hover:opacity-100" />
 									</div>
 									<div className="flex flex-col gap-1 items-center">
 										<p className="text-center w-full font-bold">
-											{selectedFile
-												? selectedFile.name
-												: "Click to browse or drop file here"}
+											Click to browse files
 										</p>
-										{!selectedFile && (
-											<p className="text-[10px] uppercase font-black tracking-widest opacity-60">
-												Supports .torrent and .metalink
-											</p>
-										)}
+										<p className="text-[10px] uppercase font-black tracking-widest opacity-60">
+											Supports .torrent and .metalink
+										</p>
 									</div>
 								</Button>
 							</FileTrigger>
-
-							{selectedFile && (
-								<Button
-									isIconOnly
-									size="sm"
-									variant="secondary"
-									className="absolute top-10 right-2 rounded-2xl shadow-md border border-border"
-									onPress={() => setSelectedFile(null)}
-								>
-									<IconXmark className="w-4 h-4" />
-								</Button>
-							)}
 						</div>
 					)}
 				</div>
@@ -275,7 +258,7 @@ function AddDownloadPage() {
 						isDisabled={
 							selectedTab === `${baseId}-links`
 								? validateUris(uris) !== true
-								: !selectedFile
+								: false
 						}
 					>
 						Start Download

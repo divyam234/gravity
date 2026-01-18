@@ -5,7 +5,6 @@ import {
 	Chip,
 	ListBox,
 	ScrollShadow,
-	Tabs,
 } from "@heroui/react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import React, { useId } from "react";
@@ -26,7 +25,7 @@ import {
 	useTaskServers,
 	useTaskStatus,
 } from "../hooks/useAria2";
-import aria2Options from "../lib/aria2-options.json";
+import { aria2AllOptions } from "../lib/aria2-options";
 import type { Aria2File } from "../lib/aria2-rpc";
 import { aria2 } from "../lib/aria2-rpc";
 import { cn, formatBytes } from "../lib/utils";
@@ -105,73 +104,97 @@ function TaskDetailsPage() {
 			</div>
 
 			<div className="flex flex-col md:flex-row gap-8">
-				{/* Sidebar / Tabs */}
+				{/* Sidebar / ListBox */}
 				<div className="w-full md:w-64 shrink-0">
 					<Card className="p-3 shadow-sm border border-border bg-muted-background/20 rounded-[32px]">
-						<Tabs
+						<ListBox
 							aria-label="Task Details Sections"
-							orientation="vertical"
-							selectedKey={selectedTab as string}
-							onSelectionChange={setSelectedTab}
-							className="w-full"
+							selectionMode="single"
+							selectedKeys={[selectedTab as string]}
+							onSelectionChange={(keys: any) => {
+								const key = Array.from(keys)[0];
+								if (key) setSelectedTab(key as React.Key);
+							}}
+							className="w-full gap-1"
 						>
-							<Tabs.ListContainer>
-								<Tabs.List className="w-full gap-1">
-									<Tabs.Tab
-										id={`${baseId}-overview`}
-										className="justify-start py-3"
-									>
-										<div className="flex items-center gap-3">
-											<IconCircleInfo className="w-5 h-5" />
-											<span className="font-bold text-sm">Overview</span>
-										</div>
-										<Tabs.Indicator className="bg-accent rounded-xl" />
-									</Tabs.Tab>
-									<Tabs.Tab
-										id={`${baseId}-files`}
-										className="justify-start py-3"
-									>
-										<div className="flex items-center gap-3">
-											<IconFile className="w-5 h-5" />
-											<span className="font-bold text-sm">Files</span>
-										</div>
-										<Tabs.Indicator className="bg-accent rounded-xl" />
-									</Tabs.Tab>
-									<Tabs.Tab
-										id={`${baseId}-peers`}
-										className="justify-start py-3"
-									>
-										<div className="flex items-center gap-3">
-											<IconPersons className="w-5 h-5" />
-											<span className="font-bold text-sm">
-												Peers ({peers?.length || 0})
-											</span>
-										</div>
-										<Tabs.Indicator className="bg-accent rounded-xl" />
-									</Tabs.Tab>
-									<Tabs.Tab
-										id={`${baseId}-servers`}
-										className="justify-start py-3"
-									>
-										<div className="flex items-center gap-3">
-											<IconNodesDown className="w-5 h-5" />
-											<span className="font-bold text-sm">Servers</span>
-										</div>
-										<Tabs.Indicator className="bg-accent rounded-xl" />
-									</Tabs.Tab>
-									<Tabs.Tab
-										id={`${baseId}-options`}
-										className="justify-start py-3"
-									>
-										<div className="flex items-center gap-3">
-											<IconGear className="w-5 h-5" />
-											<span className="font-bold text-sm">Options</span>
-										</div>
-										<Tabs.Indicator className="bg-accent rounded-xl" />
-									</Tabs.Tab>
-								</Tabs.List>
-							</Tabs.ListContainer>
-						</Tabs>
+							<ListBox.Item
+								id={`${baseId}-overview`}
+								textValue="Overview"
+								className={cn(
+									"flex items-center gap-3 px-4 py-3 rounded-2xl cursor-pointer outline-none transition-colors",
+									selectedTab === `${baseId}-overview`
+										? "bg-accent text-accent-foreground"
+										: "hover:bg-default/10",
+								)}
+							>
+								<div className="flex items-center gap-3">
+									<IconCircleInfo className="w-5 h-5" />
+									<span className="font-bold text-sm">Overview</span>
+								</div>
+							</ListBox.Item>
+							<ListBox.Item
+								id={`${baseId}-files`}
+								textValue="Files"
+								className={cn(
+									"flex items-center gap-3 px-4 py-3 rounded-2xl cursor-pointer outline-none transition-colors",
+									selectedTab === `${baseId}-files`
+										? "bg-accent text-accent-foreground"
+										: "hover:bg-default/10",
+								)}
+							>
+								<div className="flex items-center gap-3">
+									<IconFile className="w-5 h-5" />
+									<span className="font-bold text-sm">Files</span>
+								</div>
+							</ListBox.Item>
+							<ListBox.Item
+								id={`${baseId}-peers`}
+								textValue="Peers"
+								className={cn(
+									"flex items-center gap-3 px-4 py-3 rounded-2xl cursor-pointer outline-none transition-colors",
+									selectedTab === `${baseId}-peers`
+										? "bg-accent text-accent-foreground"
+										: "hover:bg-default/10",
+								)}
+							>
+								<div className="flex items-center gap-3">
+									<IconPersons className="w-5 h-5" />
+									<span className="font-bold text-sm">
+										Peers ({peers?.length || 0})
+									</span>
+								</div>
+							</ListBox.Item>
+							<ListBox.Item
+								id={`${baseId}-servers`}
+								textValue="Servers"
+								className={cn(
+									"flex items-center gap-3 px-4 py-3 rounded-2xl cursor-pointer outline-none transition-colors",
+									selectedTab === `${baseId}-servers`
+										? "bg-accent text-accent-foreground"
+										: "hover:bg-default/10",
+								)}
+							>
+								<div className="flex items-center gap-3">
+									<IconNodesDown className="w-5 h-5" />
+									<span className="font-bold text-sm">Servers</span>
+								</div>
+							</ListBox.Item>
+							<ListBox.Item
+								id={`${baseId}-options`}
+								textValue="Options"
+								className={cn(
+									"flex items-center gap-3 px-4 py-3 rounded-2xl cursor-pointer outline-none transition-colors",
+									selectedTab === `${baseId}-options`
+										? "bg-accent text-accent-foreground"
+										: "hover:bg-default/10",
+								)}
+							>
+								<div className="flex items-center gap-3">
+									<IconGear className="w-5 h-5" />
+									<span className="font-bold text-sm">Options</span>
+								</div>
+							</ListBox.Item>
+						</ListBox>
 					</Card>
 				</div>
 
@@ -518,13 +541,13 @@ function TaskDetailsPage() {
 										</Chip>
 									</div>
 									<div className="flex flex-col">
-										{aria2Options
-											.filter((opt) => taskOptions[opt.name] !== undefined)
-											.map((opt) => (
+										{Object.keys(aria2AllOptions)
+											.filter((name) => taskOptions[name] !== undefined)
+											.map((name) => (
 												<SettingField
-													key={opt.name}
-													opt={opt as any}
-													value={taskOptions[opt.name]}
+													key={name}
+													opt={{ ...aria2AllOptions[name], name } as any}
+													value={taskOptions[name]}
 													onUpdate={handleOptionUpdate}
 												/>
 											))}

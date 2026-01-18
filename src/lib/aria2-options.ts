@@ -1,1290 +1,1403 @@
-[
-  {
-    "name": "dir",
-    "category": "Basic Options",
-    "type": "<DIR>",
-    "default": null,
-    "description": "\n\nThe directory to store the downloaded file.\n\n\\-i,"
-  },
-  {
-    "name": "input-file",
-    "category": "Basic Options",
-    "type": "<FILE>",
-    "default": null,
-    "description": "\n\nDownloads the URIs listed in `FILE`. You can specify multiple sources for a single entity by putting multiple URIs on a single line separated by the TAB character. Additionally, options can be specified after each URI line. Option lines must start with one or more white space characters (SPACE or TAB) and must only contain one option per line. Input files can use gzip compression. When `FILE` is specified as `-`, aria2 will read the input from `stdin`. See the subsection for details. See also ..."
-  },
-  {
-    "name": "log",
-    "category": "Basic Options",
-    "type": "<LOG>",
-    "default": null,
-    "description": "\n\nThe file name of the log file. If `-` is specified, log is written to `stdout`. If empty string(\"\") is specified, or this option is omitted, no log is written to disk at all.\n\n\\-j,"
-  },
-  {
-    "name": "max-concurrent-downloads",
-    "category": "Basic Options",
-    "type": "<N>",
-    "default": "5",
-    "description": "\n\nSet the maximum number of parallel downloads for every queue item. See also the option."
-  },
-  {
-    "name": "check-integrity",
-    "category": "Basic Options",
-    "type": "true|false",
-    "default": "false",
-    "description": "\n\nCheck file integrity by validating piece hashes or a hash of entire file. This option has effect only in BitTorrent, Metalink downloads with checksums or HTTP(S)/FTP downloads with option. If piece hashes are provided, this option can detect damaged portions of a file and re-download them. If a hash of entire file is provided, hash check is only done when file has been already download. This is determined by file length. If hash check fails, file is re-downloaded from scratch. If both piece ha..."
-  },
-  {
-    "name": "continue",
-    "category": "Basic Options",
-    "type": "true|false",
-    "default": null,
-    "description": "\n\nContinue downloading a partially downloaded file. Use this option to resume a download started by a web browser or another program which downloads files sequentially from the beginning. Currently this option is only applicable to HTTP(S)/FTP downloads.\n\n\\-h,"
-  },
-  {
-    "name": "help",
-    "category": "Basic Options",
-    "type": "<TAG>|<KEYWORD>",
-    "default": "#basic",
-    "description": "\n\nThe help messages are classified with tags. A tag starts with `#`. For example, type `--help=#http` to get the usage for the options tagged with `#http`. If non-tag word is given, print the usage for the options whose name includes that word. Available Values: `#basic`, `#advanced`, `#http`, `#https`, `#ftp`,`#metalink`, `#bittorrent`, `#cookie`, `#hook`, `#file`, `#rpc`,`#checksum`, `#experimental`, `#deprecated`, `#help`, `#all`"
-  },
-  {
-    "name": "all-proxy",
-    "category": "HTTP/FTP/SFTP Options",
-    "type": "<PROXY>",
-    "default": null,
-    "description": "\n\nUse a proxy server for all protocols. To override a previously defined proxy, use \"\". You also can override this setting and specify a proxy server for a particular protocol using , and options. This affects all downloads. The format of PROXY is `[http://][USER:PASSWORD@]HOST[:PORT]`. See also section.\n\nNote\n\nIf user and password are embedded in proxy URI and they are also specified by *\\--{http,https,ftp,all}-proxy-{user,passwd}* options, those specified later override prior options. For exam..."
-  },
-  {
-    "name": "all-proxy-passwd",
-    "category": "HTTP/FTP/SFTP Options",
-    "type": "<PASSWD>",
-    "default": null,
-    "description": "\n\nSet password for option."
-  },
-  {
-    "name": "all-proxy-user",
-    "category": "HTTP/FTP/SFTP Options",
-    "type": "<USER>",
-    "default": null,
-    "description": "\n\nSet user for option.\n\n\\--checksum \\=<TYPE>=<DIGEST> [¶]\n\nSet checksum. TYPE is hash type. The supported hash type is listed in `Hash Algorithms` in `aria2c -v`. DIGEST is hex digest. For example, setting sha-1 digest looks like this:`sha-1=0192ba11326fe2298c8cb4de616f4d4140213838` This option applies only to HTTP(S)/FTP downloads."
-  },
-  {
-    "name": "connect-timeout",
-    "category": "HTTP/FTP/SFTP Options",
-    "type": "<SEC>",
-    "default": "60",
-    "description": "\n\nSet the connect timeout in seconds to establish connection to HTTP/FTP/proxy server. After the connection is established, this option makes no effect and option is used instead."
-  },
-  {
-    "name": "dry-run",
-    "category": "HTTP/FTP/SFTP Options",
-    "type": "true|false",
-    "default": "false",
-    "description": "\n\nIf `true` is given, aria2 just checks whether the remote file is available and doesn't download data. This option has effect on HTTP/FTP download. BitTorrent downloads are canceled if `true` is specified."
-  },
-  {
-    "name": "lowest-speed-limit",
-    "category": "HTTP/FTP/SFTP Options",
-    "type": "<SPEED>",
-    "default": "0",
-    "description": "\n\nClose connection if download speed is lower than or equal to this value(bytes per sec).`0` means aria2 does not have a lowest speed limit. You can append `K` or `M` (1K = 1024, 1M = 1024K). This option does not affect BitTorrent downloads."
-  },
-  {
-    "name": "max-connection-per-server",
-    "category": "HTTP/FTP/SFTP Options",
-    "type": "<NUM>",
-    "default": "1",
-    "description": "\n\nThe maximum number of connections to one server for each download."
-  },
-  {
-    "name": "max-file-not-found",
-    "category": "HTTP/FTP/SFTP Options",
-    "type": "<NUM>",
-    "default": "0",
-    "description": "\n\nIf aria2 receives \"file not found\" status from the remote HTTP/FTP servers NUM times without getting a single byte, then force the download to fail. Specify `0` to disable this option. This options is effective only when using HTTP/FTP servers. The number of retry attempt is counted toward , so it should be configured too."
-  },
-  {
-    "name": "max-tries",
-    "category": "HTTP/FTP/SFTP Options",
-    "type": "<N>",
-    "default": "5",
-    "description": "\n\nSet number of tries. `0` means unlimited. See also ."
-  },
-  {
-    "name": "min-split-size",
-    "category": "HTTP/FTP/SFTP Options",
-    "type": "<SIZE>",
-    "default": "20M",
-    "description": "\n\naria2 does not split less than 2\\*SIZE byte range. For example, let's consider downloading 20MiB file. If SIZE is 10M, aria2 can split file into 2 range \\[0-10MiB) and \\[10MiB-20MiB) and download it using 2 sources(if >= 2, of course). If SIZE is 15M, since 2\\*15M > 20MiB, aria2 does not split file and download it using 1 source. You can append `K` or `M` (1K = 1024, 1M = 1024K). Possible Values: `1M` - `1024M`"
-  },
-  {
-    "name": "netrc-path",
-    "category": "HTTP/FTP/SFTP Options",
-    "type": "<FILE>",
-    "default": "$(HOME)/.netrc",
-    "description": "\n\nSpecify the path to the netrc file."
-  },
-  {
-    "name": "no-netrc",
-    "category": "HTTP/FTP/SFTP Options",
-    "type": "true|false",
-    "default": null,
-    "description": "\n\nDisables netrc support. netrc support is enabled by default.\n\nNote\n\nnetrc file is only read at the startup if is `false`. So if is `true` at the startup, no netrc is available throughout the session. You cannot get netrc enabled even if you send using."
-  },
-  {
-    "name": "no-proxy",
-    "category": "HTTP/FTP/SFTP Options",
-    "type": "<DOMAINS>",
-    "default": null,
-    "description": "\n\nSpecify a comma separated list of host names, domains and network addresses with or without a subnet mask where no proxy should be used.\n\nNote\n\nFor network addresses with a subnet mask, both IPv4 and IPv6 addresses work. The current implementation does not resolve the host name in an URI to compare network addresses specified in . So it is only effective if URI has numeric IP addresses.\n\n\\-o,"
-  },
-  {
-    "name": "out",
-    "category": "HTTP/FTP/SFTP Options",
-    "type": "<FILE>",
-    "default": null,
-    "description": "\n\nThe file name of the downloaded file. It is always relative to the directory given in option. When the option is used, this option is ignored.\n\nNote\n\nYou cannot specify a file name for Metalink or BitTorrent downloads. The file name specified here is only used when the URIs fed to aria2 are given on the command line directly, but not when using, option.\n\nExample:\n\n```\n$ aria2c -o myfile.zip \"http://mirror1/file.zip\" \"http://mirror2/file.zip\"\n```"
-  },
-  {
-    "name": "proxy-method",
-    "category": "HTTP/FTP/SFTP Options",
-    "type": "get|tunnel",
-    "default": "get",
-    "description": "\n\nSet the method to use in proxy request. METHOD is either `get` or `tunnel`. HTTPS downloads always use `tunnel` regardless of this option."
-  },
-  {
-    "name": "remote-time",
-    "category": "HTTP/FTP/SFTP Options",
-    "type": "true|false",
-    "default": "false",
-    "description": "\n\nRetrieve timestamp of the remote file from the remote HTTP/FTP server and if it is available, apply it to the local file."
-  },
-  {
-    "name": "reuse-uri",
-    "category": "HTTP/FTP/SFTP Options",
-    "type": "true|false",
-    "default": "true",
-    "description": "\n\nReuse already used URIs if no unused URIs are left."
-  },
-  {
-    "name": "retry-wait",
-    "category": "HTTP/FTP/SFTP Options",
-    "type": "<SEC>",
-    "default": "0",
-    "description": "\n\nSet the seconds to wait between retries. When `SEC > 0`, aria2 will retry downloads when the HTTP server returns a 503 response."
-  },
-  {
-    "name": "server-stat-of",
-    "category": "HTTP/FTP/SFTP Options",
-    "type": "<FILE>",
-    "default": null,
-    "description": "\n\nSpecify the file name to which performance profile of the servers is saved. You can load saved data using option. Seesubsection below for file format."
-  },
-  {
-    "name": "server-stat-if",
-    "category": "HTTP/FTP/SFTP Options",
-    "type": "<FILE>",
-    "default": null,
-    "description": "\n\nSpecify the file name to load performance profile of the servers. The loaded data will be used in some URI selector such as `feedback`. See also option. Seesubsection below for file format."
-  },
-  {
-    "name": "server-stat-timeout",
-    "category": "HTTP/FTP/SFTP Options",
-    "type": "<SEC>",
-    "default": "86400",
-    "description": "\n\nSpecifies timeout in seconds to invalidate performance profile of the servers since the last contact to them."
-  },
-  {
-    "name": "split",
-    "category": "HTTP/FTP/SFTP Options",
-    "type": "<N>",
-    "default": "5",
-    "description": "\n\nDownload a file using N connections. If more than N URIs are given, first N URIs are used and remaining URIs are used for backup. If less than N URIs are given, those URIs are used more than once so that N connections total are made simultaneously. The number of connections to the same host is restricted by the option. See also the option."
-  },
-  {
-    "name": "stream-piece-selector",
-    "category": "HTTP/FTP/SFTP Options",
-    "type": "default|inorder|random|geom",
-    "default": "default",
-    "description": "\n\nSpecify piece selection algorithm used in HTTP/FTP download. A piece is a fixed length segment which is downloaded in parallel in a segmented download."
-  },
-  {
-    "name": "timeout",
-    "category": "HTTP/FTP/SFTP Options",
-    "type": "<SEC>",
-    "default": "60",
-    "description": "\n\nSet timeout in seconds."
-  },
-  {
-    "name": "uri-selector",
-    "category": "HTTP/FTP/SFTP Options",
-    "type": "inorder|feedback|adaptive",
-    "default": "feedback",
-    "description": "\n\nSpecify URI selection algorithm. The possible values are `inorder`,`feedback` and `adaptive`. If `inorder` is given, URI is tried in the order appeared in the URI list. If `feedback` is given, aria2 uses download speed observed in the previous downloads and choose fastest server in the URI list. This also effectively skips dead mirrors. The observed download speed is a part of performance profile of servers mentioned in and options. If `adaptive` is given, selects one of the best mirrors for t..."
-  },
-  {
-    "name": "ca-certificate",
-    "category": "HTTP Specific Options",
-    "type": "<FILE>",
-    "default": null,
-    "description": "\n\nUse the certificate authorities in FILE to verify the peers. The certificate file must be in PEM format and can contain multiple CA certificates. Use option to enable verification.\n\nNote\n\nIf you build with OpenSSL or the recent version of GnuTLS which has `gnutls_certificate_set_x509_system_trust()` function and the library is properly configured to locate the system-wide CA certificates store, aria2 will automatically load those certificates at the startup.\n\nNote\n\n*WinTLS* and *AppleTLS* do n..."
-  },
-  {
-    "name": "certificate",
-    "category": "HTTP Specific Options",
-    "type": "<FILE>",
-    "default": null,
-    "description": "\n\nUse the client certificate in FILE. The certificate must be either in PKCS12 (.p12,.pfx) or in PEM format.\n\nPKCS12 files must contain the certificate, a key and optionally a chain of additional certificates. Only PKCS12 files with a blank import password can be opened!\n\nWhen using PEM, you have to specify the private key via as well.\n\nNote\n\n*WinTLS* does not support PEM files at the moment. Users have to use PKCS12 files.\n\nNote\n\n*AppleTLS* users should use the KeyChain Access utility to import..."
-  },
-  {
-    "name": "check-certificate",
-    "category": "HTTP Specific Options",
-    "type": "true|false",
-    "default": "true",
-    "description": "\n\nVerify the peer using certificates specified in option."
-  },
-  {
-    "name": "http-accept-gzip",
-    "category": "HTTP Specific Options",
-    "type": "true|false",
-    "default": "false",
-    "description": "\n\nSend `Accept-Encoding: deflate, gzip` request header and inflate response if remote server responds with `Content-Encoding: gzip` or `Content-Encoding: deflate`."
-  },
-  {
-    "name": "http-auth-challenge",
-    "category": "HTTP Specific Options",
-    "type": "true|false",
-    "default": "false",
-    "description": "\n\nSend HTTP authorization header only when it is requested by the server. If `false` is set, then authorization header is always sent to the server. There is an exception: if user name and password are embedded in URI, authorization header is always sent to the server regardless of this option."
-  },
-  {
-    "name": "http-no-cache",
-    "category": "HTTP Specific Options",
-    "type": "true|false",
-    "default": "false",
-    "description": "\n\nSend `Cache-Control: no-cache` and `Pragma: no-cache` header to avoid cached content. If `false` is given, these headers are not sent and you can add Cache-Control header with a directive you like using option."
-  },
-  {
-    "name": "http-user",
-    "category": "HTTP Specific Options",
-    "type": "<USER>",
-    "default": null,
-    "description": "\n\nSet HTTP user. This affects all URIs."
-  },
-  {
-    "name": "http-passwd",
-    "category": "HTTP Specific Options",
-    "type": "<PASSWD>",
-    "default": null,
-    "description": "\n\nSet HTTP password. This affects all URIs."
-  },
-  {
-    "name": "http-proxy",
-    "category": "HTTP Specific Options",
-    "type": "<PROXY>",
-    "default": null,
-    "description": "\n\nUse a proxy server for HTTP. To override a previously defined proxy, use \"\". See also the option. This affects all http downloads. The format of PROXY is `[http://][USER:PASSWORD@]HOST[:PORT]`"
-  },
-  {
-    "name": "http-proxy-passwd",
-    "category": "HTTP Specific Options",
-    "type": "<PASSWD>",
-    "default": null,
-    "description": "\n\nSet password for ."
-  },
-  {
-    "name": "http-proxy-user",
-    "category": "HTTP Specific Options",
-    "type": "<USER>",
-    "default": null,
-    "description": "\n\nSet user for ."
-  },
-  {
-    "name": "https-proxy",
-    "category": "HTTP Specific Options",
-    "type": "<PROXY>",
-    "default": null,
-    "description": "\n\nUse a proxy server for HTTPS. To override a previously defined proxy, use \"\". See also the option. This affects all https download. The format of PROXY is `[http://][USER:PASSWORD@]HOST[:PORT]`"
-  },
-  {
-    "name": "https-proxy-passwd",
-    "category": "HTTP Specific Options",
-    "type": "<PASSWD>",
-    "default": null,
-    "description": "\n\nSet password for ."
-  },
-  {
-    "name": "https-proxy-user",
-    "category": "HTTP Specific Options",
-    "type": "<USER>",
-    "default": null,
-    "description": "\n\nSet user for ."
-  },
-  {
-    "name": "private-key",
-    "category": "HTTP Specific Options",
-    "type": "<FILE>",
-    "default": null,
-    "description": "\n\nUse the private key in FILE. The private key must be decrypted and in PEM format. An encrypted key may cause undefined behavior. See also option."
-  },
-  {
-    "name": "referer",
-    "category": "HTTP Specific Options",
-    "type": "<REFERER>",
-    "default": null,
-    "description": "\n\nSet an http referrer (Referer). This affects all http/https downloads. If `*` is given, the download URI is also used as the referrer. This may be useful when used together with the option."
-  },
-  {
-    "name": "enable-http-keep-alive",
-    "category": "HTTP Specific Options",
-    "type": "true|false",
-    "default": "true",
-    "description": "\n\nEnable HTTP/1.1 persistent connection."
-  },
-  {
-    "name": "enable-http-pipelining",
-    "category": "HTTP Specific Options",
-    "type": "true|false",
-    "default": "false",
-    "description": "\n\nEnable HTTP/1.1 pipelining."
-  },
-  {
-    "name": "header",
-    "category": "HTTP Specific Options",
-    "type": "<HEADER>",
-    "default": null,
-    "description": "\n\nAppend HEADER to HTTP request header. You can use this option repeatedly to specify more than one header:"
-  },
-  {
-    "name": "load-cookies",
-    "category": "HTTP Specific Options",
-    "type": "<FILE>",
-    "default": null,
-    "description": "\n\nLoad Cookies from FILE using the Firefox3 format (SQLite3), Chromium/Google Chrome (SQLite3) and the Mozilla/Firefox(1.x/2.x)/Netscape format.\n\nNote\n\nIf aria2 is built without libsqlite3, then it doesn't support Firefox3 and Chromium/Google Chrome cookie format."
-  },
-  {
-    "name": "save-cookies",
-    "category": "HTTP Specific Options",
-    "type": "<FILE>",
-    "default": null,
-    "description": "\n\nSave Cookies to FILE in Mozilla/Firefox(1.x/2.x)/ Netscape format. If FILE already exists, it is overwritten. Session Cookies are also saved and their expiry values are treated as 0. Possible Values: `/path/to/file`"
-  },
-  {
-    "name": "use-head",
-    "category": "HTTP Specific Options",
-    "type": "true|false",
-    "default": "false",
-    "description": "\n\nUse HEAD method for the first request to the HTTP server."
-  },
-  {
-    "name": "no-want-digest-header",
-    "category": "HTTP Specific Options",
-    "type": "true|false",
-    "default": "false",
-    "description": "\n\nWhether to disable Want-Digest header when doing requests."
-  },
-  {
-    "name": "user-agent",
-    "category": "HTTP Specific Options",
-    "type": "<USER_AGENT>",
-    "default": "aria2/$VERSION",
-    "description": "\n\nSet user agent for HTTP(S) downloads."
-  },
-  {
-    "name": "ftp-user",
-    "category": "FTP/SFTP Specific Options",
-    "type": "<USER>",
-    "default": "anonymous",
-    "description": "\n\nSet FTP user. This affects all URIs."
-  },
-  {
-    "name": "ftp-passwd",
-    "category": "FTP/SFTP Specific Options",
-    "type": "<PASSWD>",
-    "default": "ARIA2USER@",
-    "description": "\n\nSet FTP password. This affects all URIs. If user name is embedded but password is missing in URI, aria2 tries to resolve password using.netrc. If password is found in.netrc, then use it as password. If not, use the password specified in this option."
-  },
-  {
-    "name": "ftp-pasv",
-    "category": "FTP/SFTP Specific Options",
-    "type": "true|false",
-    "default": "true",
-    "description": "\n\nUse the passive mode in FTP. If `false` is given, the active mode will be used."
-  },
-  {
-    "name": "ftp-proxy",
-    "category": "FTP/SFTP Specific Options",
-    "type": "<PROXY>",
-    "default": null,
-    "description": "\n\nUse a proxy server for FTP. To override a previously defined proxy, use \"\". See also the option. This affects all ftp downloads. The format of PROXY is `[http://][USER:PASSWORD@]HOST[:PORT]`"
-  },
-  {
-    "name": "ftp-proxy-passwd",
-    "category": "FTP/SFTP Specific Options",
-    "type": "<PASSWD>",
-    "default": null,
-    "description": "\n\nSet password for option."
-  },
-  {
-    "name": "ftp-proxy-user",
-    "category": "FTP/SFTP Specific Options",
-    "type": "<USER>",
-    "default": null,
-    "description": "\n\nSet user for option."
-  },
-  {
-    "name": "ftp-type",
-    "category": "FTP/SFTP Specific Options",
-    "type": "binary|ascii",
-    "default": "binary",
-    "description": "\n\nSet FTP transfer type. TYPE is either `binary` or `ascii`."
-  },
-  {
-    "name": "ftp-reuse-connection",
-    "category": "FTP/SFTP Specific Options",
-    "type": "true|false",
-    "default": "true",
-    "description": "\n\nReuse connection in FTP."
-  },
-  {
-    "name": "show-files",
-    "category": "BitTorrent/Metalink Options",
-    "type": "true|false",
-    "default": null,
-    "description": "\n\nPrint file listing of \".torrent\", \".meta4\" and \".metalink\" file and exit. In case of \".torrent\" file, additional information (infohash, piece length, etc) is also printed."
-  },
-  {
-    "name": "bt-detach-seed-only",
-    "category": "BitTorrent Specific Options",
-    "type": "true|false",
-    "default": "false",
-    "description": "\n\nExclude seed only downloads when counting concurrent active downloads (See option). This means that if `-j3` is given and this option is turned on and 3 downloads are active and one of those enters seed mode, then it is excluded from active download count (thus it becomes 2), and the next download waiting in queue gets started. But be aware that seeding item is still recognized as active download in RPC method."
-  },
-  {
-    "name": "bt-enable-hook-after-hash-check",
-    "category": "BitTorrent Specific Options",
-    "type": "true|false",
-    "default": "true",
-    "description": "\n\nAllow hook command invocation after hash check (see option) in BitTorrent download. By default, when hash check succeeds, the command given by is executed. To disable this action, give `false` to this option."
-  },
-  {
-    "name": "bt-enable-lpd",
-    "category": "BitTorrent Specific Options",
-    "type": "true|false",
-    "default": "false",
-    "description": "\n\nEnable Local Peer Discovery. If a private flag is set in a torrent, aria2 doesn't use this feature for that download even if `true` is given."
-  },
-  {
-    "name": "bt-external-ip",
-    "category": "BitTorrent Specific Options",
-    "type": "<IPADDRESS>",
-    "default": null,
-    "description": "\n\nSpecify the external IP address to use in BitTorrent download and DHT. It may be sent to BitTorrent tracker. For DHT, this option should be set to report that local node is downloading a particular torrent. This is critical to use DHT in a private network. Although this function is named `external`, it can accept any kind of IP addresses."
-  },
-  {
-    "name": "bt-force-encryption",
-    "category": "BitTorrent Specific Options",
-    "type": "true|false",
-    "default": "false",
-    "description": "\n\nRequires BitTorrent message payload encryption with arc4. This is a shorthand of =arc4. This option does not change the option value of those options. If `true` is given, deny legacy BitTorrent handshake and only use Obfuscation handshake and always encrypt message payload."
-  },
-  {
-    "name": "bt-hash-check-seed",
-    "category": "BitTorrent Specific Options",
-    "type": "true|false",
-    "default": "true",
-    "description": "\n\nIf `true` is given, after hash check using option and file is complete, continue to seed file. If you want to check file and download it only when it is damaged or incomplete, set this option to `false`. This option has effect only on BitTorrent download."
-  },
-  {
-    "name": "bt-load-saved-metadata",
-    "category": "BitTorrent Specific Options",
-    "type": "true|false",
-    "default": "false",
-    "description": "\n\nBefore getting torrent metadata from DHT when downloading with magnet link, first try to read file saved by option. If it is successful, then skip downloading metadata from DHT."
-  },
-  {
-    "name": "bt-lpd-interface",
-    "category": "BitTorrent Specific Options",
-    "type": "<INTERFACE>",
-    "default": null,
-    "description": "\n\nUse given interface for Local Peer Discovery. If this option is not specified, the default interface is chosen. You can specify interface name and IP address. Possible Values: interface, IP address"
-  },
-  {
-    "name": "bt-max-open-files",
-    "category": "BitTorrent Specific Options",
-    "type": "<NUM>",
-    "default": "100",
-    "description": "\n\nSpecify maximum number of files to open in multi-file BitTorrent/Metalink download globally."
-  },
-  {
-    "name": "bt-max-peers",
-    "category": "BitTorrent Specific Options",
-    "type": "<NUM>",
-    "default": "55",
-    "description": "\n\nSpecify the maximum number of peers per torrent. `0` means unlimited. See also option."
-  },
-  {
-    "name": "bt-metadata-only",
-    "category": "BitTorrent Specific Options",
-    "type": "true|false",
-    "default": "false",
-    "description": "\n\nDownload metadata only. The file(s) described in metadata will not be downloaded. This option has effect only when BitTorrent Magnet URI is used. See also option."
-  },
-  {
-    "name": "bt-min-crypto-level",
-    "category": "BitTorrent Specific Options",
-    "type": "plain|arc4",
-    "default": "plain",
-    "description": "\n\nSet minimum level of encryption method. If several encryption methods are provided by a peer, aria2 chooses the lowest one which satisfies the given level."
-  },
-  {
-    "name": "bt-remove-unselected-file",
-    "category": "BitTorrent Specific Options",
-    "type": "true|false",
-    "default": "false",
-    "description": "\n\nRemoves the unselected files when download is completed in BitTorrent. To select files, use option. If it is not used, all files are assumed to be selected. Please use this option with care because it will actually remove files from your disk."
-  },
-  {
-    "name": "bt-require-crypto",
-    "category": "BitTorrent Specific Options",
-    "type": "true|false",
-    "default": "false",
-    "description": "\n\nIf `true` is given, aria2 doesn't accept and establish connection with legacy BitTorrent handshake(\\\\19BitTorrent protocol). Thus aria2 always uses Obfuscation handshake."
-  },
-  {
-    "name": "bt-request-peer-speed-limit",
-    "category": "BitTorrent Specific Options",
-    "type": "<SPEED>",
-    "default": "50K",
-    "description": "\n\nIf the whole download speed of every torrent is lower than SPEED, aria2 temporarily increases the number of peers to try for more download speed. Configuring this option with your preferred download speed can increase your download speed in some cases. You can append `K` or `M` (1K = 1024, 1M = 1024K)."
-  },
-  {
-    "name": "bt-save-metadata",
-    "category": "BitTorrent Specific Options",
-    "type": "true|false",
-    "default": "false",
-    "description": "\n\nSave metadata as \".torrent\" file. This option has effect only when BitTorrent Magnet URI is used. The file name is hex encoded info hash with suffix \".torrent\". The directory to be saved is the same directory where download file is saved. If the same file already exists, metadata is not saved. See also option."
-  },
-  {
-    "name": "bt-seed-unverified",
-    "category": "BitTorrent Specific Options",
-    "type": "true|false",
-    "default": "false",
-    "description": "\n\nSeed previously downloaded files without verifying piece hashes."
-  },
-  {
-    "name": "bt-stop-timeout",
-    "category": "BitTorrent Specific Options",
-    "type": "<SEC>",
-    "default": "0",
-    "description": "\n\nStop BitTorrent download if download speed is 0 in consecutive SEC seconds. If `0` is given, this feature is disabled."
-  },
-  {
-    "name": "bt-tracker-connect-timeout",
-    "category": "BitTorrent Specific Options",
-    "type": "<SEC>",
-    "default": "60",
-    "description": "\n\nSet the connect timeout in seconds to establish connection to tracker. After the connection is established, this option makes no effect and option is used instead."
-  },
-  {
-    "name": "bt-tracker-interval",
-    "category": "BitTorrent Specific Options",
-    "type": "<SEC>",
-    "default": "0",
-    "description": "\n\nSet the interval in seconds between tracker requests. This completely overrides interval value and aria2 just uses this value and ignores the min interval and interval value in the response of tracker. If `0` is set, aria2 determines interval based on the response of tracker and the download progress."
-  },
-  {
-    "name": "bt-tracker-timeout",
-    "category": "BitTorrent Specific Options",
-    "type": "<SEC>",
-    "default": "60",
-    "description": "\n\nSet timeout in seconds."
-  },
-  {
-    "name": "dht-file-path",
-    "category": "BitTorrent Specific Options",
-    "type": "<PATH>",
-    "default": "$HOME/.aria2/dht.dat",
-    "description": "\n\nChange the IPv4 DHT routing table file to PATH."
-  },
-  {
-    "name": "dht-file-path6",
-    "category": "BitTorrent Specific Options",
-    "type": "<PATH>",
-    "default": "$HOME/.aria2/dht6.dat",
-    "description": "\n\nChange the IPv6 DHT routing table file to PATH."
-  },
-  {
-    "name": "dht-listen-addr6",
-    "category": "BitTorrent Specific Options",
-    "type": "<ADDR>",
-    "default": "6881-6999",
-    "description": "\n\nSpecify address to bind socket for IPv6 DHT. It should be a global unicast IPv6 address of the host.\n\n\\--dht-listen-port \\=<PORT>...[¶]\n\nSet UDP listening port used by DHT(IPv4, IPv6) and UDP tracker. Multiple ports can be specified by using `,`, for example:`6881,6885`. You can also use `-` to specify a range:`6881-6999`. `,` and `-` can be used together."
-  },
-  {
-    "name": "dht-message-timeout",
-    "category": "BitTorrent Specific Options",
-    "type": "<SEC>",
-    "default": "10",
-    "description": "\n\nSet timeout in seconds."
-  },
-  {
-    "name": "enable-dht",
-    "category": "BitTorrent Specific Options",
-    "type": "true|false",
-    "default": "true",
-    "description": "\n\nEnable IPv4 DHT functionality. It also enables UDP tracker support. If a private flag is set in a torrent, aria2 doesn't use DHT for that download even if `true` is given."
-  },
-  {
-    "name": "enable-dht6",
-    "category": "BitTorrent Specific Options",
-    "type": "true|false",
-    "default": null,
-    "description": "\n\nEnable IPv6 DHT functionality. If a private flag is set in a torrent, aria2 doesn't use DHT for that download even if `true` is given. Use option to specify port number to listen on. See also option."
-  },
-  {
-    "name": "enable-peer-exchange",
-    "category": "BitTorrent Specific Options",
-    "type": "true|false",
-    "default": "true",
-    "description": "\n\nEnable Peer Exchange extension. If a private flag is set in a torrent, this feature is disabled for that download even if `true` is given."
-  },
-  {
-    "name": "follow-torrent",
-    "category": "BitTorrent Specific Options",
-    "type": "true|false|mem",
-    "default": "true",
-    "description": "\n\nIf `true` or `mem` is specified, when a file whose suffix is `.torrent` or content type is `application/x-bittorrent` is downloaded, aria2 parses it as a torrent file and downloads files mentioned in it. If `mem` is specified, a torrent file is not written to the disk, but is just kept in memory. If `false` is specified, the `.torrent` file is downloaded to the disk, but is not parsed as a torrent and its contents are not downloaded."
-  },
-  {
-    "name": "max-overall-upload-limit",
-    "category": "BitTorrent Specific Options",
-    "type": "<SPEED>",
-    "default": "0",
-    "description": "\n\nSet max overall upload speed in bytes/sec.`0` means unrestricted. You can append `K` or `M` (1K = 1024, 1M = 1024K). To limit the upload speed per torrent, use option."
-  },
-  {
-    "name": "max-upload-limit",
-    "category": "BitTorrent Specific Options",
-    "type": "<SPEED>",
-    "default": "0",
-    "description": "\n\nSet max upload speed per each torrent in bytes/sec.`0` means unrestricted. You can append `K` or `M` (1K = 1024, 1M = 1024K). To limit the overall upload speed, use option."
-  },
-  {
-    "name": "peer-id-prefix",
-    "category": "BitTorrent Specific Options",
-    "type": "<PEER_ID_PREFIX>",
-    "default": "A2-$MAJOR-$MINOR-$PATCH-",
-    "description": "\n\nSpecify the prefix of peer ID. The peer ID in BitTorrent is 20 byte length. If more than 20 bytes are specified, only first 20 bytes are used. If less than 20 bytes are specified, random byte data are added to make its length 20 bytes."
-  },
-  {
-    "name": "peer-agent",
-    "category": "BitTorrent Specific Options",
-    "type": "<PEER_AGENT>",
-    "default": "aria2/$MAJOR.$MINOR.$PATCH",
-    "description": "\n\nSpecify the string used during the bitorrent extended handshake for the peer's client version."
-  },
-  {
-    "name": "seed-ratio",
-    "category": "BitTorrent Specific Options",
-    "type": "<RATIO>",
-    "default": "1.0",
-    "description": "\n\nSpecify share ratio. Seed completed torrents until share ratio reaches RATIO. You are strongly encouraged to specify equals or more than `1.0` here. Specify `0.0` if you intend to do seeding regardless of share ratio. If option is specified along with this option, seeding ends when at least one of the conditions is satisfied."
-  },
-  {
-    "name": "seed-time",
-    "category": "BitTorrent Specific Options",
-    "type": "<MINUTES>",
-    "default": null,
-    "description": "\n\nSpecify seeding time in (fractional) minutes. Also see the option.\n\nNote\n\nSpecifying disables seeding after download completed.\n\n\\-T,"
-  },
-  {
-    "name": "torrent-file",
-    "category": "BitTorrent Specific Options",
-    "type": "<TORRENT_FILE>",
-    "default": null,
-    "description": "\n\nThe path to the \".torrent\" file. You are not required to use this option because you can specify \".torrent\" files without ."
-  },
-  {
-    "name": "follow-metalink",
-    "category": "Metalink Specific Options",
-    "type": "true|false|mem",
-    "default": "true",
-    "description": "\n\nIf `true` or `mem` is specified, when a file whose suffix is `.meta4` or `.metalink` or content type of `application/metalink4+xml` or `application/metalink+xml` is downloaded, aria2 parses it as a metalink file and downloads files mentioned in it. If `mem` is specified, a metalink file is not written to the disk, but is just kept in memory. If `false` is specified, the `.metalink` file is downloaded to the disk, but is not parsed as a metalink file and its contents are not downloaded."
-  },
-  {
-    "name": "metalink-base-uri",
-    "category": "Metalink Specific Options",
-    "type": "<URI>",
-    "default": null,
-    "description": "\n\nSpecify base URI to resolve relative URI in metalink:url and metalink:metaurl element in a metalink file stored in local disk. If URI points to a directory, URI must end with `/`.\n\n\\-M,"
-  },
-  {
-    "name": "metalink-file",
-    "category": "Metalink Specific Options",
-    "type": "<METALINK_FILE>",
-    "default": null,
-    "description": "\n\nThe file path to \".meta4\" and \".metalink\" file. Reads input from `stdin` when `-` is specified. You are not required to use this option because you can specify \".metalink\" files without ."
-  },
-  {
-    "name": "metalink-language",
-    "category": "Metalink Specific Options",
-    "type": "<LANGUAGE>",
-    "default": null,
-    "description": "\n\nThe language of the file to download.\n\n\\--metalink-location \\=<LOCATION>\\[,...\\] [¶]\n\nThe location of the preferred server. A comma-delimited list of locations is acceptable, for example, `jp,us`."
-  },
-  {
-    "name": "metalink-os",
-    "category": "Metalink Specific Options",
-    "type": "<OS>",
-    "default": null,
-    "description": "\n\nThe operating system of the file to download."
-  },
-  {
-    "name": "metalink-version",
-    "category": "Metalink Specific Options",
-    "type": "<VERSION>",
-    "default": null,
-    "description": "\n\nThe version of the file to download."
-  },
-  {
-    "name": "metalink-preferred-protocol",
-    "category": "Metalink Specific Options",
-    "type": "http|https|ftp|none",
-    "default": "none",
-    "description": "\n\nSpecify preferred protocol. The possible values are `http`, `https`, `ftp` and `none`. Specify `none` to disable this feature."
-  },
-  {
-    "name": "metalink-enable-unique-protocol",
-    "category": "Metalink Specific Options",
-    "type": "true|false",
-    "default": "true",
-    "description": "\n\nIf `true` is given and several protocols are available for a mirror in a metalink file, aria2 uses one of them. Use option to specify the preference of protocol."
-  },
-  {
-    "name": "enable-rpc",
-    "category": "RPC Options",
-    "type": "true|false",
-    "default": "false",
-    "description": "\n\nEnable JSON-RPC/XML-RPC server. It is strongly recommended to set secret authorization token using option. See also option."
-  },
-  {
-    "name": "pause",
-    "category": "RPC Options",
-    "type": "true|false",
-    "default": "false",
-    "description": "\n\nPause download after added. This option is effective only when is given."
-  },
-  {
-    "name": "pause-metadata",
-    "category": "RPC Options",
-    "type": "true|false",
-    "default": "false",
-    "description": "\n\nPause downloads created as a result of metadata download. There are 3 types of metadata downloads in aria2: (1) downloading.torrent file. (2) downloading torrent metadata using magnet link. (3) downloading metalink file. These metadata downloads will generate downloads using their metadata. This option pauses these subsequent downloads. This option is effective only when is given."
-  },
-  {
-    "name": "rpc-allow-origin-all",
-    "category": "RPC Options",
-    "type": "true|false",
-    "default": "false",
-    "description": "\n\nAdd Access-Control-Allow-Origin header field with value `*` to the RPC response."
-  },
-  {
-    "name": "rpc-certificate",
-    "category": "RPC Options",
-    "type": "<FILE>",
-    "default": null,
-    "description": "\n\nUse the certificate in FILE for RPC server. The certificate must be either in PKCS12 (.p12,.pfx) or in PEM format.\n\nPKCS12 files must contain the certificate, a key and optionally a chain of additional certificates. Only PKCS12 files with a blank import password can be opened!\n\nWhen using PEM, you have to specify the private key via as well. Use option to enable encryption.\n\nNote\n\n*WinTLS* does not support PEM files at the moment. Users have to use PKCS12 files.\n\nNote\n\n*AppleTLS* users should ..."
-  },
-  {
-    "name": "rpc-listen-all",
-    "category": "RPC Options",
-    "type": "true|false",
-    "default": "false",
-    "description": "\n\nListen incoming JSON-RPC/XML-RPC requests on all network interfaces. If false is given, listen only on local loopback interface."
-  },
-  {
-    "name": "rpc-listen-port",
-    "category": "RPC Options",
-    "type": "<PORT>",
-    "default": "6800",
-    "description": "\n\nSpecify a port number for JSON-RPC/XML-RPC server to listen to. Possible Values: `1024` - `65535`"
-  },
-  {
-    "name": "rpc-max-request-size",
-    "category": "RPC Options",
-    "type": "<SIZE>",
-    "default": "2M",
-    "description": "\n\nSet max size of JSON-RPC/XML-RPC request. If aria2 detects the request is more than SIZE bytes, it drops connection."
-  },
-  {
-    "name": "rpc-passwd",
-    "category": "RPC Options",
-    "type": "<PASSWD>",
-    "default": null,
-    "description": "\n\nSet JSON-RPC/XML-RPC password.\n\nWarning\n\noption will be deprecated in the future release. Migrate to option as soon as possible."
-  },
-  {
-    "name": "rpc-private-key",
-    "category": "RPC Options",
-    "type": "<FILE>",
-    "default": null,
-    "description": "\n\nUse the private key in FILE for RPC server. The private key must be decrypted and in PEM format. Use option to enable encryption. See also option."
-  },
-  {
-    "name": "rpc-save-upload-metadata",
-    "category": "RPC Options",
-    "type": "true|false",
-    "default": "true",
-    "description": "\n\nSave the uploaded torrent or metalink metadata in the directory specified by option. The file name consists of SHA-1 hash hex string of metadata plus extension. For torrent, the extension is '.torrent'. For metalink, it is '.meta4'. If false is given to this option, the downloads added by or will not be saved by option."
-  },
-  {
-    "name": "rpc-secret",
-    "category": "RPC Options",
-    "type": "<TOKEN>",
-    "default": null,
-    "description": "\n\nSet RPC secret authorization token. Read to know how this option value is used."
-  },
-  {
-    "name": "rpc-secure",
-    "category": "RPC Options",
-    "type": "true|false",
-    "default": null,
-    "description": "\n\nRPC transport will be encrypted by SSL/TLS. The RPC clients must use https scheme to access the server. For WebSocket client, use wss scheme. Use and options to specify the server certificate and private key."
-  },
-  {
-    "name": "rpc-user",
-    "category": "RPC Options",
-    "type": "<USER>",
-    "default": null,
-    "description": "\n\nSet JSON-RPC/XML-RPC user.\n\nWarning\n\noption will be deprecated in the future release. Migrate to option as soon as possible."
-  },
-  {
-    "name": "allow-overwrite",
-    "category": "Advanced Options",
-    "type": "true|false",
-    "default": "false",
-    "description": "\n\nRestart download from scratch if the corresponding control file doesn't exist. See also option."
-  },
-  {
-    "name": "allow-piece-length-change",
-    "category": "Advanced Options",
-    "type": "true|false",
-    "default": "false",
-    "description": "\n\nIf false is given, aria2 aborts download when a piece length is different from one in a control file. If true is given, you can proceed but some download progress will be lost."
-  },
-  {
-    "name": "always-resume",
-    "category": "Advanced Options",
-    "type": "true|false",
-    "default": "true",
-    "description": "\n\nAlways resume download. If `true` is given, aria2 always tries to resume download and if resume is not possible, aborts download. If `false` is given, when all given URIs do not support resume or aria2 encounters `N` URIs which does not support resume (`N` is the value specified using option), aria2 downloads file from scratch. See option."
-  },
-  {
-    "name": "async-dns",
-    "category": "Advanced Options",
-    "type": "true|false",
-    "default": "true",
-    "description": "\n\nEnable asynchronous DNS."
-  },
-  {
-    "name": "auto-file-renaming",
-    "category": "Advanced Options",
-    "type": "true|false",
-    "default": "true",
-    "description": "\n\nRename file name if the same file already exists. This option works only in HTTP(S)/FTP download. The new file name has a dot and a number(1..9999) appended after the name, but before the file extension, if any."
-  },
-  {
-    "name": "auto-save-interval",
-    "category": "Advanced Options",
-    "type": "<SEC>",
-    "default": "60",
-    "description": "\n\nSave a control file(\\*.aria2) every SEC seconds. If `0` is given, a control file is not saved during download. aria2 saves a control file when it stops regardless of the value. The possible values are between `0` to `600`."
-  },
-  {
-    "name": "conditional-get",
-    "category": "Advanced Options",
-    "type": "true|false",
-    "default": "false",
-    "description": "\n\nDownload file only when the local file is older than remote file. This function only works with HTTP(S) downloads only. It does not work if file size is specified in Metalink. It also ignores Content-Disposition header. If a control file exists, this option will be ignored. This function uses If-Modified-Since header to get only newer file conditionally. When getting modification time of local file, it uses user supplied file name (see option) or file name part in URI if is not specified. To o..."
-  },
-  {
-    "name": "conf-path",
-    "category": "Advanced Options",
-    "type": "<PATH>",
-    "default": "$HOME/.aria2/aria2.conf",
-    "description": "\n\nChange the configuration file path to PATH."
-  },
-  {
-    "name": "console-log-level",
-    "category": "Advanced Options",
-    "type": "debug|info|notice|warn|error",
-    "default": "notice",
-    "description": "\n\nSet log level to output to console. LEVEL is either `debug`,`info`, `notice`, `warn` or `error`."
-  },
-  {
-    "name": "content-disposition-default-utf8",
-    "category": "Advanced Options",
-    "type": "true|false",
-    "default": "false",
-    "description": "\n\nHandle quoted string in Content-Disposition header as UTF-8 instead of ISO-8859-1, for example, the filename parameter, but not the extended version filename\\*."
-  },
-  {
-    "name": "daemon",
-    "category": "Advanced Options",
-    "type": "true|false",
-    "default": "false",
-    "description": "\n\nRun as daemon. The current working directory will be changed to `/` and standard input, standard output and standard error will be redirected to `/dev/null`."
-  },
-  {
-    "name": "deferred-input",
-    "category": "Advanced Options",
-    "type": "true|false",
-    "default": "false",
-    "description": "\n\nIf `true` is given, aria2 does not read all URIs and options from file specified by option at startup, but it reads one by one when it needs later. This may reduce memory usage if input file contains a lot of URIs to download. If `false` is given, aria2 reads all URIs and options at startup."
-  },
-  {
-    "name": "disable-ipv6",
-    "category": "Advanced Options",
-    "type": "true|false",
-    "default": "false",
-    "description": "\n\nDisable IPv6. This is useful if you have to use broken DNS and want to avoid terribly slow AAAA record lookup."
-  },
-  {
-    "name": "disk-cache",
-    "category": "Advanced Options",
-    "type": "<SIZE>",
-    "default": "16M",
-    "description": "\n\nEnable disk cache. If SIZE is `0`, the disk cache is disabled. This feature caches the downloaded data in memory, which grows to at most SIZE bytes. The cache storage is created for aria2 instance and shared by all downloads. The one advantage of the disk cache is reduce the disk I/O because the data are written in larger unit and it is reordered by the offset of the file. If hash checking is involved and the data are cached in memory, we don't need to read them from the disk. SIZE can include..."
-  },
-  {
-    "name": "download-result",
-    "category": "Advanced Options",
-    "type": "default|full|hide",
-    "default": "default",
-    "description": "\n\nThis option changes the way `Download Results` is formatted. If OPT is `default`, print GID, status, average download speed and path/URI. If multiple files are involved, path/URI of first requested file is printed and remaining ones are omitted. If OPT is `full`, print GID, status, average download speed, percentage of progress and path/URI. The percentage of progress and path/URI are printed for each requested file in each row. If OPT is `hide`,`Download Results` is hidden."
-  },
-  {
-    "name": "dscp",
-    "category": "Advanced Options",
-    "type": "<DSCP>",
-    "default": null,
-    "description": "\n\nSet DSCP value in outgoing IP packets of BitTorrent traffic for QoS. This parameter sets only DSCP bits in TOS field of IP packets, not the whole field. If you take values from */usr/include/netinet/ip.h* divide them by 4 (otherwise values would be incorrect, e.g. your `CS1` class would turn into `CS4`). If you take commonly used values from RFC, network vendors' documentation, Wikipedia or any other source, use them as they are."
-  },
-  {
-    "name": "rlimit-nofile",
-    "category": "Advanced Options",
-    "type": "<NUM>",
-    "default": null,
-    "description": "\n\nSet the soft limit of open file descriptors. This open will only have effect when:\n\n> 1. The system supports it (posix)\n> 2. The limit does not exceed the hard limit.\n> 3. The specified limit is larger than the current soft limit.\n\nThis is equivalent to setting nofile via ulimit, except that it will never decrease the limit.\n\nThis option is only available on systems supporting the rlimit API."
-  },
-  {
-    "name": "enable-color",
-    "category": "Advanced Options",
-    "type": "true|false",
-    "default": "true",
-    "description": "\n\nEnable color output for a terminal."
-  },
-  {
-    "name": "enable-mmap",
-    "category": "Advanced Options",
-    "type": "true|false",
-    "default": "false",
-    "description": "\n\nMap files into memory. This option may not work if the file space is not pre-allocated. See ."
-  },
-  {
-    "name": "event-poll",
-    "category": "Advanced Options",
-    "type": "epoll|kqueue|port|poll|select",
-    "default": null,
-    "description": "\n\nSpecify the method for polling events. The possible values are `epoll`, `kqueue`, `port`, `poll` and `select`. For each `epoll`,`kqueue`, `port` and `poll`, it is available if system supports it.`epoll` is available on recent Linux. `kqueue` is available on various \\*BSD systems including Mac OS X. `port` is available on Open Solaris. The default value may vary depending on the system you use."
-  },
-  {
-    "name": "file-allocation",
-    "category": "Advanced Options",
-    "type": "none|prealloc|trunc|falloc",
-    "default": "prealloc",
-    "description": "\n\nSpecify file allocation method.`none` doesn't pre-allocate file space. `prealloc` pre-allocates file space before download begins. This may take some time depending on the size of the file. If you are using newer file systems such as ext4 (with extents support), btrfs, xfs or NTFS(MinGW build only), `falloc` is your best choice. It allocates large(few GiB) files almost instantly. Don't use `falloc` with legacy file systems such as ext3 and FAT32 because it takes almost the same time as `preall..."
-  },
-  {
-    "name": "force-save",
-    "category": "Advanced Options",
-    "type": "true|false",
-    "default": "false",
-    "description": "\n\nSave download with option even if the download is completed or removed. This option also saves control file in that situations. This may be useful to save BitTorrent seeding which is recognized as completed state."
-  },
-  {
-    "name": "save-not-found",
-    "category": "Advanced Options",
-    "type": "true|false",
-    "default": "true",
-    "description": "\n\nSave download with option even if the file was not found on the server. This option also saves control file in that situations."
-  },
-  {
-    "name": "gid",
-    "category": "Advanced Options",
-    "type": "<GID>",
-    "default": null,
+
+export interface Aria2OptionDefinition {
+    type: 'string' | 'integer' | 'float' | 'text' | 'boolean' | 'option';
+    since?: string;
+    suffix?: string;
+    readonly?: boolean;
+    defaultValue?: string;
+    required?: boolean;
+    separator?: string;
+    overrideMode?: 'override' | 'append';
+    submitFormat?: 'string' | 'array';
+    showCount?: boolean;
+    trimCount?: boolean;
+    options?: string[];
+    min?: number;
+    max?: number;
+    pattern?: string;
+    description?: string;
+}
+
+export const aria2AllOptions: Record<string, Aria2OptionDefinition> = {
+  "gid": {
+    "type": "string",
+    "readonly": true,
+    "required": true,
     "description": "\n\nSet GID manually. aria2 identifies each download by the ID called GID. The GID must be hex string of 16 characters, thus \\[0-9a-fA-F\\] are allowed and leading zeros must not be stripped. The GID all 0 is reserved and must not be used. The GID must be unique, otherwise error is reported and the download is not added. This option is useful when restoring the sessions saved using option. If this option is not used, new GID is generated by aria2."
   },
-  {
-    "name": "hash-check-only",
-    "category": "Advanced Options",
-    "type": "true|false",
-    "default": "false",
+  "dir": {
+    "type": "string",
+    "required": true,
+    "description": "\n\nThe directory to store the downloaded file.\n\n\\-i,"
+  },
+  "log": {
+    "type": "string",
+    "required": true,
+    "description": "\n\nThe file name of the log file. If `-` is specified, log is written to `stdout`. If empty string(\"\") is specified, or this option is omitted, no log is written to disk at all.\n\n\\-j,"
+  },
+  "max-concurrent-downloads": {
+    "type": "integer",
+    "defaultValue": "5",
+    "required": true,
+    "min": 1,
+    "description": "\n\nSet the maximum number of parallel downloads for every queue item. See also the option."
+  },
+  "check-integrity": {
+    "type": "boolean",
+    "defaultValue": "false",
+    "required": true,
+    "description": "\n\nCheck file integrity by validating piece hashes or a hash of entire file. This option has effect only in BitTorrent, Metalink downloads with checksums or HTTP(S)/FTP downloads with option. If piece hashes are provided, this option can detect damaged portions of a file and re-download them. If a hash of entire file is provided, hash check is only done when file has been already download. This is determined by file length. If hash check fails, file is re-downloaded from scratch. If both piece ha..."
+  },
+  "continue": {
+    "type": "boolean",
+    "required": true,
+    "description": "\n\nContinue downloading a partially downloaded file. Use this option to resume a download started by a web browser or another program which downloads files sequentially from the beginning. Currently this option is only applicable to HTTP(S)/FTP downloads.\n\n\\-h,"
+  },
+  "all-proxy": {
+    "type": "string",
+    "description": "\n\nUse a proxy server for all protocols. To override a previously defined proxy, use \"\". You also can override this setting and specify a proxy server for a particular protocol using , and options. This affects all downloads. The format of PROXY is `[http://][USER:PASSWORD@]HOST[:PORT]`. See also section.\n\nNote\n\nIf user and password are embedded in proxy URI and they are also specified by *\\--{http,https,ftp,all}-proxy-{user,passwd}* options, those specified later override prior options. For exam..."
+  },
+  "all-proxy-user": {
+    "type": "string",
+    "description": "\n\nSet user for option.\n\n\\--checksum \\=<TYPE>=<DIGEST> [¶]\n\nSet checksum. TYPE is hash type. The supported hash type is listed in `Hash Algorithms` in `aria2c -v`. DIGEST is hex digest. For example, setting sha-1 digest looks like this:`sha-1=0192ba11326fe2298c8cb4de616f4d4140213838` This option applies only to HTTP(S)/FTP downloads."
+  },
+  "all-proxy-passwd": {
+    "type": "string",
+    "description": "\n\nSet password for option."
+  },
+  "checksum": {
+    "type": "string",
+    "required": true,
+    "pattern": "^(md5|sha-(1|224|256|384|512))=[a-zA-Z0-9]+$"
+  },
+  "connect-timeout": {
+    "type": "integer",
+    "suffix": "Seconds",
+    "defaultValue": "60",
+    "required": true,
+    "min": 1,
+    "max": 600,
+    "description": "\n\nSet the connect timeout in seconds to establish connection to HTTP/FTP/proxy server. After the connection is established, this option makes no effect and option is used instead."
+  },
+  "dry-run": {
+    "type": "boolean",
+    "defaultValue": "false",
+    "required": true,
+    "description": "\n\nIf `true` is given, aria2 just checks whether the remote file is available and doesn't download data. This option has effect on HTTP/FTP download. BitTorrent downloads are canceled if `true` is specified."
+  },
+  "lowest-speed-limit": {
+    "type": "string",
+    "suffix": "Bytes",
+    "defaultValue": "0",
+    "required": true,
+    "pattern": "^(0|[1-9]\\d*(K|k|M|m)?)$",
+    "description": "\n\nClose connection if download speed is lower than or equal to this value(bytes per sec).`0` means aria2 does not have a lowest speed limit. You can append `K` or `M` (1K = 1024, 1M = 1024K). This option does not affect BitTorrent downloads."
+  },
+  "max-connection-per-server": {
+    "type": "integer",
+    "defaultValue": "1",
+    "required": true,
+    "min": 1,
+    "max": 16,
+    "description": "\n\nThe maximum number of connections to one server for each download."
+  },
+  "max-file-not-found": {
+    "type": "integer",
+    "defaultValue": "0",
+    "required": true,
+    "min": 0,
+    "description": "\n\nIf aria2 receives \"file not found\" status from the remote HTTP/FTP servers NUM times without getting a single byte, then force the download to fail. Specify `0` to disable this option. This options is effective only when using HTTP/FTP servers. The number of retry attempt is counted toward , so it should be configured too."
+  },
+  "max-tries": {
+    "type": "integer",
+    "defaultValue": "5",
+    "required": true,
+    "min": 0,
+    "description": "\n\nSet number of tries. `0` means unlimited. See also ."
+  },
+  "min-split-size": {
+    "type": "string",
+    "suffix": "Bytes",
+    "defaultValue": "20M",
+    "required": true,
+    "pattern": "^(0|[1-9]\\d*(K|k|M|m)?)$",
+    "description": "\n\naria2 does not split less than 2\\*SIZE byte range. For example, let's consider downloading 20MiB file. If SIZE is 10M, aria2 can split file into 2 range \\[0-10MiB) and \\[10MiB-20MiB) and download it using 2 sources(if >= 2, of course). If SIZE is 15M, since 2\\*15M > 20MiB, aria2 does not split file and download it using 1 source. You can append `K` or `M` (1K = 1024, 1M = 1024K). Possible Values: `1M` - `1024M`"
+  },
+  "netrc-path": {
+    "type": "string",
+    "readonly": true,
+    "defaultValue": "$(HOME)/.netrc",
+    "description": "\n\nSpecify the path to the netrc file."
+  },
+  "no-netrc": {
+    "type": "boolean",
+    "required": true,
+    "description": "\n\nDisables netrc support. netrc support is enabled by default.\n\nNote\n\nnetrc file is only read at the startup if is `false`. So if is `true` at the startup, no netrc is available throughout the session. You cannot get netrc enabled even if you send using."
+  },
+  "no-proxy": {
+    "type": "text",
+    "separator": ",",
+    "showCount": true,
+    "description": "\n\nSpecify a comma separated list of host names, domains and network addresses with or without a subnet mask where no proxy should be used.\n\nNote\n\nFor network addresses with a subnet mask, both IPv4 and IPv6 addresses work. The current implementation does not resolve the host name in an URI to compare network addresses specified in . So it is only effective if URI has numeric IP addresses.\n\n\\-o,"
+  },
+  "out": {
+    "type": "string",
+    "description": "\n\nThe file name of the downloaded file. It is always relative to the directory given in option. When the option is used, this option is ignored.\n\nNote\n\nYou cannot specify a file name for Metalink or BitTorrent downloads. The file name specified here is only used when the URIs fed to aria2 are given on the command line directly, but not when using, option.\n\nExample:\n\n```\n$ aria2c -o myfile.zip \"http://mirror1/file.zip\" \"http://mirror2/file.zip\"\n```"
+  },
+  "proxy-method": {
+    "type": "option",
+    "options": [
+      "get",
+      "tunnel"
+    ],
+    "defaultValue": "get",
+    "required": true,
+    "description": "\n\nSet the method to use in proxy request. METHOD is either `get` or `tunnel`. HTTPS downloads always use `tunnel` regardless of this option."
+  },
+  "remote-time": {
+    "type": "boolean",
+    "defaultValue": "false",
+    "required": true,
+    "description": "\n\nRetrieve timestamp of the remote file from the remote HTTP/FTP server and if it is available, apply it to the local file."
+  },
+  "reuse-uri": {
+    "type": "boolean",
+    "defaultValue": "true",
+    "required": true,
+    "description": "\n\nReuse already used URIs if no unused URIs are left."
+  },
+  "retry-wait": {
+    "type": "integer",
+    "suffix": "Seconds",
+    "defaultValue": "0",
+    "required": true,
+    "min": 0,
+    "max": 600,
+    "description": "\n\nSet the seconds to wait between retries. When `SEC > 0`, aria2 will retry downloads when the HTTP server returns a 503 response."
+  },
+  "server-stat-of": {
+    "type": "string",
+    "description": "\n\nSpecify the file name to which performance profile of the servers is saved. You can load saved data using option. Seesubsection below for file format."
+  },
+  "server-stat-timeout": {
+    "type": "integer",
+    "suffix": "Seconds",
+    "readonly": true,
+    "defaultValue": "86400",
+    "description": "\n\nSpecifies timeout in seconds to invalidate performance profile of the servers since the last contact to them."
+  },
+  "split": {
+    "type": "integer",
+    "defaultValue": "5",
+    "required": true,
+    "min": 1,
+    "description": "\n\nDownload a file using N connections. If more than N URIs are given, first N URIs are used and remaining URIs are used for backup. If less than N URIs are given, those URIs are used more than once so that N connections total are made simultaneously. The number of connections to the same host is restricted by the option. See also the option."
+  },
+  "stream-piece-selector": {
+    "type": "option",
+    "options": [
+      "default",
+      "inorder",
+      "random",
+      "geom"
+    ],
+    "defaultValue": "default",
+    "required": true,
+    "description": "\n\nSpecify piece selection algorithm used in HTTP/FTP download. A piece is a fixed length segment which is downloaded in parallel in a segmented download."
+  },
+  "timeout": {
+    "type": "integer",
+    "suffix": "Seconds",
+    "defaultValue": "60",
+    "required": true,
+    "min": 1,
+    "max": 600,
+    "description": "\n\nSet timeout in seconds."
+  },
+  "uri-selector": {
+    "type": "option",
+    "options": [
+      "inorder",
+      "feedback",
+      "adaptive"
+    ],
+    "defaultValue": "feedback",
+    "required": true,
+    "description": "\n\nSpecify URI selection algorithm. The possible values are `inorder`,`feedback` and `adaptive`. If `inorder` is given, URI is tried in the order appeared in the URI list. If `feedback` is given, aria2 uses download speed observed in the previous downloads and choose fastest server in the URI list. This also effectively skips dead mirrors. The observed download speed is a part of performance profile of servers mentioned in and options. If `adaptive` is given, selects one of the best mirrors for t..."
+  },
+  "check-certificate": {
+    "type": "boolean",
+    "readonly": true,
+    "defaultValue": "true",
+    "description": "\n\nVerify the peer using certificates specified in option."
+  },
+  "http-accept-gzip": {
+    "type": "boolean",
+    "defaultValue": "false",
+    "required": true,
+    "description": "\n\nSend `Accept-Encoding: deflate, gzip` request header and inflate response if remote server responds with `Content-Encoding: gzip` or `Content-Encoding: deflate`."
+  },
+  "http-auth-challenge": {
+    "type": "boolean",
+    "defaultValue": "false",
+    "required": true,
+    "description": "\n\nSend HTTP authorization header only when it is requested by the server. If `false` is set, then authorization header is always sent to the server. There is an exception: if user name and password are embedded in URI, authorization header is always sent to the server regardless of this option."
+  },
+  "http-no-cache": {
+    "type": "boolean",
+    "defaultValue": "false",
+    "required": true,
+    "description": "\n\nSend `Cache-Control: no-cache` and `Pragma: no-cache` header to avoid cached content. If `false` is given, these headers are not sent and you can add Cache-Control header with a directive you like using option."
+  },
+  "http-user": {
+    "type": "string",
+    "description": "\n\nSet HTTP user. This affects all URIs."
+  },
+  "http-passwd": {
+    "type": "string",
+    "description": "\n\nSet HTTP password. This affects all URIs."
+  },
+  "http-proxy": {
+    "type": "string",
+    "description": "\n\nUse a proxy server for HTTP. To override a previously defined proxy, use \"\". See also the option. This affects all http downloads. The format of PROXY is `[http://][USER:PASSWORD@]HOST[:PORT]`"
+  },
+  "http-proxy-user": {
+    "type": "string",
+    "description": "\n\nSet user for ."
+  },
+  "http-proxy-passwd": {
+    "type": "string",
+    "description": "\n\nSet password for ."
+  },
+  "https-proxy": {
+    "type": "string",
+    "description": "\n\nUse a proxy server for HTTPS. To override a previously defined proxy, use \"\". See also the option. This affects all https download. The format of PROXY is `[http://][USER:PASSWORD@]HOST[:PORT]`"
+  },
+  "https-proxy-user": {
+    "type": "string",
+    "description": "\n\nSet user for ."
+  },
+  "https-proxy-passwd": {
+    "type": "string",
+    "description": "\n\nSet password for ."
+  },
+  "referer": {
+    "type": "string",
+    "description": "\n\nSet an http referrer (Referer). This affects all http/https downloads. If `*` is given, the download URI is also used as the referrer. This may be useful when used together with the option."
+  },
+  "enable-http-keep-alive": {
+    "type": "boolean",
+    "defaultValue": "true",
+    "required": true,
+    "description": "\n\nEnable HTTP/1.1 persistent connection."
+  },
+  "enable-http-pipelining": {
+    "type": "boolean",
+    "defaultValue": "false",
+    "required": true,
+    "description": "\n\nEnable HTTP/1.1 pipelining."
+  },
+  "header": {
+    "type": "text",
+    "separator": "\n",
+    "overrideMode": "append",
+    "submitFormat": "array",
+    "showCount": true,
+    "trimCount": true,
+    "description": "\n\nAppend HEADER to HTTP request header. You can use this option repeatedly to specify more than one header:"
+  },
+  "save-cookies": {
+    "type": "string",
+    "description": "\n\nSave Cookies to FILE in Mozilla/Firefox(1.x/2.x)/ Netscape format. If FILE already exists, it is overwritten. Session Cookies are also saved and their expiry values are treated as 0. Possible Values: `/path/to/file`"
+  },
+  "use-head": {
+    "type": "boolean",
+    "defaultValue": "false",
+    "required": true,
+    "description": "\n\nUse HEAD method for the first request to the HTTP server."
+  },
+  "user-agent": {
+    "type": "string",
+    "defaultValue": "aria2/$VERSION",
+    "description": "\n\nSet user agent for HTTP(S) downloads."
+  },
+  "ftp-user": {
+    "type": "string",
+    "defaultValue": "anonymous",
+    "description": "\n\nSet FTP user. This affects all URIs."
+  },
+  "ftp-passwd": {
+    "type": "string",
+    "defaultValue": "ARIA2USER@",
+    "description": "\n\nSet FTP password. This affects all URIs. If user name is embedded but password is missing in URI, aria2 tries to resolve password using.netrc. If password is found in.netrc, then use it as password. If not, use the password specified in this option."
+  },
+  "ftp-pasv": {
+    "type": "boolean",
+    "defaultValue": "true",
+    "required": true,
+    "description": "\n\nUse the passive mode in FTP. If `false` is given, the active mode will be used."
+  },
+  "ftp-proxy": {
+    "type": "string",
+    "description": "\n\nUse a proxy server for FTP. To override a previously defined proxy, use \"\". See also the option. This affects all ftp downloads. The format of PROXY is `[http://][USER:PASSWORD@]HOST[:PORT]`"
+  },
+  "ftp-proxy-user": {
+    "type": "string",
+    "description": "\n\nSet user for option."
+  },
+  "ftp-proxy-passwd": {
+    "type": "string",
+    "description": "\n\nSet password for option."
+  },
+  "ftp-type": {
+    "type": "option",
+    "options": [
+      "binary",
+      "ascii"
+    ],
+    "defaultValue": "binary",
+    "required": true,
+    "description": "\n\nSet FTP transfer type. TYPE is either `binary` or `ascii`."
+  },
+  "ftp-reuse-connection": {
+    "type": "boolean",
+    "defaultValue": "true",
+    "required": true,
+    "description": "\n\nReuse connection in FTP."
+  },
+  "ssh-host-key-md": {
+    "type": "string"
+  },
+  "show-files": {
+    "type": "boolean",
+    "readonly": true,
+    "description": "\n\nPrint file listing of \".torrent\", \".meta4\" and \".metalink\" file and exit. In case of \".torrent\" file, additional information (infohash, piece length, etc) is also printed."
+  },
+  "bt-detach-seed-only": {
+    "type": "boolean",
+    "readonly": true,
+    "defaultValue": "false",
+    "description": "\n\nExclude seed only downloads when counting concurrent active downloads (See option). This means that if `-j3` is given and this option is turned on and 3 downloads are active and one of those enters seed mode, then it is excluded from active download count (thus it becomes 2), and the next download waiting in queue gets started. But be aware that seeding item is still recognized as active download in RPC method."
+  },
+  "bt-enable-hook-after-hash-check": {
+    "since": "1.19.3",
+    "type": "boolean",
+    "defaultValue": "true",
+    "required": true,
+    "description": "\n\nAllow hook command invocation after hash check (see option) in BitTorrent download. By default, when hash check succeeds, the command given by is executed. To disable this action, give `false` to this option."
+  },
+  "bt-enable-lpd": {
+    "type": "boolean",
+    "defaultValue": "false",
+    "required": true,
+    "description": "\n\nEnable Local Peer Discovery. If a private flag is set in a torrent, aria2 doesn't use this feature for that download even if `true` is given."
+  },
+  "bt-exclude-tracker": {
+    "type": "text",
+    "separator": ",",
+    "showCount": true
+  },
+  "bt-external-ip": {
+    "type": "string",
+    "description": "\n\nSpecify the external IP address to use in BitTorrent download and DHT. It may be sent to BitTorrent tracker. For DHT, this option should be set to report that local node is downloading a particular torrent. This is critical to use DHT in a private network. Although this function is named `external`, it can accept any kind of IP addresses."
+  },
+  "bt-force-encryption": {
+    "type": "boolean",
+    "defaultValue": "false",
+    "required": true,
+    "description": "\n\nRequires BitTorrent message payload encryption with arc4. This is a shorthand of =arc4. This option does not change the option value of those options. If `true` is given, deny legacy BitTorrent handshake and only use Obfuscation handshake and always encrypt message payload."
+  },
+  "bt-hash-check-seed": {
+    "type": "boolean",
+    "defaultValue": "true",
+    "required": true,
+    "description": "\n\nIf `true` is given, after hash check using option and file is complete, continue to seed file. If you want to check file and download it only when it is damaged or incomplete, set this option to `false`. This option has effect only on BitTorrent download."
+  },
+  "bt-load-saved-metadata": {
+    "since": "1.33.0",
+    "type": "boolean",
+    "defaultValue": "false",
+    "required": true,
+    "description": "\n\nBefore getting torrent metadata from DHT when downloading with magnet link, first try to read file saved by option. If it is successful, then skip downloading metadata from DHT."
+  },
+  "bt-max-open-files": {
+    "type": "integer",
+    "defaultValue": "100",
+    "required": true,
+    "min": 1,
+    "description": "\n\nSpecify maximum number of files to open in multi-file BitTorrent/Metalink download globally."
+  },
+  "bt-max-peers": {
+    "type": "integer",
+    "defaultValue": "55",
+    "required": true,
+    "min": 0,
+    "description": "\n\nSpecify the maximum number of peers per torrent. `0` means unlimited. See also option."
+  },
+  "bt-metadata-only": {
+    "type": "boolean",
+    "defaultValue": "false",
+    "required": true,
+    "description": "\n\nDownload metadata only. The file(s) described in metadata will not be downloaded. This option has effect only when BitTorrent Magnet URI is used. See also option."
+  },
+  "bt-min-crypto-level": {
+    "type": "option",
+    "options": [
+      "plain",
+      "arc4"
+    ],
+    "defaultValue": "plain",
+    "required": true,
+    "description": "\n\nSet minimum level of encryption method. If several encryption methods are provided by a peer, aria2 chooses the lowest one which satisfies the given level."
+  },
+  "bt-prioritize-piece": {
+    "type": "string"
+  },
+  "bt-remove-unselected-file": {
+    "type": "boolean",
+    "defaultValue": "false",
+    "required": true,
+    "description": "\n\nRemoves the unselected files when download is completed in BitTorrent. To select files, use option. If it is not used, all files are assumed to be selected. Please use this option with care because it will actually remove files from your disk."
+  },
+  "bt-require-crypto": {
+    "type": "boolean",
+    "defaultValue": "false",
+    "required": true,
+    "description": "\n\nIf `true` is given, aria2 doesn't accept and establish connection with legacy BitTorrent handshake(\\\\19BitTorrent protocol). Thus aria2 always uses Obfuscation handshake."
+  },
+  "bt-request-peer-speed-limit": {
+    "type": "string",
+    "suffix": "Bytes",
+    "defaultValue": "50K",
+    "required": true,
+    "pattern": "^(0|[1-9]\\d*(K|k|M|m)?)$",
+    "description": "\n\nIf the whole download speed of every torrent is lower than SPEED, aria2 temporarily increases the number of peers to try for more download speed. Configuring this option with your preferred download speed can increase your download speed in some cases. You can append `K` or `M` (1K = 1024, 1M = 1024K)."
+  },
+  "bt-save-metadata": {
+    "type": "boolean",
+    "defaultValue": "false",
+    "required": true,
+    "description": "\n\nSave metadata as \".torrent\" file. This option has effect only when BitTorrent Magnet URI is used. The file name is hex encoded info hash with suffix \".torrent\". The directory to be saved is the same directory where download file is saved. If the same file already exists, metadata is not saved. See also option."
+  },
+  "bt-seed-unverified": {
+    "type": "boolean",
+    "defaultValue": "false",
+    "required": true,
+    "description": "\n\nSeed previously downloaded files without verifying piece hashes."
+  },
+  "bt-stop-timeout": {
+    "type": "integer",
+    "suffix": "Seconds",
+    "defaultValue": "0",
+    "required": true,
+    "min": 0,
+    "description": "\n\nStop BitTorrent download if download speed is 0 in consecutive SEC seconds. If `0` is given, this feature is disabled."
+  },
+  "bt-tracker": {
+    "type": "text",
+    "separator": ",",
+    "showCount": true
+  },
+  "bt-tracker-connect-timeout": {
+    "type": "integer",
+    "suffix": "Seconds",
+    "defaultValue": "60",
+    "required": true,
+    "min": 1,
+    "max": 600,
+    "description": "\n\nSet the connect timeout in seconds to establish connection to tracker. After the connection is established, this option makes no effect and option is used instead."
+  },
+  "bt-tracker-interval": {
+    "type": "integer",
+    "suffix": "Seconds",
+    "defaultValue": "0",
+    "required": true,
+    "min": 0,
+    "description": "\n\nSet the interval in seconds between tracker requests. This completely overrides interval value and aria2 just uses this value and ignores the min interval and interval value in the response of tracker. If `0` is set, aria2 determines interval based on the response of tracker and the download progress."
+  },
+  "bt-tracker-timeout": {
+    "type": "integer",
+    "suffix": "Seconds",
+    "defaultValue": "60",
+    "required": true,
+    "min": 1,
+    "max": 600,
+    "description": "\n\nSet timeout in seconds."
+  },
+  "dht-file-path": {
+    "type": "string",
+    "readonly": true,
+    "defaultValue": "$HOME/.aria2/dht.dat",
+    "description": "\n\nChange the IPv4 DHT routing table file to PATH."
+  },
+  "dht-file-path6": {
+    "type": "string",
+    "readonly": true,
+    "defaultValue": "$HOME/.aria2/dht6.dat",
+    "description": "\n\nChange the IPv6 DHT routing table file to PATH."
+  },
+  "dht-listen-port": {
+    "type": "string",
+    "readonly": true,
+    "defaultValue": "6881-6999"
+  },
+  "dht-message-timeout": {
+    "type": "integer",
+    "suffix": "Seconds",
+    "readonly": true,
+    "defaultValue": "10",
+    "description": "\n\nSet timeout in seconds."
+  },
+  "enable-dht": {
+    "type": "boolean",
+    "readonly": true,
+    "defaultValue": "true",
+    "description": "\n\nEnable IPv4 DHT functionality. It also enables UDP tracker support. If a private flag is set in a torrent, aria2 doesn't use DHT for that download even if `true` is given."
+  },
+  "enable-dht6": {
+    "type": "boolean",
+    "readonly": true,
+    "description": "\n\nEnable IPv6 DHT functionality. If a private flag is set in a torrent, aria2 doesn't use DHT for that download even if `true` is given. Use option to specify port number to listen on. See also option."
+  },
+  "enable-peer-exchange": {
+    "type": "boolean",
+    "defaultValue": "true",
+    "required": true,
+    "description": "\n\nEnable Peer Exchange extension. If a private flag is set in a torrent, this feature is disabled for that download even if `true` is given."
+  },
+  "follow-torrent": {
+    "type": "option",
+    "options": [
+      "true",
+      "false",
+      "mem"
+    ],
+    "defaultValue": "true",
+    "required": true,
+    "description": "\n\nIf `true` or `mem` is specified, when a file whose suffix is `.torrent` or content type is `application/x-bittorrent` is downloaded, aria2 parses it as a torrent file and downloads files mentioned in it. If `mem` is specified, a torrent file is not written to the disk, but is just kept in memory. If `false` is specified, the `.torrent` file is downloaded to the disk, but is not parsed as a torrent and its contents are not downloaded."
+  },
+  "listen-port": {
+    "type": "integer",
+    "readonly": true,
+    "defaultValue": "6881-6999"
+  },
+  "max-overall-upload-limit": {
+    "type": "string",
+    "suffix": "Bytes",
+    "defaultValue": "0",
+    "required": true,
+    "pattern": "^(0|[1-9]\\d*(K|k|M|m)?)$",
+    "description": "\n\nSet max overall upload speed in bytes/sec.`0` means unrestricted. You can append `K` or `M` (1K = 1024, 1M = 1024K). To limit the upload speed per torrent, use option."
+  },
+  "max-upload-limit": {
+    "type": "string",
+    "suffix": "Bytes",
+    "defaultValue": "0",
+    "required": true,
+    "pattern": "^(0|[1-9]\\d*(K|k|M|m)?)$",
+    "description": "\n\nSet max upload speed per each torrent in bytes/sec.`0` means unrestricted. You can append `K` or `M` (1K = 1024, 1M = 1024K). To limit the overall upload speed, use option."
+  },
+  "peer-id-prefix": {
+    "type": "string",
+    "readonly": true,
+    "defaultValue": "A2-$MAJOR-$MINOR-$PATCH-",
+    "description": "\n\nSpecify the prefix of peer ID. The peer ID in BitTorrent is 20 byte length. If more than 20 bytes are specified, only first 20 bytes are used. If less than 20 bytes are specified, random byte data are added to make its length 20 bytes."
+  },
+  "peer-agent": {
+    "since": "1.33.0",
+    "type": "string",
+    "defaultValue": "aria2/$MAJOR.$MINOR.$PATCH",
+    "readonly": true,
+    "description": "\n\nSpecify the string used during the bitorrent extended handshake for the peer's client version."
+  },
+  "seed-ratio": {
+    "type": "float",
+    "defaultValue": "1.0",
+    "required": true,
+    "min": 0,
+    "description": "\n\nSpecify share ratio. Seed completed torrents until share ratio reaches RATIO. You are strongly encouraged to specify equals or more than `1.0` here. Specify `0.0` if you intend to do seeding regardless of share ratio. If option is specified along with this option, seeding ends when at least one of the conditions is satisfied."
+  },
+  "seed-time": {
+    "type": "float",
+    "suffix": "Minutes",
+    "required": true,
+    "min": 0,
+    "description": "\n\nSpecify seeding time in (fractional) minutes. Also see the option.\n\nNote\n\nSpecifying disables seeding after download completed.\n\n\\-T,"
+  },
+  "follow-metalink": {
+    "type": "option",
+    "options": [
+      "true",
+      "false",
+      "mem"
+    ],
+    "defaultValue": "true",
+    "required": true,
+    "description": "\n\nIf `true` or `mem` is specified, when a file whose suffix is `.meta4` or `.metalink` or content type of `application/metalink4+xml` or `application/metalink+xml` is downloaded, aria2 parses it as a metalink file and downloads files mentioned in it. If `mem` is specified, a metalink file is not written to the disk, but is just kept in memory. If `false` is specified, the `.metalink` file is downloaded to the disk, but is not parsed as a metalink file and its contents are not downloaded."
+  },
+  "metalink-base-uri": {
+    "type": "string",
+    "description": "\n\nSpecify base URI to resolve relative URI in metalink:url and metalink:metaurl element in a metalink file stored in local disk. If URI points to a directory, URI must end with `/`.\n\n\\-M,"
+  },
+  "metalink-language": {
+    "type": "string",
+    "description": "\n\nThe language of the file to download.\n\n\\--metalink-location \\=<LOCATION>\\[,...\\] [¶]\n\nThe location of the preferred server. A comma-delimited list of locations is acceptable, for example, `jp,us`."
+  },
+  "metalink-location": {
+    "type": "string"
+  },
+  "metalink-os": {
+    "type": "string",
+    "description": "\n\nThe operating system of the file to download."
+  },
+  "metalink-version": {
+    "type": "string",
+    "description": "\n\nThe version of the file to download."
+  },
+  "metalink-preferred-protocol": {
+    "type": "option",
+    "options": [
+      "http",
+      "https",
+      "ftp",
+      "none"
+    ],
+    "defaultValue": "none",
+    "required": true,
+    "description": "\n\nSpecify preferred protocol. The possible values are `http`, `https`, `ftp` and `none`. Specify `none` to disable this feature."
+  },
+  "metalink-enable-unique-protocol": {
+    "type": "boolean",
+    "defaultValue": "true",
+    "required": true,
+    "description": "\n\nIf `true` is given and several protocols are available for a mirror in a metalink file, aria2 uses one of them. Use option to specify the preference of protocol."
+  },
+  "enable-rpc": {
+    "type": "boolean",
+    "readonly": true,
+    "defaultValue": "false",
+    "description": "\n\nEnable JSON-RPC/XML-RPC server. It is strongly recommended to set secret authorization token using option. See also option."
+  },
+  "pause-metadata": {
+    "type": "boolean",
+    "defaultValue": "false",
+    "required": true,
+    "description": "\n\nPause downloads created as a result of metadata download. There are 3 types of metadata downloads in aria2: (1) downloading.torrent file. (2) downloading torrent metadata using magnet link. (3) downloading metalink file. These metadata downloads will generate downloads using their metadata. This option pauses these subsequent downloads. This option is effective only when is given."
+  },
+  "rpc-allow-origin-all": {
+    "type": "boolean",
+    "readonly": true,
+    "defaultValue": "false",
+    "description": "\n\nAdd Access-Control-Allow-Origin header field with value `*` to the RPC response."
+  },
+  "rpc-listen-all": {
+    "type": "boolean",
+    "readonly": true,
+    "defaultValue": "false",
+    "description": "\n\nListen incoming JSON-RPC/XML-RPC requests on all network interfaces. If false is given, listen only on local loopback interface."
+  },
+  "rpc-listen-port": {
+    "type": "integer",
+    "readonly": true,
+    "defaultValue": "6800",
+    "description": "\n\nSpecify a port number for JSON-RPC/XML-RPC server to listen to. Possible Values: `1024` - `65535`"
+  },
+  "rpc-max-request-size": {
+    "type": "string",
+    "suffix": "Bytes",
+    "readonly": true,
+    "defaultValue": "2M",
+    "description": "\n\nSet max size of JSON-RPC/XML-RPC request. If aria2 detects the request is more than SIZE bytes, it drops connection."
+  },
+  "rpc-save-upload-metadata": {
+    "type": "boolean",
+    "defaultValue": "true",
+    "required": true,
+    "description": "\n\nSave the uploaded torrent or metalink metadata in the directory specified by option. The file name consists of SHA-1 hash hex string of metadata plus extension. For torrent, the extension is '.torrent'. For metalink, it is '.meta4'. If false is given to this option, the downloads added by or will not be saved by option."
+  },
+  "rpc-secure": {
+    "type": "boolean",
+    "readonly": true,
+    "description": "\n\nRPC transport will be encrypted by SSL/TLS. The RPC clients must use https scheme to access the server. For WebSocket client, use wss scheme. Use and options to specify the server certificate and private key."
+  },
+  "allow-overwrite": {
+    "type": "boolean",
+    "defaultValue": "false",
+    "required": true,
+    "description": "\n\nRestart download from scratch if the corresponding control file doesn't exist. See also option."
+  },
+  "allow-piece-length-change": {
+    "type": "boolean",
+    "defaultValue": "false",
+    "required": true,
+    "description": "\n\nIf false is given, aria2 aborts download when a piece length is different from one in a control file. If true is given, you can proceed but some download progress will be lost."
+  },
+  "always-resume": {
+    "type": "boolean",
+    "defaultValue": "true",
+    "required": true,
+    "description": "\n\nAlways resume download. If `true` is given, aria2 always tries to resume download and if resume is not possible, aborts download. If `false` is given, when all given URIs do not support resume or aria2 encounters `N` URIs which does not support resume (`N` is the value specified using option), aria2 downloads file from scratch. See option."
+  },
+  "async-dns": {
+    "type": "boolean",
+    "defaultValue": "true",
+    "required": true,
+    "description": "\n\nEnable asynchronous DNS."
+  },
+  "auto-file-renaming": {
+    "type": "boolean",
+    "defaultValue": "true",
+    "required": true,
+    "description": "\n\nRename file name if the same file already exists. This option works only in HTTP(S)/FTP download. The new file name has a dot and a number(1..9999) appended after the name, but before the file extension, if any."
+  },
+  "auto-save-interval": {
+    "type": "integer",
+    "suffix": "Seconds",
+    "readonly": true,
+    "defaultValue": "60",
+    "description": "\n\nSave a control file(\\*.aria2) every SEC seconds. If `0` is given, a control file is not saved during download. aria2 saves a control file when it stops regardless of the value. The possible values are between `0` to `600`."
+  },
+  "conditional-get": {
+    "type": "boolean",
+    "defaultValue": "false",
+    "required": true,
+    "description": "\n\nDownload file only when the local file is older than remote file. This function only works with HTTP(S) downloads only. It does not work if file size is specified in Metalink. It also ignores Content-Disposition header. If a control file exists, this option will be ignored. This function uses If-Modified-Since header to get only newer file conditionally. When getting modification time of local file, it uses user supplied file name (see option) or file name part in URI if is not specified. To o..."
+  },
+  "conf-path": {
+    "type": "string",
+    "readonly": true,
+    "defaultValue": "$HOME/.aria2/aria2.conf",
+    "description": "\n\nChange the configuration file path to PATH."
+  },
+  "console-log-level": {
+    "type": "option",
+    "options": [
+      "debug",
+      "info",
+      "notice",
+      "warn",
+      "error"
+    ],
+    "readonly": true,
+    "defaultValue": "notice",
+    "description": "\n\nSet log level to output to console. LEVEL is either `debug`,`info`, `notice`, `warn` or `error`."
+  },
+  "content-disposition-default-utf8": {
+    "since": "1.31.0",
+    "type": "boolean",
+    "defaultValue": "false",
+    "description": "\n\nHandle quoted string in Content-Disposition header as UTF-8 instead of ISO-8859-1, for example, the filename parameter, but not the extended version filename\\*."
+  },
+  "daemon": {
+    "type": "boolean",
+    "readonly": true,
+    "defaultValue": "false",
+    "description": "\n\nRun as daemon. The current working directory will be changed to `/` and standard input, standard output and standard error will be redirected to `/dev/null`."
+  },
+  "deferred-input": {
+    "type": "boolean",
+    "readonly": true,
+    "defaultValue": "false",
+    "description": "\n\nIf `true` is given, aria2 does not read all URIs and options from file specified by option at startup, but it reads one by one when it needs later. This may reduce memory usage if input file contains a lot of URIs to download. If `false` is given, aria2 reads all URIs and options at startup."
+  },
+  "disable-ipv6": {
+    "type": "boolean",
+    "readonly": true,
+    "defaultValue": "false",
+    "description": "\n\nDisable IPv6. This is useful if you have to use broken DNS and want to avoid terribly slow AAAA record lookup."
+  },
+  "disk-cache": {
+    "type": "string",
+    "suffix": "Bytes",
+    "readonly": true,
+    "defaultValue": "16M",
+    "description": "\n\nEnable disk cache. If SIZE is `0`, the disk cache is disabled. This feature caches the downloaded data in memory, which grows to at most SIZE bytes. The cache storage is created for aria2 instance and shared by all downloads. The one advantage of the disk cache is reduce the disk I/O because the data are written in larger unit and it is reordered by the offset of the file. If hash checking is involved and the data are cached in memory, we don't need to read them from the disk. SIZE can include..."
+  },
+  "download-result": {
+    "type": "option",
+    "options": [
+      "default",
+      "full",
+      "hide"
+    ],
+    "defaultValue": "default",
+    "required": true,
+    "description": "\n\nThis option changes the way `Download Results` is formatted. If OPT is `default`, print GID, status, average download speed and path/URI. If multiple files are involved, path/URI of first requested file is printed and remaining ones are omitted. If OPT is `full`, print GID, status, average download speed, percentage of progress and path/URI. The percentage of progress and path/URI are printed for each requested file in each row. If OPT is `hide`,`Download Results` is hidden."
+  },
+  "dscp": {
+    "type": "string",
+    "readonly": true,
+    "description": "\n\nSet DSCP value in outgoing IP packets of BitTorrent traffic for QoS. This parameter sets only DSCP bits in TOS field of IP packets, not the whole field. If you take values from */usr/include/netinet/ip.h* divide them by 4 (otherwise values would be incorrect, e.g. your `CS1` class would turn into `CS4`). If you take commonly used values from RFC, network vendors' documentation, Wikipedia or any other source, use them as they are."
+  },
+  "rlimit-nofile": {
+    "type": "string",
+    "readonly": true,
+    "description": "\n\nSet the soft limit of open file descriptors. This open will only have effect when:\n\n> 1. The system supports it (posix)\n> 2. The limit does not exceed the hard limit.\n> 3. The specified limit is larger than the current soft limit.\n\nThis is equivalent to setting nofile via ulimit, except that it will never decrease the limit.\n\nThis option is only available on systems supporting the rlimit API."
+  },
+  "enable-color": {
+    "type": "boolean",
+    "readonly": true,
+    "defaultValue": "true",
+    "description": "\n\nEnable color output for a terminal."
+  },
+  "enable-mmap": {
+    "type": "boolean",
+    "defaultValue": "false",
+    "required": true,
+    "description": "\n\nMap files into memory. This option may not work if the file space is not pre-allocated. See ."
+  },
+  "event-poll": {
+    "type": "option",
+    "options": [
+      "epoll",
+      "kqueue",
+      "port",
+      "poll",
+      "select"
+    ],
+    "readonly": true,
+    "description": "\n\nSpecify the method for polling events. The possible values are `epoll`, `kqueue`, `port`, `poll` and `select`. For each `epoll`,`kqueue`, `port` and `poll`, it is available if system supports it.`epoll` is available on recent Linux. `kqueue` is available on various \\*BSD systems including Mac OS X. `port` is available on Open Solaris. The default value may vary depending on the system you use."
+  },
+  "file-allocation": {
+    "type": "option",
+    "options": [
+      "none",
+      "prealloc",
+      "trunc",
+      "falloc"
+    ],
+    "defaultValue": "prealloc",
+    "required": true,
+    "description": "\n\nSpecify file allocation method.`none` doesn't pre-allocate file space. `prealloc` pre-allocates file space before download begins. This may take some time depending on the size of the file. If you are using newer file systems such as ext4 (with extents support), btrfs, xfs or NTFS(MinGW build only), `falloc` is your best choice. It allocates large(few GiB) files almost instantly. Don't use `falloc` with legacy file systems such as ext3 and FAT32 because it takes almost the same time as `preall..."
+  },
+  "force-save": {
+    "type": "boolean",
+    "defaultValue": "false",
+    "required": true,
+    "description": "\n\nSave download with option even if the download is completed or removed. This option also saves control file in that situations. This may be useful to save BitTorrent seeding which is recognized as completed state."
+  },
+  "save-not-found": {
+    "since": "1.27.0",
+    "type": "boolean",
+    "defaultValue": "true",
+    "required": true,
+    "description": "\n\nSave download with option even if the file was not found on the server. This option also saves control file in that situations."
+  },
+  "hash-check-only": {
+    "type": "boolean",
+    "defaultValue": "false",
+    "required": true,
     "description": "\n\nIf `true` is given, after hash check using option, abort download whether or not download is complete."
   },
-  {
-    "name": "human-readable",
-    "category": "Advanced Options",
-    "type": "true|false",
-    "default": "true",
+  "human-readable": {
+    "type": "boolean",
+    "readonly": true,
+    "defaultValue": "true",
     "description": "\n\nPrint sizes and speed in human readable format (e.g., 1.2Ki, 3.4Mi) in the console readout."
   },
-  {
-    "name": "interface",
-    "category": "Advanced Options",
-    "type": "<INTERFACE>",
-    "default": null,
-    "description": "\n\nBind sockets to given interface. You can specify interface name, IP address and host name. Possible Values: interface, IP address, host name\n\nNote\n\nIf an interface has multiple addresses, it is highly recommended to specify IP address explicitly. See also . If your system doesn't have *getifaddrs(3)*, this option doesn't accept interface name."
-  },
-  {
-    "name": "keep-unfinished-download-result",
-    "category": "Advanced Options",
-    "type": "true|false",
-    "default": "true",
+  "keep-unfinished-download-result": {
+    "type": "boolean",
+    "defaultValue": "true",
+    "required": true,
     "description": "\n\nKeep unfinished download results even if doing so exceeds. This is useful if all unfinished downloads must be saved in session file (see option). Please keep in mind that there is no upper bound to the number of unfinished download result to keep. If that is undesirable, turn this option off."
   },
-  {
-    "name": "max-download-result",
-    "category": "Advanced Options",
-    "type": "<NUM>",
-    "default": "1000",
+  "max-download-result": {
+    "type": "integer",
+    "defaultValue": "1000",
+    "required": true,
+    "min": 0,
     "description": "\n\nSet maximum number of download result kept in memory. The download results are completed/error/removed downloads. The download results are stored in FIFO queue and it can store at most NUM download results. When queue is full and new download result is created, oldest download result is removed from the front of the queue and new one is pushed to the back. Setting big number in this option may result high memory consumption after thousands of downloads. Specifying 0 means no download result is..."
   },
-  {
-    "name": "max-mmap-limit",
-    "category": "Advanced Options",
-    "type": "<SIZE>",
-    "default": "9223372036854775807",
+  "max-mmap-limit": {
+    "since": "1.20.0",
+    "type": "string",
+    "suffix": "Bytes",
+    "defaultValue": "9223372036854775807",
+    "required": true,
+    "pattern": "^(0|[1-9]\\d*(K|k|M|m)?)$",
     "description": "\n\nSet the maximum file size to enable mmap (see option). The file size is determined by the sum of all files contained in one download. For example, if a download contains 5 files, then file size is the total size of those files. If file size is strictly greater than the size specified in this option, mmap will be disabled."
   },
-  {
-    "name": "max-resume-failure-tries",
-    "category": "Advanced Options",
-    "type": "<N>",
-    "default": "0",
+  "max-resume-failure-tries": {
+    "type": "integer",
+    "defaultValue": "0",
+    "required": true,
+    "min": 0,
     "description": "\n\nWhen used with aria2 downloads file from scratch when aria2 detects N number of URIs that does not support resume. If N is `0`, aria2 downloads file from scratch when all given URIs do not support resume. See option."
   },
-  {
-    "name": "min-tls-version",
-    "category": "Advanced Options",
-    "type": "TLSv1.1|TLSv1.2|TLSv1.3",
-    "default": "TLSv1.2",
+  "min-tls-version": {
+    "type": "option",
+    "options": [
+      "SSLv3",
+      "TLSv1",
+      "TLSv1.1",
+      "TLSv1.2"
+    ],
+    "readonly": true,
+    "defaultValue": "TLSv1",
     "description": "\n\nSpecify minimum SSL/TLS version to enable. Possible Values: `TLSv1.1`, `TLSv1.2`, `TLSv1.3`"
   },
-  {
-    "name": "multiple-interface",
-    "category": "Advanced Options",
-    "type": "<INTERFACES>",
-    "default": null,
-    "description": "\n\nComma separated list of interfaces to bind sockets to. Requests will be split among the interfaces to achieve link aggregation. You can specify interface name, IP address and hostname. If is used, this option will be ignored. Possible Values: interface, IP address, hostname"
-  },
-  {
-    "name": "log-level",
-    "category": "Advanced Options",
-    "type": "debug|info|notice|warn|error",
-    "default": "debug",
+  "log-level": {
+    "type": "option",
+    "options": [
+      "debug",
+      "info",
+      "notice",
+      "warn",
+      "error"
+    ],
+    "defaultValue": "debug",
+    "required": true,
     "description": "\n\nSet log level to output. LEVEL is either `debug`, `info`, `notice`, `warn` or `error`."
   },
-  {
-    "name": "on-bt-download-complete",
-    "category": "Advanced Options",
-    "type": "<COMMAND>",
-    "default": null,
-    "description": "\n\nFor BitTorrent, a command specified in is called after download completed and seeding is over. On the other hand, this option set the command to be executed after download completed but before seeding. See for more details about COMMAND. Possible Values: `/path/to/command`"
-  },
-  {
-    "name": "on-download-complete",
-    "category": "Advanced Options",
-    "type": "<COMMAND>",
-    "default": null,
-    "description": "\n\nSet the command to be executed after download completed. See for more details about COMMAND. See also option. Possible Values: `/path/to/command`"
-  },
-  {
-    "name": "on-download-error",
-    "category": "Advanced Options",
-    "type": "<COMMAND>",
-    "default": null,
-    "description": "\n\nSet the command to be executed after download aborted due to error. See for more details about COMMAND. See also option. Possible Values:`/path/to/command`"
-  },
-  {
-    "name": "on-download-pause",
-    "category": "Advanced Options",
-    "type": "<COMMAND>",
-    "default": null,
-    "description": "\n\nSet the command to be executed after download was paused. See for more details about COMMAND. Possible Values: `/path/to/command`"
-  },
-  {
-    "name": "on-download-start",
-    "category": "Advanced Options",
-    "type": "<COMMAND>",
-    "default": null,
-    "description": "\n\nSet the command to be executed after download got started. See for more details about COMMAND. Possible Values: `/path/to/command`"
-  },
-  {
-    "name": "on-download-stop",
-    "category": "Advanced Options",
-    "type": "<COMMAND>",
-    "default": null,
-    "description": "\n\nSet the command to be executed after download stopped. You can override the command to be executed for particular download result using and . If they are specified, command specified in this option is not executed. See for more details about COMMAND. Possible Values: `/path/to/command`"
-  },
-  {
-    "name": "optimize-concurrent-downloads",
-    "category": "Advanced Options",
-    "type": "true|false|<A>:<B>",
-    "default": "false",
+  "optimize-concurrent-downloads": {
+    "since": "1.22.0",
+    "type": "string",
+    "defaultValue": "false",
     "description": "\n\nOptimizes the number of concurrent downloads according to the bandwidth available. aria2 uses the download speed observed in the previous downloads to adapt the number of downloads launched in parallel according to the rule N = A + B Log10(speed in Mbps). The coefficients A and B can be customized in the option arguments with A and B separated by a colon. The default values (A=5, B=25) lead to using typically 5 parallel downloads on 1Mbps networks and above 50 on 100Mbps networks. The number o..."
   },
-  {
-    "name": "piece-length",
-    "category": "Advanced Options",
-    "type": "<LENGTH>",
-    "default": "1M",
+  "piece-length": {
+    "type": "string",
+    "suffix": "Bytes",
+    "defaultValue": "1M",
+    "required": true,
+    "pattern": "^(0|[1-9]\\d*(M|m)?)$",
     "description": "\n\nSet a piece length for HTTP/FTP downloads. This is the boundary when aria2 splits a file. All splits occur at multiple of this length. This option will be ignored in BitTorrent downloads. It will be also ignored if Metalink file contains piece hashes."
   },
-  {
-    "name": "show-console-readout",
-    "category": "Advanced Options",
-    "type": "true|false",
-    "default": "true",
+  "show-console-readout": {
+    "type": "boolean",
+    "readonly": true,
+    "defaultValue": "true",
     "description": "\n\nShow console readout."
   },
-  {
-    "name": "stderr",
-    "category": "Advanced Options",
-    "type": "true|false",
-    "default": "false",
-    "description": "\n\nRedirect all console output that would be otherwise printed in stdout to stderr."
-  },
-  {
-    "name": "summary-interval",
-    "category": "Advanced Options",
-    "type": "<SEC>",
-    "default": "60",
+  "summary-interval": {
+    "type": "integer",
+    "suffix": "Seconds",
+    "readonly": true,
+    "defaultValue": "60",
     "description": "\n\nSet interval in seconds to output download progress summary. Setting `0` suppresses the output."
   },
-  {
-    "name": "force-sequential",
-    "category": "Advanced Options",
-    "type": "true|false",
-    "default": "false",
-    "description": "\n\nFetch URIs in the command-line sequentially and download each URI in a separate session, like the usual command-line download utilities."
-  },
-  {
-    "name": "max-overall-download-limit",
-    "category": "Advanced Options",
-    "type": "<SPEED>",
-    "default": "0",
+  "max-overall-download-limit": {
+    "type": "string",
+    "suffix": "Bytes",
+    "defaultValue": "0",
+    "required": true,
+    "pattern": "^(0|[1-9]\\d*(K|k|M|m)?)$",
     "description": "\n\nSet max overall download speed in bytes/sec. `0` means unrestricted. You can append `K` or `M` (1K = 1024, 1M = 1024K). To limit the download speed per download, use option."
   },
-  {
-    "name": "max-download-limit",
-    "category": "Advanced Options",
-    "type": "<SPEED>",
-    "default": "0",
+  "max-download-limit": {
+    "type": "string",
+    "suffix": "Bytes",
+    "defaultValue": "0",
+    "required": true,
+    "pattern": "^(0|[1-9]\\d*(K|k|M|m)?)$",
     "description": "\n\nSet max download speed per each download in bytes/sec. `0` means unrestricted. You can append `K` or `M` (1K = 1024, 1M = 1024K). To limit the overall download speed, use option."
   },
-  {
-    "name": "no-conf",
-    "category": "Advanced Options",
-    "type": "true|false",
-    "default": null,
+  "no-conf": {
+    "type": "boolean",
+    "readonly": true,
     "description": "\n\nDisable loading aria2.conf file."
   },
-  {
-    "name": "no-file-allocation-limit",
-    "category": "Advanced Options",
-    "type": "<SIZE>",
-    "default": "5M",
+  "no-file-allocation-limit": {
+    "type": "string",
+    "suffix": "Bytes",
+    "defaultValue": "5M",
+    "required": true,
+    "pattern": "^(0|[1-9]\\d*(K|k|M|m)?)$",
     "description": "\n\nNo file allocation is made for files whose size is smaller than SIZE. You can append `K` or `M` (1K = 1024, 1M = 1024K)."
   },
-  {
-    "name": "parameterized-uri",
-    "category": "Advanced Options",
-    "type": "true|false",
-    "default": "false",
+  "parameterized-uri": {
+    "type": "boolean",
+    "defaultValue": "false",
+    "required": true,
     "description": "\n\nEnable parameterized URI support. You can specify set of parts: `http://{sv1,sv2,sv3}/foo.iso`. Also you can specify numeric sequences with step counter:`http://host/image[000-100:2].img`. A step counter can be omitted. If all URIs do not point to the same file, such as the second example above, -Z option is required."
   },
-  {
-    "name": "quiet",
-    "category": "Advanced Options",
-    "type": "true|false",
-    "default": "false",
+  "quiet": {
+    "type": "boolean",
+    "readonly": true,
+    "defaultValue": "false",
     "description": "\n\nMake aria2 quiet (no console output)."
   },
-  {
-    "name": "realtime-chunk-checksum",
-    "category": "Advanced Options",
-    "type": "true|false",
-    "default": "true",
+  "realtime-chunk-checksum": {
+    "type": "boolean",
+    "defaultValue": "true",
+    "required": true,
     "description": "\n\nValidate chunk of data by calculating checksum while downloading a file if chunk checksums are provided."
   },
-  {
-    "name": "remove-control-file",
-    "category": "Advanced Options",
-    "type": "true|false",
-    "default": null,
+  "remove-control-file": {
+    "type": "boolean",
+    "required": true,
     "description": "\n\nRemove control file before download. Using with download always starts from scratch. This will be useful for users behind proxy server which disables resume."
   },
-  {
-    "name": "save-session",
-    "category": "Advanced Options",
-    "type": "<FILE>",
-    "default": null,
+  "save-session": {
+    "type": "string",
     "description": "\n\nSave error/unfinished downloads to FILE on exit. You can pass this output file to aria2c with option on restart. If you like the output to be gzipped append a.gz extension to the file name. Please note that downloads added by and RPC method and whose metadata could not be saved as a file are not saved. Downloads removed using and will not be saved. GID is also saved with, but there are some restrictions, see below.\n\nNote\n\nNormally, GID of the download itself is saved. But some downloads use me..."
   },
-  {
-    "name": "save-session-interval",
-    "category": "Advanced Options",
-    "type": "<SEC>",
-    "default": "0",
+  "save-session-interval": {
+    "type": "integer",
+    "suffix": "Seconds",
+    "readonly": true,
+    "defaultValue": "0",
     "description": "\n\nSave error/unfinished downloads to a file specified by option every SEC seconds. If `0` is given, file will be saved only when aria2 exits."
   },
-  {
-    "name": "socket-recv-buffer-size",
-    "category": "Advanced Options",
-    "type": "<SIZE>",
-    "default": "0",
+  "socket-recv-buffer-size": {
+    "since": "1.19.3",
+    "type": "string",
+    "suffix": "Bytes",
+    "readonly": true,
+    "defaultValue": "0",
     "description": "\n\nSet the maximum socket receive buffer in bytes. Specifying `0` will disable this option. This value will be set to socket file descriptor using `SO_RCVBUF` socket option with `setsockopt()` call."
   },
-  {
-    "name": "stop",
-    "category": "Advanced Options",
-    "type": "<SEC>",
-    "default": "0",
+  "stop": {
+    "type": "integer",
+    "suffix": "Seconds",
+    "readonly": true,
+    "defaultValue": "0",
     "description": "\n\nStop application after SEC seconds has passed. If `0` is given, this feature is disabled."
   },
-  {
-    "name": "stop-with-process",
-    "category": "Advanced Options",
-    "type": "<PID>",
-    "default": null,
-    "description": "\n\nStop application when process PID is not running. This is useful if aria2 process is forked from a parent process. The parent process can fork aria2 with its own pid and when parent process exits for some reason, aria2 can detect it and shutdown itself."
-  },
-  {
-    "name": "truncate-console-readout",
-    "category": "Advanced Options",
-    "type": "true|false",
-    "default": "true",
+  "truncate-console-readout": {
+    "type": "boolean",
+    "readonly": true,
+    "defaultValue": "true",
     "description": "\n\nTruncate console readout to fit in a single line."
-  },
-  {
-    "name": "version",
-    "category": "Advanced Options",
-    "type": "string",
-    "default": null,
-    "description": "\n\nPrint the version number, copyright and the configuration information and exit."
   }
-]
+};
+
+export const aria2GlobalAvailableOptions: Record<string, string[]> = {
+  "basicOptions": [
+    "dir",
+    "log",
+    "max-concurrent-downloads",
+    "check-integrity",
+    "continue"
+  ],
+  "httpFtpSFtpOptions": [
+    "all-proxy",
+    "all-proxy-user",
+    "all-proxy-passwd",
+    "connect-timeout",
+    "dry-run",
+    "lowest-speed-limit",
+    "max-connection-per-server",
+    "max-file-not-found",
+    "max-tries",
+    "min-split-size",
+    "netrc-path",
+    "no-netrc",
+    "no-proxy",
+    "proxy-method",
+    "remote-time",
+    "reuse-uri",
+    "retry-wait",
+    "server-stat-of",
+    "server-stat-timeout",
+    "split",
+    "stream-piece-selector",
+    "timeout",
+    "uri-selector"
+  ],
+  "httpOptions": [
+    "check-certificate",
+    "http-accept-gzip",
+    "http-auth-challenge",
+    "http-no-cache",
+    "http-user",
+    "http-passwd",
+    "http-proxy",
+    "http-proxy-user",
+    "http-proxy-passwd",
+    "https-proxy",
+    "https-proxy-user",
+    "https-proxy-passwd",
+    "referer",
+    "enable-http-keep-alive",
+    "enable-http-pipelining",
+    "header",
+    "save-cookies",
+    "use-head",
+    "user-agent"
+  ],
+  "ftpSFtpOptions": [
+    "ftp-user",
+    "ftp-passwd",
+    "ftp-pasv",
+    "ftp-proxy",
+    "ftp-proxy-user",
+    "ftp-proxy-passwd",
+    "ftp-type",
+    "ftp-reuse-connection",
+    "ssh-host-key-md"
+  ],
+  "btOptions": [
+    "bt-detach-seed-only",
+    "bt-enable-hook-after-hash-check",
+    "bt-enable-lpd",
+    "bt-exclude-tracker",
+    "bt-external-ip",
+    "bt-force-encryption",
+    "bt-hash-check-seed",
+    "bt-load-saved-metadata",
+    "bt-max-open-files",
+    "bt-max-peers",
+    "bt-metadata-only",
+    "bt-min-crypto-level",
+    "bt-prioritize-piece",
+    "bt-remove-unselected-file",
+    "bt-require-crypto",
+    "bt-request-peer-speed-limit",
+    "bt-save-metadata",
+    "bt-seed-unverified",
+    "bt-stop-timeout",
+    "bt-tracker",
+    "bt-tracker-connect-timeout",
+    "bt-tracker-interval",
+    "bt-tracker-timeout",
+    "dht-file-path",
+    "dht-file-path6",
+    "dht-listen-port",
+    "dht-message-timeout",
+    "enable-dht",
+    "enable-dht6",
+    "enable-peer-exchange",
+    "follow-torrent",
+    "listen-port",
+    "max-overall-upload-limit",
+    "max-upload-limit",
+    "peer-id-prefix",
+    "peer-agent",
+    "seed-ratio",
+    "seed-time"
+  ],
+  "metalinkOptions": [
+    "follow-metalink",
+    "metalink-base-uri",
+    "metalink-language",
+    "metalink-location",
+    "metalink-os",
+    "metalink-version",
+    "metalink-preferred-protocol",
+    "metalink-enable-unique-protocol"
+  ],
+  "rpcOptions": [
+    "enable-rpc",
+    "pause-metadata",
+    "rpc-allow-origin-all",
+    "rpc-listen-all",
+    "rpc-listen-port",
+    "rpc-max-request-size",
+    "rpc-save-upload-metadata",
+    "rpc-secure"
+  ],
+  "advancedOptions": [
+    "allow-overwrite",
+    "allow-piece-length-change",
+    "always-resume",
+    "async-dns",
+    "auto-file-renaming",
+    "auto-save-interval",
+    "conditional-get",
+    "conf-path",
+    "console-log-level",
+    "content-disposition-default-utf8",
+    "daemon",
+    "deferred-input",
+    "disable-ipv6",
+    "disk-cache",
+    "download-result",
+    "dscp",
+    "rlimit-nofile",
+    "enable-color",
+    "enable-mmap",
+    "event-poll",
+    "file-allocation",
+    "force-save",
+    "save-not-found",
+    "hash-check-only",
+    "human-readable",
+    "keep-unfinished-download-result",
+    "max-download-result",
+    "max-mmap-limit",
+    "max-resume-failure-tries",
+    "min-tls-version",
+    "log-level",
+    "optimize-concurrent-downloads",
+    "piece-length",
+    "show-console-readout",
+    "summary-interval",
+    "max-overall-download-limit",
+    "max-download-limit",
+    "no-conf",
+    "no-file-allocation-limit",
+    "parameterized-uri",
+    "quiet",
+    "realtime-chunk-checksum",
+    "remove-control-file",
+    "save-session",
+    "save-session-interval",
+    "socket-recv-buffer-size",
+    "stop",
+    "truncate-console-readout"
+  ]
+};
+
+export const aria2QuickSettingsAvailableOptions: Record<string, string[]> = {
+  "globalSpeedLimitOptions": [
+    "max-overall-download-limit",
+    "max-overall-upload-limit"
+  ]
+};
+
+export interface Aria2TaskOption {
+    key: string;
+    category: 'global' | 'http' | 'bittorrent';
+    canShow?: string;
+    canUpdate?: string;
+    showHistory?: boolean;
+}
+
+export const aria2TaskAvailableOptions: { taskOptions: Aria2TaskOption[] } = {
+  "taskOptions": [
+    {
+      "key": "dir",
+      "category": "global",
+      "canUpdate": "new",
+      "showHistory": true
+    },
+    {
+      "key": "out",
+      "category": "http",
+      "canUpdate": "new"
+    },
+    {
+      "key": "allow-overwrite",
+      "category": "global",
+      "canShow": "new"
+    },
+    {
+      "key": "max-download-limit",
+      "category": "global"
+    },
+    {
+      "key": "max-upload-limit",
+      "category": "bittorrent"
+    },
+    {
+      "key": "split",
+      "category": "http",
+      "canUpdate": "new|waiting|paused"
+    },
+    {
+      "key": "min-split-size",
+      "category": "http",
+      "canUpdate": "new|waiting|paused"
+    },
+    {
+      "key": "max-connection-per-server",
+      "category": "http",
+      "canUpdate": "new|waiting|paused"
+    },
+    {
+      "key": "lowest-speed-limit",
+      "category": "http",
+      "canUpdate": "new|waiting|paused"
+    },
+    {
+      "key": "stream-piece-selector",
+      "category": "http",
+      "canUpdate": "new|waiting|paused"
+    },
+    {
+      "key": "http-user",
+      "category": "http",
+      "canUpdate": "new|waiting|paused"
+    },
+    {
+      "key": "http-passwd",
+      "category": "http",
+      "canUpdate": "new|waiting|paused"
+    },
+    {
+      "key": "all-proxy",
+      "category": "http",
+      "canUpdate": "new|waiting|paused"
+    },
+    {
+      "key": "all-proxy-user",
+      "category": "http",
+      "canUpdate": "new|waiting|paused"
+    },
+    {
+      "key": "all-proxy-passwd",
+      "category": "http",
+      "canUpdate": "new|waiting|paused"
+    },
+    {
+      "key": "checksum",
+      "category": "http"
+    },
+    {
+      "key": "referer",
+      "category": "http",
+      "canUpdate": "new"
+    },
+    {
+      "key": "header",
+      "category": "http",
+      "canUpdate": "new"
+    },
+    {
+      "key": "bt-max-peers",
+      "category": "bittorrent"
+    },
+    {
+      "key": "bt-request-peer-speed-limit",
+      "category": "bittorrent"
+    },
+    {
+      "key": "bt-remove-unselected-file",
+      "category": "bittorrent"
+    },
+    {
+      "key": "bt-stop-timeout",
+      "category": "bittorrent",
+      "canUpdate": "new|waiting|paused"
+    },
+    {
+      "key": "bt-tracker",
+      "category": "bittorrent",
+      "canUpdate": "new|waiting|paused"
+    },
+    {
+      "key": "seed-ratio",
+      "category": "bittorrent",
+      "canUpdate": "new|waiting|paused"
+    },
+    {
+      "key": "seed-time",
+      "category": "bittorrent",
+      "canUpdate": "new|waiting|paused"
+    },
+    {
+      "key": "conditional-get",
+      "category": "global",
+      "canShow": "new"
+    },
+    {
+      "key": "check-integrity",
+      "category": "global"
+    },
+    {
+      "key": "file-allocation",
+      "category": "global",
+      "canShow": "new"
+    },
+    {
+      "key": "parameterized-uri",
+      "category": "global",
+      "canShow": "new"
+    },
+    {
+      "key": "force-save",
+      "category": "global"
+    }
+  ]
+};

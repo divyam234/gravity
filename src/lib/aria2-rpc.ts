@@ -64,6 +64,12 @@ export interface JsonRpcResponse<T> {
 export class Aria2Client {
 	private url: string;
 	private secret: string;
+	private ws: WebSocket | null = null;
+	private pendingRequests = new Map<
+		string,
+		{ resolve: (val: any) => void; reject: (err: any) => void }
+	>();
+	private connectionPromise: Promise<WebSocket> | null = null;
 
 	constructor(url: string = "", secret: string = "") {
 		this.url = url;
@@ -71,8 +77,106 @@ export class Aria2Client {
 	}
 
 	updateConfig(url: string, secret: string) {
+		const oldUrl = this.url;
 		this.url = url;
 		this.secret = secret;
+
+		// If URL changed or switching protocols, close existing connection
+		if (oldUrl !== url) {
+			this.closeWebSocket();
+		}
+	}
+
+	private closeWebSocket() {
+		if (this.ws) {
+			// Clear listeners
+			this.ws.onclose = null;
+			this.ws.onmessage = null;
+			this.ws.onerror = null;
+			this.ws.onopen = null;
+
+			this.ws.close();
+			this.ws = null;
+			this.connectionPromise = null;
+
+			// Reject all pending requests
+			this.pendingRequests.forEach((p) => {
+				p.reject(
+					new Error("WebSocket connection closed or configuration changed"),
+				);
+			});
+			this.pendingRequests.clear();
+		}
+	}
+
+	private async getWebSocket(): Promise<WebSocket> {
+		if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+			return this.ws;
+		}
+
+		if (this.connectionPromise) {
+			return this.connectionPromise;
+		}
+
+		this.connectionPromise = new Promise((resolve, reject) => {
+			try {
+				const ws = new WebSocket(this.url);
+
+				ws.onopen = () => {
+					this.ws = ws;
+					resolve(ws);
+				};
+
+				ws.onerror = () => {
+					this.connectionPromise = null;
+					reject(new Error("WebSocket connection failed"));
+				};
+
+				ws.onclose = () => {
+					this.ws = null;
+					this.connectionPromise = null;
+				};
+
+				ws.onmessage = (event) => this.handleWsMessage(event);
+			} catch (err) {
+				this.connectionPromise = null;
+				reject(err);
+			}
+		});
+
+		return this.connectionPromise;
+	}
+
+	private handleWsMessage(event: MessageEvent) {
+		try {
+			const data = JSON.parse(event.data);
+
+			// Aria2 can send notifications (no id) or responses (has id)
+			// For now, we only care about responses to our requests
+
+			const handleResponse = (res: JsonRpcResponse<any>) => {
+				if (res.id && this.pendingRequests.has(res.id)) {
+					const { resolve, reject } = this.pendingRequests.get(res.id)!;
+					this.pendingRequests.delete(res.id);
+
+					if (res.error) {
+						reject(
+							new Error(`RPC Error ${res.error.code}: ${res.error.message}`),
+						);
+					} else {
+						resolve(res.result);
+					}
+				}
+			};
+
+			if (Array.isArray(data)) {
+				data.forEach(handleResponse);
+			} else {
+				handleResponse(data);
+			}
+		} catch (e) {
+			console.error("Failed to parse WebSocket message", e);
+		}
 	}
 
 	private async request<T>(method: string, params: any[] = []): Promise<T> {
@@ -84,6 +188,30 @@ export class Aria2Client {
 			id,
 		};
 
+		// WebSocket Strategy
+		if (this.url.startsWith("ws://") || this.url.startsWith("wss://")) {
+			try {
+				const ws = await this.getWebSocket();
+
+				return new Promise<T>((resolve, reject) => {
+					this.pendingRequests.set(id, { resolve, reject });
+					ws.send(JSON.stringify(payload));
+
+					// 10s timeout
+					setTimeout(() => {
+						if (this.pendingRequests.has(id)) {
+							this.pendingRequests.delete(id);
+							reject(new Error("WebSocket request timeout"));
+						}
+					}, 10000);
+				});
+			} catch (error) {
+				console.error(`Aria2 WS Error (${method}):`, error);
+				throw error;
+			}
+		}
+
+		// HTTP Strategy
 		try {
 			const response = await fetch(this.url, {
 				method: "POST",
