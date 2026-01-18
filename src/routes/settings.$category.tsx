@@ -24,7 +24,7 @@ export const Route = createFileRoute("/settings/$category")({
 	loader: async ({ context: { queryClient } }) => {
 		const { rpcUrl } = useSettingsStore.getState();
 		if (!rpcUrl) return;
-		await queryClient.ensureQueryData(globalOptionOptions(rpcUrl));
+		queryClient.prefetchQuery(globalOptionOptions(rpcUrl));
 	},
 });
 

@@ -59,7 +59,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({
 	const isTaskListPage = location.pathname.startsWith("/tasks");
 
 	// Safe query that only runs when configured
-	const { isError, isLoading, isFetching } = useQuery({
+	const { isError, isLoading } = useQuery({
 		...globalStatOptions(rpcUrl, pollingInterval),
 		enabled: !!rpcUrl,
 	});
@@ -138,7 +138,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({
 								<div className="flex items-center gap-2">
 									{isError ? (
 										<IconCloudSlash className="w-3.5 h-3.5" />
-									) : isLoading || isFetching ? (
+									) : isLoading ? (
 										<IconPulse className="w-3.5 h-3.5 animate-pulse" />
 									) : (
 										<IconCloud className="w-3.5 h-3.5" />
@@ -146,7 +146,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({
 									<span className="text-[10px] uppercase font-black hidden sm:inline tracking-widest">
 										{isError
 											? "Offline"
-											: isLoading || isFetching
+											: isLoading
 												? "Connecting"
 												: "Connected"}
 									</span>

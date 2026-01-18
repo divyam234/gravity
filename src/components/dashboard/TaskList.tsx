@@ -7,7 +7,7 @@ import IconPause from "~icons/gravity-ui/pause";
 import IconPlay from "~icons/gravity-ui/play";
 import IconPulse from "~icons/gravity-ui/pulse";
 import IconTrashBin from "~icons/gravity-ui/trash-bin";
-import { useAllTasks, useAria2Actions } from "../../hooks/useAria2";
+  import { useAllTasks, useAria2Actions } from "../../hooks/useAria2";
 import type { Aria2Task } from "../../lib/aria2-rpc";
 import { aria2 } from "../../lib/aria2-rpc";
 import { cn } from "../../lib/utils";
@@ -19,7 +19,9 @@ interface TaskListProps {
 }
 
 export const TaskList: React.FC<TaskListProps> = ({ status }) => {
-	const { active, waiting, stopped, refetch, isLoading } = useAllTasks();
+	const { active, waiting, stopped, refetch, isLoading } = useAllTasks(
+		status as any,
+	);
 	const { pause, unpause, remove } = useAria2Actions();
 	const baseId = useId();
 	const {

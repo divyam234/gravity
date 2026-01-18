@@ -1,11 +1,17 @@
-import { Label, ListBox, Select, Slider } from "@heroui/react";
+import { Label, ListBox, Select, Slider, Switch } from "@heroui/react";
 import type React from "react";
 import IconChevronDown from "~icons/gravity-ui/chevron-down";
 import { useSettingsStore } from "../../../store/useSettingsStore";
 
 export const AppSettings: React.FC = () => {
-	const { pollingInterval, setPollingInterval, theme, setTheme } =
-		useSettingsStore();
+	const {
+		pollingInterval,
+		setPollingInterval,
+		theme,
+		setTheme,
+		enableNotifications,
+		setEnableNotifications,
+	} = useSettingsStore();
 
 	return (
 		<div className="space-y-8">
@@ -15,6 +21,27 @@ export const AppSettings: React.FC = () => {
 			</div>
 
 			<div className="space-y-6">
+				<div className="flex flex-col gap-4">
+					<div className="flex items-center justify-between p-4 rounded-2xl bg-default/5 border border-border/50">
+						<div className="flex flex-col gap-0.5">
+							<Label className="text-sm font-bold tracking-tight">
+								Desktop Notifications
+							</Label>
+							<span className="text-xs text-muted">
+								Get notified when downloads complete or fail.
+							</span>
+						</div>
+						<Switch
+							isSelected={enableNotifications}
+							onChange={setEnableNotifications}
+						>
+							<Switch.Control>
+								<Switch.Thumb />
+							</Switch.Control>
+						</Switch>
+					</div>
+				</div>
+
 				<div className="space-y-4">
 					<div className="flex justify-between items-center">
 						<Label className="text-sm font-bold tracking-tight">

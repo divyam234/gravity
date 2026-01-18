@@ -373,6 +373,10 @@ export class Aria2Client {
 		return this.request<string>("aria2.changeGlobalOption", [options]);
 	}
 
+	async removeDownloadResult(gid: string) {
+		return this.request<string>("aria2.removeDownloadResult", [gid]);
+	}
+
 	async purgeDownloadResult() {
 		return this.request<string>("aria2.purgeDownloadResult");
 	}

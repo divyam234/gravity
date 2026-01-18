@@ -110,34 +110,44 @@ export function useGlobalStat() {
 	});
 }
 
-export function useActiveTasks() {
+export function useActiveTasks(options?: { enabled?: boolean }) {
 	const { pollingInterval, rpcUrl } = useSettingsStore();
 	return useQuery({
 		...activeTasksOptions(rpcUrl, pollingInterval),
-		enabled: !!rpcUrl,
+		enabled: !!rpcUrl && (options?.enabled ?? true),
 	});
 }
 
-export function useWaitingTasks(offset = 0, num = 100) {
+export function useWaitingTasks(
+	offset = 0,
+	num = 100,
+	options?: { enabled?: boolean },
+) {
 	const { pollingInterval, rpcUrl } = useSettingsStore();
 	return useQuery({
 		...waitingTasksOptions(rpcUrl, pollingInterval, offset, num),
-		enabled: !!rpcUrl,
+		enabled: !!rpcUrl && (options?.enabled ?? true),
 	});
 }
 
-export function useStoppedTasks(offset = 0, num = 100) {
+export function useStoppedTasks(
+	offset = 0,
+	num = 100,
+	options?: { enabled?: boolean },
+) {
 	const { pollingInterval, rpcUrl } = useSettingsStore();
 	return useQuery({
 		...stoppedTasksOptions(rpcUrl, pollingInterval, offset, num),
-		enabled: !!rpcUrl,
+		enabled: !!rpcUrl && (options?.enabled ?? true),
 	});
 }
 
-export function useAllTasks() {
-	const active = useActiveTasks();
-	const waiting = useWaitingTasks(0, 50);
-	const stopped = useStoppedTasks(0, 50);
+export function useAllTasks(
+	status: "active" | "waiting" | "stopped" = "active",
+) {
+	const active = useActiveTasks({ enabled: status === "active" });
+	const waiting = useWaitingTasks(0, 50, { enabled: status === "waiting" });
+	const stopped = useStoppedTasks(0, 50, { enabled: status === "stopped" });
 
 	return {
 		active: active.data || [],
@@ -145,9 +155,9 @@ export function useAllTasks() {
 		stopped: stopped.data || [],
 		isLoading: active.isLoading || waiting.isLoading || stopped.isLoading,
 		refetch: () => {
-			active.refetch();
-			waiting.refetch();
-			stopped.refetch();
+			if (status === "active") active.refetch();
+			if (status === "waiting") waiting.refetch();
+			if (status === "stopped") stopped.refetch();
 		},
 	};
 }
@@ -266,6 +276,11 @@ export function useAria2Actions() {
 		onSuccess: invalidateTasks,
 	});
 
+	const removeDownloadResult = useMutation({
+		mutationFn: (gid: string) => aria2.removeDownloadResult(gid),
+		onSuccess: invalidateTasks,
+	});
+
 	const purgeDownloadResult = useMutation({
 		mutationFn: () => aria2.purgeDownloadResult(),
 		onSuccess: invalidateTasks,
@@ -304,6 +319,7 @@ export function useAria2Actions() {
 		unpause,
 		remove,
 		forceRemove,
+		removeDownloadResult,
 		purgeDownloadResult,
 		saveSession,
 		changeGlobalOption,

@@ -20,7 +20,7 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
 	task,
 	variant = "list",
 }) => {
-	const { pause, unpause, remove } = useAria2Actions();
+	const { pause, unpause, remove, removeDownloadResult } = useAria2Actions();
 
 	const totalLength = Number(task.totalLength);
 	const completedLength = Number(task.completedLength);
@@ -41,6 +41,14 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
 	const isActive = task.status === "active";
 	const isError = task.status === "error";
 	const isComplete = task.status === "complete";
+
+	const handleRemove = () => {
+		if (isComplete || isError || task.status === "removed") {
+			removeDownloadResult.mutate(task.gid);
+		} else {
+			remove.mutate(task.gid);
+		}
+	};
 
 	if (variant === "list") {
 		return (
@@ -117,7 +125,7 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
 						size="sm"
 						variant="ghost"
 						className="text-danger h-8 w-8 min-w-0"
-						onPress={() => remove.mutate(task.gid)}
+						onPress={handleRemove}
 					>
 						<IconTrashBin className="w-4 h-4" />
 					</Button>
@@ -206,7 +214,7 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
 									size="sm"
 									variant="ghost"
 									className="text-danger"
-									onPress={() => remove.mutate(task.gid)}
+									onPress={handleRemove}
 								>
 									<IconTrashBin className="w-4.5 h-4.5" />
 								</Button>

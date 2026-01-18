@@ -11,7 +11,7 @@ import IconLayoutHeaderCellsLarge from "~icons/gravity-ui/layout-header-cells-la
 import IconNodesDown from "~icons/gravity-ui/nodes-down";
 import IconShieldCheck from "~icons/gravity-ui/shield-check";
 import IconXmark from "~icons/gravity-ui/xmark";
-import { useAllTasks, useGlobalStat } from "../hooks/useAria2";
+import { useGlobalStat } from "../hooks/useAria2";
 import { aria2GlobalAvailableOptions } from "../lib/aria2-options";
 import { cn, formatBytes, formatCategoryName } from "../lib/utils";
 import { tasksLinkOptions } from "../routes/tasks";
@@ -24,11 +24,10 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
 	const navigate = useNavigate();
 	const location = useLocation();
 	const settingsAccordionId = useId();
-	const { active, waiting, stopped } = useAllTasks();
 	const { data: stats } = useGlobalStat();
-	const activeCount = active.length;
-	const waitingCount = waiting.length;
-	const stoppedCount = stopped.length;
+	const activeCount = Number(stats?.numActive ?? 0);
+	const waitingCount = Number(stats?.numWaiting ?? 0);
+	const stoppedCount = Number(stats?.numStopped ?? 0);
 
 	// Main Navigation Items
 	const mainNavItems = React.useMemo(
