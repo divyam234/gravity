@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"sync"
 	"syscall"
+	"time"
 )
 
 type Process struct {
@@ -14,6 +15,7 @@ type Process struct {
 	Cmd     *exec.Cmd
 	Running bool
 	mu      sync.Mutex
+	done    chan struct{}
 }
 
 func New(name string, args []string) *Process {
@@ -34,18 +36,21 @@ func (p *Process) Start() error {
 	p.Cmd = exec.Command(p.Name, p.Args...)
 	p.Cmd.Stdout = os.Stdout
 	p.Cmd.Stderr = os.Stderr
-	// p.Cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true} // Allow killing process group
+	p.done = make(chan struct{})
 
 	if err := p.Cmd.Start(); err != nil {
 		return fmt.Errorf("failed to start %s: %w", p.Name, err)
 	}
 
+	// Only set Running after Start() succeeds
 	p.Running = true
+
 	go func() {
 		_ = p.Cmd.Wait()
 		p.mu.Lock()
 		p.Running = false
 		p.mu.Unlock()
+		close(p.done)
 		fmt.Printf("%s exited\n", p.Name)
 	}()
 
@@ -54,18 +59,37 @@ func (p *Process) Start() error {
 
 func (p *Process) Stop() error {
 	p.mu.Lock()
-	defer p.mu.Unlock()
-
 	if !p.Running || p.Cmd == nil {
+		p.mu.Unlock()
 		return nil
 	}
+	done := p.done
+	p.mu.Unlock()
 
-	// Try to kill gracefully first
+	// Try graceful shutdown first
 	if err := p.Cmd.Process.Signal(syscall.SIGTERM); err != nil {
-		// Force kill if needed
 		_ = p.Cmd.Process.Kill()
 	}
 
+	// Wait for process to exit with timeout
+	select {
+	case <-done:
+		// Process exited cleanly
+	case <-time.After(5 * time.Second):
+		// Force kill after timeout
+		_ = p.Cmd.Process.Kill()
+		<-done
+	}
+
+	p.mu.Lock()
 	p.Running = false
+	p.mu.Unlock()
+
 	return nil
+}
+
+func (p *Process) IsRunning() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.Running
 }

@@ -5,13 +5,14 @@ import { TaskPageHeader } from "../components/dashboard/TaskPageHeader";
 import {
 	activeTasksOptions,
 	stoppedTasksOptions,
+	uploadingTasksOptions,
 	waitingTasksOptions,
 } from "../hooks/useAria2";
 import { useNotifications } from "../hooks/useNotifications";
 import { useSettingsStore } from "../store/useSettingsStore";
 
 const taskSearchSchema = z.object({
-	status: z.enum(["active", "waiting", "stopped"]).default("active"),
+	status: z.enum(["active", "waiting", "stopped", "uploading"]).default("active"),
 });
 
 export type TaskStatus = z.infer<typeof taskSearchSchema>["status"];
@@ -31,6 +32,9 @@ export const Route = createFileRoute("/tasks")({
 
 		if (status === "active") {
 			queryClient.prefetchQuery(activeTasksOptions(rpcUrl, pollingInterval));
+		}
+		if (status === "uploading") {
+			queryClient.prefetchQuery(uploadingTasksOptions(rpcUrl, pollingInterval));
 		}
 		if (status === "waiting") {
 			queryClient.prefetchQuery(
@@ -54,12 +58,14 @@ function TasksPage() {
 		active: "Active",
 		waiting: "Queued",
 		stopped: "Finished",
+		uploading: "Uploading",
 	};
 
 	const colors: Record<string, string> = {
 		active: "text-success",
 		waiting: "text-warning",
 		stopped: "text-danger",
+		uploading: "text-cyan-500",
 	};
 
 	return (

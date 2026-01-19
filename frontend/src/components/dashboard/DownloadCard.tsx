@@ -4,6 +4,7 @@ import type React from "react";
 import IconListUl from "~icons/gravity-ui/list-ul";
 import IconPause from "~icons/gravity-ui/pause";
 import IconPlay from "~icons/gravity-ui/play";
+import IconRotateRight from "~icons/gravity-ui/arrows-rotate-right";
 import IconTrashBin from "~icons/gravity-ui/trash-bin";
 import { useAria2Actions } from "../../hooks/useAria2";
 import type { Aria2Task } from "../../lib/aria2-rpc";
@@ -20,7 +21,7 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
 	task,
 	variant = "list",
 }) => {
-	const { pause, unpause, remove, removeDownloadResult } = useAria2Actions();
+	const { pause, unpause, remove, removeDownloadResult, retryTask } = useAria2Actions();
 
 	const totalLength = Number(task.totalLength);
 	const completedLength = Number(task.completedLength);
@@ -141,6 +142,18 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
 				</Link>
 
 				<div className="flex items-center gap-2 shrink-0 opacity-0 group-hover/item:opacity-100 transition-opacity ml-auto">
+					{(isError || isUploadError) && (
+						<Button
+							isIconOnly
+							size="sm"
+							variant="ghost"
+							onPress={() => retryTask.mutate(task.gid)}
+							className="h-8 w-8 min-w-0"
+							isPending={retryTask.isPending}
+						>
+							<IconRotateRight className="w-4 h-4 text-accent" />
+						</Button>
+					)}
 					{isActive && (
 						<Button
 							isIconOnly
@@ -201,6 +214,22 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
 					</Link>
 
 					<div className="flex items-center gap-1">
+						{(isError || isUploadError) && (
+							<Tooltip>
+								<Tooltip.Trigger>
+									<Button
+										isIconOnly
+										size="sm"
+										variant="ghost"
+										onPress={() => retryTask.mutate(task.gid)}
+										isPending={retryTask.isPending}
+									>
+										<IconRotateRight className="w-4.5 h-4.5 text-accent" />
+									</Button>
+								</Tooltip.Trigger>
+								<Tooltip.Content className="p-2 text-xs">Retry Task</Tooltip.Content>
+							</Tooltip>
+						)}
 						<Tooltip>
 							<Tooltip.Trigger>
 								<Link to="/task/$gid" params={{ gid: task.gid }}>

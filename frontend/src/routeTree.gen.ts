@@ -9,7 +9,6 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as TransfersRouteImport } from './routes/transfers'
 import { Route as TasksRouteImport } from './routes/tasks'
 import { Route as AddRouteImport } from './routes/add'
 import { Route as IndexRouteImport } from './routes/index'
@@ -17,11 +16,6 @@ import { Route as SettingsIndexRouteImport } from './routes/settings.index'
 import { Route as TaskGidRouteImport } from './routes/task.$gid'
 import { Route as SettingsCategoryRouteImport } from './routes/settings.$category'
 
-const TransfersRoute = TransfersRouteImport.update({
-  id: '/transfers',
-  path: '/transfers',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const TasksRoute = TasksRouteImport.update({
   id: '/tasks',
   path: '/tasks',
@@ -57,7 +51,6 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/add': typeof AddRoute
   '/tasks': typeof TasksRoute
-  '/transfers': typeof TransfersRoute
   '/settings/$category': typeof SettingsCategoryRoute
   '/task/$gid': typeof TaskGidRoute
   '/settings': typeof SettingsIndexRoute
@@ -66,7 +59,6 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/add': typeof AddRoute
   '/tasks': typeof TasksRoute
-  '/transfers': typeof TransfersRoute
   '/settings/$category': typeof SettingsCategoryRoute
   '/task/$gid': typeof TaskGidRoute
   '/settings': typeof SettingsIndexRoute
@@ -76,7 +68,6 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/add': typeof AddRoute
   '/tasks': typeof TasksRoute
-  '/transfers': typeof TransfersRoute
   '/settings/$category': typeof SettingsCategoryRoute
   '/task/$gid': typeof TaskGidRoute
   '/settings/': typeof SettingsIndexRoute
@@ -87,7 +78,6 @@ export interface FileRouteTypes {
     | '/'
     | '/add'
     | '/tasks'
-    | '/transfers'
     | '/settings/$category'
     | '/task/$gid'
     | '/settings'
@@ -96,7 +86,6 @@ export interface FileRouteTypes {
     | '/'
     | '/add'
     | '/tasks'
-    | '/transfers'
     | '/settings/$category'
     | '/task/$gid'
     | '/settings'
@@ -105,7 +94,6 @@ export interface FileRouteTypes {
     | '/'
     | '/add'
     | '/tasks'
-    | '/transfers'
     | '/settings/$category'
     | '/task/$gid'
     | '/settings/'
@@ -115,7 +103,6 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AddRoute: typeof AddRoute
   TasksRoute: typeof TasksRoute
-  TransfersRoute: typeof TransfersRoute
   SettingsCategoryRoute: typeof SettingsCategoryRoute
   TaskGidRoute: typeof TaskGidRoute
   SettingsIndexRoute: typeof SettingsIndexRoute
@@ -123,13 +110,6 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/transfers': {
-      id: '/transfers'
-      path: '/transfers'
-      fullPath: '/transfers'
-      preLoaderRoute: typeof TransfersRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/tasks': {
       id: '/tasks'
       path: '/tasks'
@@ -179,7 +159,6 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AddRoute: AddRoute,
   TasksRoute: TasksRoute,
-  TransfersRoute: TransfersRoute,
   SettingsCategoryRoute: SettingsCategoryRoute,
   TaskGidRoute: TaskGidRoute,
   SettingsIndexRoute: SettingsIndexRoute,

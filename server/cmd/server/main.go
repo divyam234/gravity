@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -58,6 +59,11 @@ func main() {
 	// 1. Initialize Runners
 	aria2Runner := aria2.NewRunner(Aria2RPCPort, aria2Secret)
 	rcloneRunner := rclone.NewRunner(fmt.Sprintf("localhost:%d", RcloneRCPort))
+
+	// Allow overriding download dir for tests
+	if dlDir := os.Getenv("ARIA2_DIR"); dlDir != "" {
+		aria2Runner = aria2.NewCustomRunner(Aria2RPCPort, aria2Secret, dlDir)
+	}
 
 	// 2. Start Processes
 	log.Println("Starting Aria2...")
@@ -109,10 +115,25 @@ func main() {
 
 	// 5. Restore Session & Connect to Aria2 WebSocket
 	go func() {
-		time.Sleep(2 * time.Second) // Wait for Aria2 to fully start
-
 		aria2Client := aria2.NewClient(fmt.Sprintf("ws://localhost:%d/jsonrpc", Aria2RPCPort), aria2Secret)
 		rcloneClient := rclone.NewClient(fmt.Sprintf("http://localhost:%d", RcloneRCPort))
+
+		// Wait for Aria2 to be ready
+		log.Println("Waiting for Aria2 RPC to be ready...")
+		waitCtx, waitCancel := context.WithTimeout(bgCtx, 10*time.Second)
+		defer waitCancel()
+		if err := waitForAria2(waitCtx, aria2Client); err != nil {
+			log.Printf("Aria2 failed to become ready: %v", err)
+			return
+		}
+		log.Println("Aria2 RPC is ready.")
+
+		// --- Startup Synchronization (Anti-Drift) ---
+		// Import all active and stopped tasks from Aria2 into BoltDB on startup
+		// This ensures BoltDB is the true source of truth, even after restart
+		if err := importActiveTasks(aria2Client, db); err != nil {
+			log.Printf("Failed to import Aria2 tasks on startup: %v", err)
+		}
 
 		// --- Background Monitor (Watchdog) ---
 		poller := poller.New(db, aria2Client, rcloneClient)
@@ -182,11 +203,149 @@ func main() {
 			}
 		}
 
-		aria2Client.SetOnCompleteHandler(func(gid string) {
-			// Check if this task has an Rclone target in DB
-			upload, err := db.GetUpload(gid)
+		// --- WebSocket Event Handlers for Real-Time Sync ---
+
+		// onDownloadStart: Shadow Import for tasks added externally (CLI, other UIs)
+		aria2Client.SetOnStartHandler(func(gid string) {
+			// Check if we already have this task in DB
+			if _, err := db.GetUpload(gid); err == nil {
+				// Already tracking, just update status
+				log.Printf("Task %s started (already tracked)", gid)
+				db.UpdateStatus(gid, "active", "")
+				return
+			}
+
+			// New task - fetch details and create shadow record
+			log.Printf("Task %s started (shadow import)", gid)
+			status, err := aria2Client.TellStatus(gid)
 			if err != nil {
-				// Not a managed upload, ignore
+				log.Printf("Failed to fetch status for new task %s: %v", gid, err)
+				return
+			}
+
+			filePath := ""
+			totalLengthInt := int64(0)
+			ariaStatus, _ := status["status"].(string)
+
+			if files, ok := status["files"].([]interface{}); ok && len(files) > 0 {
+				if file0, ok := files[0].(map[string]interface{}); ok {
+					filePath, _ = file0["path"].(string)
+				}
+			}
+
+			if totalLength, ok := status["totalLength"].(string); ok {
+				totalLengthInt, _ = strconv.ParseInt(totalLength, 10, 64)
+			}
+
+			if err := db.UpsertTask(store.UploadState{
+				Gid:         gid,
+				Status:      ariaStatus,
+				FilePath:    filePath,
+				TotalLength: totalLengthInt,
+				StartedAt:   time.Now(),
+				UpdatedAt:   time.Now(),
+			}); err != nil {
+				log.Printf("Failed to shadow import task %s: %v", gid, err)
+			}
+		})
+
+		// onDownloadPause: Update DB status and progress
+		aria2Client.SetOnPauseHandler(func(gid string) {
+			log.Printf("Task %s paused via WebSocket", gid)
+			if status, err := aria2Client.TellStatus(gid); err == nil {
+				cLen, _ := strconv.ParseInt(status["completedLength"].(string), 10, 64)
+				tLen, _ := strconv.ParseInt(status["totalLength"].(string), 10, 64)
+				ariaStatus, _ := status["status"].(string)
+
+				db.UpdateProgress(gid, cLen, tLen)
+				db.UpdateStatus(gid, ariaStatus, "")
+			} else {
+				db.UpdateStatus(gid, "paused", "")
+			}
+		})
+
+		// onDownloadStop: Update DB status and progress
+		aria2Client.SetOnStopHandler(func(gid string) {
+			log.Printf("Task %s stopped via WebSocket", gid)
+			if status, err := aria2Client.TellStatus(gid); err == nil {
+				cLen, _ := strconv.ParseInt(status["completedLength"].(string), 10, 64)
+				tLen, _ := strconv.ParseInt(status["totalLength"].(string), 10, 64)
+				ariaStatus, _ := status["status"].(string)
+
+				db.UpdateProgress(gid, cLen, tLen)
+				db.UpdateStatus(gid, ariaStatus, "")
+			} else {
+				// Task removed from Aria2 memory entirely
+				log.Printf("Task %s removed externally (not found in memory)", gid)
+				db.UpdateStatus(gid, "removed", "")
+			}
+		})
+
+		// onDownloadError: Update DB with error message and progress
+		aria2Client.SetOnErrorHandler(func(gid string) {
+			log.Printf("Task %s errored via WebSocket", gid)
+			status, err := aria2Client.TellStatus(gid)
+			errorMessage := "Unknown error"
+
+			if err == nil {
+				cLen, _ := strconv.ParseInt(status["completedLength"].(string), 10, 64)
+				tLen, _ := strconv.ParseInt(status["totalLength"].(string), 10, 64)
+				db.UpdateProgress(gid, cLen, tLen)
+
+				if code, ok := status["errorCode"].(string); ok {
+					if msg, ok := status["errorMessage"].(string); ok {
+						errorMessage = fmt.Sprintf("[%s] %s", code, msg)
+					}
+				} else if msg, ok := status["errorMessage"].(string); ok {
+					errorMessage = msg
+				}
+			}
+
+			db.UpdateError(gid, errorMessage)
+		})
+
+		aria2Client.SetOnCompleteHandler(func(gid string) {
+			// Get task from DB (we should have it if started from UI)
+			upload, err := db.GetUpload(gid)
+
+			// Get File Path & Status from Aria2
+			status, errAria := aria2Client.TellStatus(gid)
+			if errAria != nil {
+				log.Printf("Failed to get status for %s: %v", gid, errAria)
+				return
+			}
+
+			path := ""
+			files, ok := status["files"].([]interface{})
+			if ok && len(files) > 0 {
+				file0, ok := files[0].(map[string]interface{})
+				if ok {
+					path, _ = file0["path"].(string)
+				}
+			}
+
+			totalLengthInt := int64(0)
+			if totalLength, ok := status["totalLength"].(string); ok {
+				totalLengthInt, _ = strconv.ParseInt(totalLength, 10, 64)
+			}
+
+			// Record download stats
+			if totalLengthInt > 0 {
+				db.AddDownloadedBytes(totalLengthInt)
+				db.IncrementCompletedTasks()
+			}
+
+			// If not in DB, create a minimal record so it shows in finished list
+			if err != nil {
+				log.Printf("Task %s completed but not in DB. Adopting as local-only.", gid)
+				db.SaveUpload(store.UploadState{
+					Gid:         gid,
+					Status:      "complete",
+					StartedAt:   time.Now(),
+					FilePath:    path,
+					TotalLength: totalLengthInt,
+					UpdatedAt:   time.Now(),
+				})
 				return
 			}
 
@@ -194,74 +353,64 @@ func main() {
 				return
 			}
 
-			log.Printf("Task %s completed. Starting upload to %s...", gid, upload.TargetRemote)
-
-			// Get File Path
-			status, err := aria2Client.TellStatus(gid)
-			if err != nil {
-				log.Printf("Failed to get status for %s: %v", gid, err)
-				return
-			}
-
-			// Record download stats
-			if totalLength, ok := status["totalLength"].(string); ok {
-				if bytes, err := strconv.ParseInt(totalLength, 10, 64); err == nil && bytes > 0 {
-					db.AddDownloadedBytes(bytes)
-					db.IncrementCompletedTasks()
-				}
-			}
-
 			// Magnet Handoff: Check for followedBy
 			if followedBy, ok := status["followedBy"].([]interface{}); ok && len(followedBy) > 0 {
 				for _, child := range followedBy {
 					if childGid, ok := child.(string); ok {
-						// Check if we already track it
-						if _, err := db.GetUpload(childGid); err != nil {
+						if adopted, _ := db.AdoptChildTask(childGid, gid, upload.TargetRemote, upload.Options); adopted {
 							log.Printf("Magnet Handoff (WS): Adopting child GID %s", childGid)
-							db.SaveUpload(store.UploadState{
-								Gid:          childGid,
-								TargetRemote: upload.TargetRemote,
-								Status:       "pending",
-								StartedAt:    time.Now(),
-								Options:      upload.Options,
-							})
 						}
 					}
 				}
 			}
 
-			files, ok := status["files"].([]interface{})
-			if !ok || len(files) == 0 {
-				log.Printf("No files found for %s", gid)
+			if upload.TargetRemote == "" {
+				// Local only download, just mark complete
+				log.Printf("Task %s (local) completed.", gid)
+				if err := db.MarkComplete(gid, path, totalLengthInt); err != nil {
+					log.Printf("Failed to mark task %s as complete: %v", gid, err)
+				}
 				return
 			}
-			file0, ok := files[0].(map[string]interface{})
-			if !ok {
-				log.Printf("Invalid file structure for %s", gid)
-				return
-			}
-			path, ok := file0["path"].(string)
-			if !ok || path == "" {
-				log.Printf("No file path for %s", gid)
-				return
-			}
+
+			log.Printf("Task %s completed. Starting upload to %s...", gid, upload.TargetRemote)
+
+			// Determine if it's a folder or a single file
+			// Aria2 'dir' is the base download folder.
+			// For single files, path is dir/filename.
+			// For folders, path is dir/folder/file.
+			baseDir, _ := status["dir"].(string)
 
 			// Trigger Rclone
-			// For local files, srcFs should be the directory, srcRemote the filename
-			dir := filepath.Dir(path)
-			filename := filepath.Base(path)
-			remotePath := filename // Destination path relative to remote root
-
-			// Async Upload
-			db.UpdateStatus(gid, "uploading", "")
 			customJobId := utils.HexGidToInt64(gid)
-			jobId, err := rcloneClient.CopyFileAsync(dir, filename, upload.TargetRemote, remotePath, customJobId)
-			if err != nil {
-				log.Printf("Failed to start async upload for %s: %v", gid, err)
+			var jobId string
+			var errTrigger error
+
+			// If the file is in a subfolder of baseDir, upload the subfolder
+			rel, errRel := filepath.Rel(baseDir, path)
+			if errRel == nil && strings.Contains(rel, string(os.PathSeparator)) {
+				// It's in a subfolder. Find the top-level subfolder.
+				parts := strings.Split(rel, string(os.PathSeparator))
+				topFolder := parts[0]
+				srcFs := filepath.Join(baseDir, topFolder)
+				dstFs := fmt.Sprintf("%s/%s", upload.TargetRemote, topFolder)
+				log.Printf("Detected folder download. Uploading %s to %s", srcFs, dstFs)
+				jobId, errTrigger = rcloneClient.CopyDirAsync(srcFs, dstFs, gid, customJobId)
+			} else {
+				// Single file
+				filename := filepath.Base(path)
+				log.Printf("Detected single file download. Uploading %s to %s", path, upload.TargetRemote)
+				jobId, errTrigger = rcloneClient.CopyFileAsync(baseDir, filename, upload.TargetRemote, filename, gid, customJobId)
+			}
+
+			if errTrigger != nil {
+				log.Printf("Failed to start async upload for %s: %v", gid, errTrigger)
 				db.UpdateStatus(gid, "error", "")
 			} else {
 				log.Printf("Started async upload for %s (Job: %s)", gid, jobId)
-				db.UpdateJob(gid, jobId)
+				if err := db.StartUpload(gid, jobId, path, totalLengthInt); err != nil {
+					log.Printf("Failed to update upload start for %s (already uploading?): %v", gid, err)
+				}
 			}
 		})
 
@@ -279,7 +428,130 @@ func main() {
 	<-quit
 
 	log.Println("Shutting down...")
+
+	// Force one final sync of all active tasks before closing DB
+	aria2Client := aria2.NewClient(fmt.Sprintf("ws://localhost:%d/jsonrpc", Aria2RPCPort), aria2Secret)
+	log.Println("Final sync of active tasks...")
+	syncAllActiveTasks(aria2Client, db)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	srv.Shutdown(ctx)
+}
+
+func syncAllActiveTasks(aria2Client *aria2.Client, db *store.DB) {
+	activeRes, err := aria2Client.Call("aria2.tellActive")
+	if err == nil {
+		if activeTasks, ok := activeRes.([]interface{}); ok {
+			for _, taskInterface := range activeTasks {
+				if taskMap, ok := taskInterface.(map[string]interface{}); ok {
+					gid, _ := taskMap["gid"].(string)
+					completedLength, _ := taskMap["completedLength"].(string)
+					totalLength, _ := taskMap["totalLength"].(string)
+					status, _ := taskMap["status"].(string)
+
+					cLen, _ := strconv.ParseInt(completedLength, 10, 64)
+					tLen, _ := strconv.ParseInt(totalLength, 10, 64)
+
+					db.UpdateProgress(gid, cLen, tLen)
+					db.UpdateStatus(gid, status, "")
+				}
+			}
+		}
+	}
+}
+
+// importActiveTasks imports all tasks from Aria2 into BoltDB to sync state on startup
+func importActiveTasks(aria2Client *aria2.Client, db *store.DB) error {
+	log.Println("Importing Aria2 tasks into BoltDB...")
+
+	// Get active tasks (tellActive takes optional keys, not offset/num)
+	activeRes, err := aria2Client.Call("aria2.tellActive")
+	if err == nil {
+		if activeTasks, ok := activeRes.([]interface{}); ok {
+			for _, taskInterface := range activeTasks {
+				if taskMap, ok := taskInterface.(map[string]interface{}); ok {
+					gid, _ := taskMap["gid"].(string)
+					totalLength, _ := taskMap["totalLength"].(string)
+					status, _ := taskMap["status"].(string)
+
+					// Extract files for path
+					filePath := ""
+					if files, ok := taskMap["files"].([]interface{}); ok && len(files) > 0 {
+						if file0, ok := files[0].(map[string]interface{}); ok {
+							filePath, _ = file0["path"].(string)
+						}
+					}
+
+					totalLengthInt, _ := strconv.ParseInt(totalLength, 10, 64)
+
+					// Upsert into BoltDB
+					if err := db.UpsertTask(store.UploadState{
+						Gid:         gid,
+						Status:      status,
+						FilePath:    filePath,
+						TotalLength: totalLengthInt,
+						StartedAt:   time.Now(),
+						UpdatedAt:   time.Now(),
+					}); err != nil {
+						log.Printf("Failed to import active task %s: %v", gid, err)
+					} else {
+						log.Printf("Imported active task %s", gid)
+					}
+				}
+			}
+		}
+	}
+
+	// Get stopped tasks (recent ones)
+	stoppedRes, err := aria2Client.Call("aria2.tellStopped", 0, 100)
+	if err == nil {
+		if stoppedTasks, ok := stoppedRes.([]interface{}); ok {
+			for _, taskInterface := range stoppedTasks {
+				if taskMap, ok := taskInterface.(map[string]interface{}); ok {
+					gid, _ := taskMap["gid"].(string)
+					totalLength, _ := taskMap["totalLength"].(string)
+					status, _ := taskMap["status"].(string)
+
+					filePath := ""
+					if files, ok := taskMap["files"].([]interface{}); ok && len(files) > 0 {
+						if file0, ok := files[0].(map[string]interface{}); ok {
+							filePath, _ = file0["path"].(string)
+						}
+					}
+
+					totalLengthInt, _ := strconv.ParseInt(totalLength, 10, 64)
+
+					if err := db.UpsertTask(store.UploadState{
+						Gid:         gid,
+						Status:      status,
+						FilePath:    filePath,
+						TotalLength: totalLengthInt,
+						StartedAt:   time.Now(),
+						UpdatedAt:   time.Now(),
+					}); err != nil {
+						log.Printf("Failed to import stopped task %s: %v", gid, err)
+					}
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func waitForAria2(ctx context.Context, client *aria2.Client) error {
+	ticker := time.NewTicker(200 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			if _, err := client.GetVersion(); err == nil {
+				return nil
+			}
+		}
+	}
 }

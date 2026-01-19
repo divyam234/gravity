@@ -20,7 +20,11 @@ type Client struct {
 	url        string
 	secret     string
 	httpUrl    string
+	onStart    func(gid string)
+	onPause    func(gid string)
+	onStop     func(gid string)
 	onComplete func(gid string)
+	onError    func(gid string)
 }
 
 func NewClient(wsUrl, secret string) *Client {
@@ -35,8 +39,24 @@ func NewClient(wsUrl, secret string) *Client {
 	}
 }
 
+func (c *Client) SetOnStartHandler(handler func(gid string)) {
+	c.onStart = handler
+}
+
+func (c *Client) SetOnPauseHandler(handler func(gid string)) {
+	c.onPause = handler
+}
+
+func (c *Client) SetOnStopHandler(handler func(gid string)) {
+	c.onStop = handler
+}
+
 func (c *Client) SetOnCompleteHandler(handler func(gid string)) {
 	c.onComplete = handler
+}
+
+func (c *Client) SetOnErrorHandler(handler func(gid string)) {
+	c.onError = handler
 }
 
 type Notification struct {
@@ -121,6 +141,14 @@ func (c *Client) TellStatus(gid string) (map[string]interface{}, error) {
 	return res.(map[string]interface{}), nil
 }
 
+func (c *Client) GetVersion() (map[string]interface{}, error) {
+	res, err := c.Call("aria2.getVersion")
+	if err != nil {
+		return nil, err
+	}
+	return res.(map[string]interface{}), nil
+}
+
 func (c *Client) Listen(ctx context.Context) error {
 	for {
 		err := c.connectAndListen(ctx)
@@ -154,12 +182,34 @@ func (c *Client) connectAndListen(ctx context.Context) error {
 			return err
 		}
 
-		if msg.Method == "aria2.onDownloadComplete" {
-			if len(msg.Params) > 0 {
-				gid := msg.Params[0].Gid
+		if len(msg.Params) > 0 {
+			gid := msg.Params[0].Gid
+
+			switch msg.Method {
+			case "aria2.onDownloadStart":
+				log.Printf("Download Start: %s", gid)
+				if c.onStart != nil {
+					go c.onStart(gid)
+				}
+			case "aria2.onDownloadPause":
+				log.Printf("Download Paused: %s", gid)
+				if c.onPause != nil {
+					go c.onPause(gid)
+				}
+			case "aria2.onDownloadStop":
+				log.Printf("Download Stopped: %s", gid)
+				if c.onStop != nil {
+					go c.onStop(gid)
+				}
+			case "aria2.onDownloadComplete":
 				log.Printf("Download Complete: %s", gid)
 				if c.onComplete != nil {
 					go c.onComplete(gid)
+				}
+			case "aria2.onDownloadError":
+				log.Printf("Download Error: %s", gid)
+				if c.onError != nil {
+					go c.onError(gid)
 				}
 			}
 		}

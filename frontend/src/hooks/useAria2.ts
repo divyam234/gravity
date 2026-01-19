@@ -4,6 +4,7 @@ import {
 	useQuery,
 	useQueryClient,
 } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { aria2 } from "../lib/aria2-rpc";
 import { useSettingsStore } from "../store/useSettingsStore";
 
@@ -54,6 +55,17 @@ export const stoppedTasksOptions = (
 	queryOptions({
 		queryKey: ["aria2", "tasks", "stopped", offset, num, rpcUrl],
 		queryFn: () => aria2.tellStopped(offset, num),
+		refetchInterval: pollingInterval,
+		retry: false,
+	});
+
+export const uploadingTasksOptions = (
+	rpcUrl: string,
+	pollingInterval: number,
+) =>
+	queryOptions({
+		queryKey: ["aria2", "tasks", "uploading", rpcUrl],
+		queryFn: () => aria2.tellUploading(),
 		refetchInterval: pollingInterval,
 		retry: false,
 	});
@@ -142,20 +154,35 @@ export function useStoppedTasks(
 	});
 }
 
+export function useUploadingTasks(options?: { enabled?: boolean }) {
+	const { pollingInterval, rpcUrl } = useSettingsStore();
+	return useQuery({
+		...uploadingTasksOptions(rpcUrl, pollingInterval),
+		enabled: !!rpcUrl && (options?.enabled ?? true),
+	});
+}
+
 export function useAllTasks(
-	status: "active" | "waiting" | "stopped" = "active",
+	status: "active" | "waiting" | "stopped" | "uploading" = "active",
 ) {
 	const active = useActiveTasks({ enabled: status === "active" });
+	const uploading = useUploadingTasks({ enabled: status === "uploading" });
 	const waiting = useWaitingTasks(0, 50, { enabled: status === "waiting" });
 	const stopped = useStoppedTasks(0, 50, { enabled: status === "stopped" });
 
 	return {
 		active: active.data || [],
+		uploading: uploading.data || [],
 		waiting: waiting.data || [],
 		stopped: stopped.data || [],
-		isLoading: active.isLoading || waiting.isLoading || stopped.isLoading,
+		isLoading:
+			active.isLoading ||
+			waiting.isLoading ||
+			stopped.isLoading ||
+			uploading.isLoading,
 		refetch: () => {
 			if (status === "active") active.refetch();
+			if (status === "uploading") uploading.refetch();
 			if (status === "waiting") waiting.refetch();
 			if (status === "stopped") stopped.refetch();
 		},
@@ -229,7 +256,11 @@ export function useAria2Actions() {
 			uris: string[];
 			options?: Record<string, string>;
 		}) => aria2.addUri(uris, options),
-		onSuccess: invalidateTasks,
+		onSuccess: () => {
+			invalidateTasks();
+			toast.success("Download started");
+		},
+		onError: (err: Error) => toast.error(`Failed to add download: ${err.message}`),
 	});
 
 	const addTorrent = useMutation({
@@ -242,7 +273,11 @@ export function useAria2Actions() {
 			uris?: string[];
 			options?: Record<string, string>;
 		}) => aria2.addTorrent(torrent, uris, options),
-		onSuccess: invalidateTasks,
+		onSuccess: () => {
+			invalidateTasks();
+			toast.success("Torrent added");
+		},
+		onError: (err: Error) => toast.error(`Failed to add torrent: ${err.message}`),
 	});
 
 	const addMetalink = useMutation({
@@ -253,41 +288,78 @@ export function useAria2Actions() {
 			metalink: string;
 			options?: Record<string, string>;
 		}) => aria2.addMetalink(metalink, options),
-		onSuccess: invalidateTasks,
+		onSuccess: () => {
+			invalidateTasks();
+			toast.success("Metalink added");
+		},
+		onError: (err: Error) => toast.error(`Failed to add metalink: ${err.message}`),
 	});
 
 	const pause = useMutation({
 		mutationFn: (gid: string) => aria2.pause(gid),
-		onSuccess: invalidateTasks,
+		onSuccess: () => {
+			invalidateTasks();
+			toast.info("Download paused");
+		},
+		onError: (err: Error) => toast.error(`Failed to pause: ${err.message}`),
 	});
 
 	const unpause = useMutation({
 		mutationFn: (gid: string) => aria2.unpause(gid),
-		onSuccess: invalidateTasks,
+		onSuccess: () => {
+			invalidateTasks();
+			toast.success("Download resumed");
+		},
+		onError: (err: Error) => toast.error(`Failed to resume: ${err.message}`),
 	});
 
 	const remove = useMutation({
 		mutationFn: (gid: string) => aria2.remove(gid),
-		onSuccess: invalidateTasks,
+		onSuccess: () => {
+			invalidateTasks();
+			toast.info("Download removed");
+		},
+		onError: (err: Error) => toast.error(`Failed to remove: ${err.message}`),
 	});
 
 	const forceRemove = useMutation({
 		mutationFn: (gid: string) => aria2.forceRemove(gid),
-		onSuccess: invalidateTasks,
+		onSuccess: () => {
+			invalidateTasks();
+			toast.info("Download force removed");
+		},
+		onError: (err: Error) => toast.error(`Failed to force remove: ${err.message}`),
 	});
 
 	const removeDownloadResult = useMutation({
 		mutationFn: (gid: string) => aria2.removeDownloadResult(gid),
-		onSuccess: invalidateTasks,
+		onSuccess: () => {
+			invalidateTasks();
+			toast.info("Task removed from list");
+		},
+		onError: (err: Error) => toast.error(`Failed to remove task: ${err.message}`),
 	});
 
 	const purgeDownloadResult = useMutation({
 		mutationFn: () => aria2.purgeDownloadResult(),
-		onSuccess: invalidateTasks,
+		onSuccess: () => {
+			invalidateTasks();
+			toast.info("Finished tasks purged");
+		},
+		onError: (err: Error) => toast.error(`Failed to purge tasks: ${err.message}`),
 	});
 
 	const saveSession = useMutation({
 		mutationFn: () => aria2.saveSession(),
+	});
+
+	const retryTask = useMutation({
+		mutationFn: (gid: string) => aria2.retryTask(gid),
+		onSuccess: () => {
+			invalidateTasks();
+			toast.success("Retry triggered");
+		},
+		onError: (err: Error) => toast.error(`Failed to retry: ${err.message}`),
 	});
 
 	const changeGlobalOption = useMutation({
@@ -322,6 +394,7 @@ export function useAria2Actions() {
 		removeDownloadResult,
 		purgeDownloadResult,
 		saveSession,
+		retryTask,
 		changeGlobalOption,
 		changeOption,
 	};

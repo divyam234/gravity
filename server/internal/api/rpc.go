@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"aria2-rclone-ui/internal/aria2"
 	"aria2-rclone-ui/internal/rclone"
 	"aria2-rclone-ui/internal/store"
 )
@@ -22,6 +23,7 @@ import (
 type RPCHandler struct {
 	aria2URL     *url.URL
 	rcloneURL    *url.URL
+	aria2Client  *aria2.Client
 	rcloneClient *rclone.Client
 	db           *store.DB
 	aria2Proxy   *httputil.ReverseProxy
@@ -32,6 +34,9 @@ func NewRPCHandler(aria2Addr, rcloneAddr, rpcSecret string, db *store.DB) *RPCHa
 	aURL, _ := url.Parse(aria2Addr)
 	rURL, _ := url.Parse(rcloneAddr)
 	proxy := httputil.NewSingleHostReverseProxy(aURL)
+
+	// Derive WebSocket URL for the client (internal use)
+	wsURL := strings.Replace(aria2Addr, "http://", "ws://", 1) + "/jsonrpc"
 
 	// Modify outgoing request to prevent compressed responses from Aria2
 	originalDirector := proxy.Director
@@ -49,6 +54,7 @@ func NewRPCHandler(aria2Addr, rcloneAddr, rpcSecret string, db *store.DB) *RPCHa
 	return &RPCHandler{
 		aria2URL:     aURL,
 		rcloneURL:    rURL,
+		aria2Client:  aria2.NewClient(wsURL, rpcSecret),
 		rcloneClient: rclone.NewClient(rcloneAddr),
 		db:           db,
 		aria2Proxy:   proxy,
@@ -155,13 +161,143 @@ func (h *RPCHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.Method == "aria2.tellActive" {
+		h.handleTellActive(w, r, req)
+		return
+	}
+
 	if req.Method == "aria2.getGlobalStat" {
 		h.handleGetGlobalStat(w, r, req)
 		return
 	}
 
+	if req.Method == "aria2.tellStopped" {
+		h.handleTellStopped(w, r, req)
+		return
+	}
+
+	if req.Method == "aria2.retryTask" {
+		h.handleRetryTask(w, req)
+		return
+	}
+
+	if req.Method == "aria2.removeDownloadResult" {
+		log.Printf("Intercepted removeDownloadResult for GID %v", req.Params)
+		h.handleRemoveDownloadResult(w, r, req)
+		return
+	}
+
+	if req.Method == "aria2.purgeDownloadResult" {
+		h.handlePurge(w, r, req)
+		return
+	}
+
+	if req.Method == "system.multicall" {
+		h.handleMulticall(w, r, req)
+		return
+	}
+
 	// Default: forward to Aria2
 	h.aria2Proxy.ServeHTTP(w, r)
+}
+
+func (h *RPCHandler) handleMulticall(w http.ResponseWriter, r *http.Request, req JsonRpcRequest) {
+	if len(req.Params) == 0 {
+		h.writeResponse(w, req.Id, nil, fmt.Errorf("params required"))
+		return
+	}
+
+	calls, ok := req.Params[0].([]interface{})
+	if !ok {
+		h.writeResponse(w, req.Id, nil, fmt.Errorf("invalid params"))
+		return
+	}
+
+	results := make([]interface{}, len(calls))
+
+	// Helper to capture response from handler
+	captureResponse := func(handler func(http.ResponseWriter, *http.Request, JsonRpcRequest), innerReq JsonRpcRequest) interface{} {
+		rec := NewResponseBuffer()
+
+		// Create a new request with the innerReq body so the proxy sends the correct single call to Aria2
+		innerBody, _ := json.Marshal(innerReq)
+		newR := r.Clone(r.Context())
+		newR.Body = io.NopCloser(bytes.NewBuffer(innerBody))
+		newR.ContentLength = int64(len(innerBody))
+
+		handler(rec, newR, innerReq)
+
+		respBody, _ := rec.Bytes()
+		var res JsonRpcResponse
+		if err := json.Unmarshal(respBody, &res); err != nil {
+			return map[string]interface{}{"error": err.Error()}
+		}
+		// If the handler successfully unwrapped the result (e.g. handleTellStatus), return it directly
+		// Note: handleTellStatus returns a standard JsonRpcResponse.
+		// If we return res.Result, we are good.
+		if res.Error != nil {
+			return map[string]interface{}{"error": res.Error}
+		}
+		// Aria2 multicall returns [result]. We should return result wrapped in array to match structure?
+		// Aria2: [ [r1], [r2] ].
+		// So yes, wrap in array.
+		return []interface{}{res.Result}
+	}
+
+	for i, call := range calls {
+		callMap, ok := call.(map[string]interface{})
+		if !ok {
+			results[i] = map[string]interface{}{"code": 1, "message": "Invalid call format"}
+			continue
+		}
+
+		methodName, _ := callMap["methodName"].(string)
+		params, _ := callMap["params"].([]interface{})
+
+		// Inject secret if needed
+		if h.rpcSecret != "" && !strings.HasPrefix(methodName, "rclone.") && methodName != "system.multicall" {
+			hasToken := false
+			if len(params) > 0 {
+				if s, ok := params[0].(string); ok && strings.HasPrefix(s, "token:") {
+					hasToken = true
+				}
+			}
+			if !hasToken {
+				params = append([]interface{}{"token:" + h.rpcSecret}, params...)
+			}
+		}
+
+		innerReq := JsonRpcRequest{
+			JsonRPC: "2.0",
+			Method:  methodName,
+			Params:  params,
+			Id:      nil, // ID not needed for internal calls
+		}
+
+		// Route to our handlers
+		if methodName == "aria2.tellStatus" {
+			results[i] = captureResponse(h.handleTellStatus, innerReq)
+		} else if methodName == "aria2.tellActive" {
+			results[i] = captureResponse(h.handleTellActive, innerReq)
+		} else if methodName == "aria2.tellStopped" {
+			results[i] = captureResponse(h.handleTellStopped, innerReq)
+		} else if methodName == "aria2.tellWaiting" {
+			// We haven't augmented tellWaiting yet, but we should handle it consistently
+			// Ideally we implement handleTellWaiting too, but for now fallback to proxy via capture
+			// Wait, captureResponse calls 'handler'. We can't pass 'h.aria2Proxy.ServeHTTP' directly.
+			// Let's implement a generic proxy handler wrapper
+			results[i] = captureResponse(func(w http.ResponseWriter, r *http.Request, req JsonRpcRequest) {
+				h.proxyWithModifiedBody(w, r, req)
+			}, innerReq)
+		} else {
+			// Fallback for everything else (addUri, remove, etc)
+			results[i] = captureResponse(func(w http.ResponseWriter, r *http.Request, req JsonRpcRequest) {
+				h.proxyWithModifiedBody(w, r, req)
+			}, innerReq)
+		}
+	}
+
+	h.writeResponse(w, req.Id, results, nil)
 }
 
 func (h *RPCHandler) handleRcloneRequest(w http.ResponseWriter, req JsonRpcRequest) {
@@ -414,14 +550,17 @@ func (h *RPCHandler) handleAddUri(w http.ResponseWriter, r *http.Request, req Js
 		delete(options, "rclone-target")
 	}
 
-	gidBytes := make([]byte, 8)
-	if _, err := rand.Read(gidBytes); err != nil {
-		log.Printf("Failed to generate GID: %v", err)
-		h.aria2Proxy.ServeHTTP(w, r)
-		return
+	gid, ok := options["gid"].(string)
+	if !ok || gid == "" {
+		gidBytes := make([]byte, 8)
+		if _, err := rand.Read(gidBytes); err != nil {
+			log.Printf("Failed to generate GID: %v", err)
+			h.aria2Proxy.ServeHTTP(w, r)
+			return
+		}
+		gid = hex.EncodeToString(gidBytes)
+		options["gid"] = gid
 	}
-	gid := hex.EncodeToString(gidBytes)
-	options["gid"] = gid
 
 	if optionsIdx != -1 {
 		req.Params[optionsIdx] = options
@@ -442,6 +581,194 @@ func (h *RPCHandler) handleAddUri(w http.ResponseWriter, r *http.Request, req Js
 	h.proxyWithModifiedBody(w, r, req)
 }
 
+func (h *RPCHandler) handleRetryTask(w http.ResponseWriter, req JsonRpcRequest) {
+	if len(req.Params) < 2 {
+		h.writeResponse(w, req.Id, nil, fmt.Errorf("GID required"))
+		return
+	}
+	gid, ok := req.Params[1].(string)
+	if !ok {
+		h.writeResponse(w, req.Id, nil, fmt.Errorf("invalid GID"))
+		return
+	}
+
+	task, err := h.db.GetUpload(gid)
+	if err != nil {
+		h.writeResponse(w, req.Id, nil, err)
+		return
+	}
+
+	// Reset status in DB
+	h.db.UpdateStatus(gid, "pending", "")
+	h.db.UpdateError(gid, "") // Clear error
+
+	// 1. Check Aria2 status
+	status, errAria := h.aria2Client.TellStatus(gid)
+	if errAria != nil {
+		// Missing from Aria2, re-add
+		log.Printf("Retry: Re-adding task %s to Aria2", gid)
+		var method string
+		var params []interface{}
+		opts := task.Options
+		if opts == nil {
+			opts = make(map[string]interface{})
+		}
+		opts["gid"] = gid
+
+		if task.Torrent != "" {
+			method = "aria2.addTorrent"
+			params = []interface{}{task.Torrent, task.URIs, opts}
+		} else if task.Metalink != "" {
+			method = "aria2.addMetalink"
+			params = []interface{}{task.Metalink, opts}
+		} else {
+			method = "aria2.addUri"
+			params = []interface{}{task.URIs, opts}
+		}
+		h.aria2Client.Call(method, params...)
+	} else if status["status"] == "error" {
+		// Exists but errored, remove and re-add
+		log.Printf("Retry: Errored task %s found, removing and re-adding", gid)
+		h.aria2Client.Call("aria2.removeDownloadResult", gid)
+		// ... same re-add logic ...
+		opts := task.Options
+		if opts == nil {
+			opts = make(map[string]interface{})
+		}
+		opts["gid"] = gid
+		if task.Torrent != "" {
+			h.aria2Client.Call("aria2.addTorrent", task.Torrent, task.URIs, opts)
+		} else if task.Metalink != "" {
+			h.aria2Client.Call("aria2.addMetalink", task.Metalink, opts)
+		} else {
+			h.aria2Client.Call("aria2.addUri", task.URIs, opts)
+		}
+	}
+
+	h.writeResponse(w, req.Id, "OK", nil)
+}
+
+func (h *RPCHandler) handleRemoveDownloadResult(w http.ResponseWriter, r *http.Request, req JsonRpcRequest) {
+	rec := NewResponseBuffer()
+	h.aria2Proxy.ServeHTTP(rec, r)
+
+	respBody, err := rec.Bytes()
+	if err != nil {
+		rec.WriteRawTo(w)
+		return
+	}
+
+	var res JsonRpcResponse
+	if err := json.Unmarshal(respBody, &res); err == nil && res.Error == nil {
+		// Find GID in params (it could be index 0 or 1 depending on token injection)
+		for _, p := range req.Params {
+			if gid, ok := p.(string); ok && !strings.HasPrefix(gid, "token:") {
+				h.db.DeleteTask(gid)
+				log.Printf("Purge: Deleted task %s from DB", gid)
+				break
+			}
+		}
+	}
+
+	h.writeJSON(w, res)
+}
+
+func (h *RPCHandler) handlePurge(w http.ResponseWriter, r *http.Request, req JsonRpcRequest) {
+	// First call Aria2 to purge its memory
+	rec := NewResponseBuffer()
+	h.aria2Proxy.ServeHTTP(rec, r)
+
+	respBody, err := rec.Bytes()
+	if err != nil {
+		rec.WriteRawTo(w)
+		return
+	}
+
+	var res JsonRpcResponse
+	if err := json.Unmarshal(respBody, &res); err == nil && res.Error == nil {
+		// If Aria2 purge succeeded, also purge our DB
+		if err := h.db.PurgeTasks(); err != nil {
+			log.Printf("Purge: Failed to purge DB: %v", err)
+		} else {
+			log.Println("Purge: DB cleaned up successfully")
+		}
+	}
+
+	h.writeJSON(w, res)
+}
+
+func (h *RPCHandler) handleTellStopped(w http.ResponseWriter, r *http.Request, req JsonRpcRequest) {
+	rec := NewResponseBuffer()
+	h.aria2Proxy.ServeHTTP(rec, r)
+
+	respBody, err := rec.Bytes()
+	if err != nil {
+		rec.WriteRawTo(w)
+		return
+	}
+
+	var res JsonRpcResponse
+	if err := json.Unmarshal(respBody, &res); err != nil {
+		rec.WriteRawTo(w)
+		return
+	}
+
+	// Augment with DB metadata
+	if tasks, ok := res.Result.([]interface{}); ok {
+		for _, t := range tasks {
+			if task, ok := t.(map[string]interface{}); ok {
+				if gid, ok := task["gid"].(string); ok {
+					if upload, err := h.db.GetUpload(gid); err == nil {
+						task["rclone"] = map[string]interface{}{
+							"status":       upload.Status,
+							"targetRemote": upload.TargetRemote,
+							"jobId":        upload.JobID,
+						}
+					}
+				}
+			}
+		}
+	}
+
+	h.writeJSON(w, res)
+}
+
+func (h *RPCHandler) handleTellActive(w http.ResponseWriter, r *http.Request, req JsonRpcRequest) {
+	rec := NewResponseBuffer()
+	h.aria2Proxy.ServeHTTP(rec, r)
+
+	respBody, err := rec.Bytes()
+	if err != nil {
+		rec.WriteRawTo(w)
+		return
+	}
+
+	var res JsonRpcResponse
+	if err := json.Unmarshal(respBody, &res); err != nil {
+		rec.WriteRawTo(w)
+		return
+	}
+
+	// Intercept and augment active tasks with DB metadata
+	if tasks, ok := res.Result.([]interface{}); ok {
+		for _, t := range tasks {
+			if task, ok := t.(map[string]interface{}); ok {
+				if gid, ok := task["gid"].(string); ok {
+					if upload, err := h.db.GetUpload(gid); err == nil {
+						task["rclone"] = map[string]interface{}{
+							"status":       upload.Status,
+							"targetRemote": upload.TargetRemote,
+							"jobId":        upload.JobID,
+						}
+					}
+				}
+			}
+		}
+	}
+
+	h.writeJSON(w, res)
+}
+
 func (h *RPCHandler) handleTellStatus(w http.ResponseWriter, r *http.Request, req JsonRpcRequest) {
 	rec := NewResponseBuffer()
 	h.aria2Proxy.ServeHTTP(rec, r)
@@ -460,47 +787,50 @@ func (h *RPCHandler) handleTellStatus(w http.ResponseWriter, r *http.Request, re
 		return
 	}
 
-	// Augment with rclone state if available
+	// 1. Fallback to DB if Aria2 returns error (e.g. task removed from memory)
+	gidVal := ""
+	if len(req.Params) > 1 {
+		if g, ok := req.Params[1].(string); ok {
+			gidVal = g
+		}
+	}
+
+	if res.Error != nil && gidVal != "" {
+		upload, err := h.db.GetUpload(gidVal)
+		if err == nil {
+			// Construct response from DB
+			res.Error = nil
+			res.Result = map[string]interface{}{
+				"gid":             upload.Gid,
+				"status":          upload.Status,
+				"totalLength":     fmt.Sprintf("%d", upload.TotalLength),
+				"completedLength": fmt.Sprintf("%d", upload.TotalLength),
+				"files": []interface{}{
+					map[string]interface{}{
+						"index": "1",
+						"path":  upload.FilePath,
+					},
+				},
+			}
+		}
+	}
+
+	// 2. Augment with rclone state if available
 	if res.Result != nil {
 		if task, ok := res.Result.(map[string]interface{}); ok {
-			if gidVal, ok := task["gid"]; ok {
-				if gid, ok := gidVal.(string); ok {
-					upload, err := h.db.GetUpload(gid)
-					if err == nil {
-						rcloneState := map[string]interface{}{
-							"status":       upload.Status,
-							"targetRemote": upload.TargetRemote,
-						}
-						if upload.JobID != "" {
-							rcloneState["jobId"] = upload.JobID
+			if gidVal == "" {
+				if g, ok := task["gid"].(string); ok {
+					gidVal = g
+				}
+			}
 
-							// If uploading, get live stats from Rclone
-							if upload.Status == "uploading" {
-								if jobStats, err := h.rcloneClient.Call("core/stats", nil); err == nil {
-									if speed, ok := jobStats["speed"].(float64); ok {
-										rcloneState["speed"] = speed
-									}
-									if bytes, ok := jobStats["bytes"].(float64); ok {
-										rcloneState["bytes"] = bytes
-									}
-									if totalBytes, ok := jobStats["totalBytes"].(float64); ok {
-										rcloneState["totalBytes"] = totalBytes
-									}
-									if eta, ok := jobStats["eta"].(float64); ok {
-										rcloneState["eta"] = eta
-									}
-									// Get transfer progress if available
-									if transfers, ok := jobStats["transferring"].([]interface{}); ok && len(transfers) > 0 {
-										if t, ok := transfers[0].(map[string]interface{}); ok {
-											if pct, ok := t["percentage"].(float64); ok {
-												rcloneState["percentage"] = pct
-											}
-										}
-									}
-								}
-							}
-						}
-						task["rclone"] = rcloneState
+			if gidVal != "" {
+				upload, err := h.db.GetUpload(gidVal)
+				if err == nil {
+					task["rclone"] = map[string]interface{}{
+						"status":       upload.Status,
+						"targetRemote": upload.TargetRemote,
+						"jobId":        upload.JobID,
 					}
 				}
 			}

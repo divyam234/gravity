@@ -1,9 +1,11 @@
 package poller
 
 import (
+	"fmt"
 	"log"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"aria2-rclone-ui/internal/aria2"
@@ -28,6 +30,36 @@ func New(db *store.DB, aria2 *aria2.Client, rclone *rclone.Client) *Poller {
 
 // Sync performs a single reconciliation pass
 func (p *Poller) Sync() {
+	// Sync background uploads/restorations
+	p.syncManagedTasks()
+
+	// Sync active task progress for crash safety (Lazy Checkpoint)
+	p.syncActiveProgress()
+}
+
+func (p *Poller) syncActiveProgress() {
+	activeRes, err := p.aria2Client.Call("aria2.tellActive")
+	if err != nil {
+		return
+	}
+
+	if tasks, ok := activeRes.([]interface{}); ok {
+		for _, t := range tasks {
+			if taskMap, ok := t.(map[string]interface{}); ok {
+				gid, _ := taskMap["gid"].(string)
+				completedLength, _ := taskMap["completedLength"].(string)
+				totalLength, _ := taskMap["totalLength"].(string)
+
+				cLen, _ := strconv.ParseInt(completedLength, 10, 64)
+				tLen, _ := strconv.ParseInt(totalLength, 10, 64)
+
+				p.db.UpdateProgress(gid, cLen, tLen)
+			}
+		}
+	}
+}
+
+func (p *Poller) syncManagedTasks() {
 	tasks, err := p.db.GetPendingUploads()
 	if err != nil {
 		log.Printf("Poller: Failed to fetch tasks: %v", err)
@@ -109,19 +141,8 @@ func (p *Poller) syncPendingTask(task store.UploadState) {
 				continue
 			}
 
-			// Check if we already track it
-			_, err := p.db.GetUpload(childGid)
-			if err != nil {
-				// Not found, so adopt it
+			if adopted, _ := p.db.AdoptChildTask(childGid, task.Gid, task.TargetRemote, task.Options); adopted {
 				log.Printf("Magnet Handoff: Adopting child GID %s from parent %s", childGid, task.Gid)
-				p.db.SaveUpload(store.UploadState{
-					Gid:          childGid,
-					TargetRemote: task.TargetRemote,
-					Status:       "pending",
-					StartedAt:    time.Now(),
-					Options:      task.Options, // Inherit options
-					// We don't inherit URIs/Torrent as it's a derived task
-				})
 			}
 		}
 	}
@@ -138,24 +159,55 @@ func (p *Poller) syncPendingTask(task store.UploadState) {
 			return
 		}
 
-		// For local files, srcFs is dir, srcRemote is filename
-		dir := filepath.Dir(path)
-		filename := filepath.Base(path)
-		remotePath := filename
+		if task.TargetRemote == "" {
+			log.Printf("Poller: Task %s (local) completed.", task.Gid)
+			totalLengthInt := int64(0)
+			if totalLength, ok := status["totalLength"].(string); ok {
+				totalLengthInt, _ = strconv.ParseInt(totalLength, 10, 64)
+			}
+			p.db.MarkComplete(task.Gid, path, totalLengthInt)
+			return
+		}
 
-		p.db.UpdateStatus(task.Gid, "uploading", "")
+		baseDir, _ := status["dir"].(string)
 
 		// Use Async Upload
 		// Pass deterministic Job ID (Hex GID -> Int64)
 		customJobId := utils.HexGidToInt64(task.Gid)
+		var jobId string
+		var errTrigger error
 
-		jobId, err := p.rcloneClient.CopyFileAsync(dir, filename, task.TargetRemote, remotePath, customJobId)
-		if err != nil {
-			log.Printf("Failed to start async upload for %s: %v", task.Gid, err)
+		// Detection logic for folder vs file
+		rel, errRel := filepath.Rel(baseDir, path)
+		if errRel == nil && strings.Contains(rel, string(filepath.Separator)) {
+			// Folder
+			parts := strings.Split(rel, string(filepath.Separator))
+			topFolder := parts[0]
+			srcFs := filepath.Join(baseDir, topFolder)
+			dstFs := fmt.Sprintf("%s/%s", task.TargetRemote, topFolder)
+			log.Printf("Poller: Detected folder download. Uploading %s to %s", srcFs, dstFs)
+			jobId, errTrigger = p.rcloneClient.CopyDirAsync(srcFs, dstFs, task.Gid, customJobId)
+		} else {
+			// Single file
+			filename := filepath.Base(path)
+			log.Printf("Poller: Detected single file download. Uploading %s to %s", path, task.TargetRemote)
+			jobId, errTrigger = p.rcloneClient.CopyFileAsync(baseDir, filename, task.TargetRemote, filename, task.Gid, customJobId)
+		}
+
+		if errTrigger != nil {
+			log.Printf("Poller: Failed to start async upload for %s: %v", task.Gid, errTrigger)
 			p.db.UpdateStatus(task.Gid, "error", "")
 		} else {
-			log.Printf("Started async upload for %s (Job: %s)", task.Gid, jobId)
-			p.db.UpdateJob(task.Gid, jobId)
+			log.Printf("Poller: Started async upload for %s (Job: %s)", task.Gid, jobId)
+
+			var totalLengthInt int64
+			if totalLength, ok := status["totalLength"].(string); ok {
+				totalLengthInt, _ = strconv.ParseInt(totalLength, 10, 64)
+			}
+
+			if err := p.db.StartUpload(task.Gid, jobId, path, totalLengthInt); err != nil {
+				log.Printf("Poller: Failed to update upload start for %s (already uploading?): %v", task.Gid, err)
+			}
 		}
 	} else if ariaStatus == "error" || ariaStatus == "removed" {
 		p.db.UpdateStatus(task.Gid, "error", "")

@@ -19,7 +19,7 @@ interface TaskListProps {
 }
 
 export const TaskList: React.FC<TaskListProps> = ({ status }) => {
-	const { active, waiting, stopped, refetch, isLoading } = useAllTasks(
+	const { active, waiting, stopped, uploading, refetch, isLoading } = useAllTasks(
 		status as any,
 	);
 	const { pause, unpause, remove } = useAria2Actions();
@@ -37,6 +37,9 @@ export const TaskList: React.FC<TaskListProps> = ({ status }) => {
 		switch (status) {
 			case "active":
 				t = active;
+				break;
+			case "uploading":
+				t = uploading;
 				break;
 			case "waiting":
 				t = waiting;
@@ -58,7 +61,7 @@ export const TaskList: React.FC<TaskListProps> = ({ status }) => {
 		}
 
 		return t;
-	}, [status, active, waiting, stopped, searchQuery]);
+	}, [status, active, waiting, stopped, uploading, searchQuery]);
 
 	const { dragAndDropHooks } = useDragAndDrop({
 		getItems: (keys) => [...keys].map((key) => ({ "text/plain": String(key) })),

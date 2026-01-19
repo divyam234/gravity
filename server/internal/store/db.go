@@ -3,6 +3,7 @@ package store
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"time"
 
 	"go.etcd.io/bbolt"
@@ -28,6 +29,9 @@ type UploadState struct {
 	Options      map[string]interface{} `json:"options,omitempty"`
 	RetryCount   int                    `json:"retryCount,omitempty"`
 	UpdatedAt    time.Time              `json:"updatedAt"`
+	// Metadata for tellUploading
+	FilePath    string `json:"filePath,omitempty"`
+	TotalLength int64  `json:"totalLength,omitempty"`
 	// Stats for this task
 	DownloadedBytes int64 `json:"downloadedBytes,omitempty"`
 	UploadedBytes   int64 `json:"uploadedBytes,omitempty"`
@@ -138,6 +142,32 @@ func (d *DB) ResetStuckUploads() error {
 	})
 }
 
+// UpdateProgress updates only the progress fields of a task
+func (d *DB) UpdateProgress(gid string, downloadedBytes, totalLength int64) error {
+	return d.db.Update(func(tx *bbolt.Tx) error {
+		b := tx.Bucket([]byte(BucketUploads))
+		data := b.Get([]byte(gid))
+		if data == nil {
+			return fmt.Errorf("not found")
+		}
+
+		var state UploadState
+		if err := json.Unmarshal(data, &state); err != nil {
+			return err
+		}
+
+		state.DownloadedBytes = downloadedBytes
+		state.TotalLength = totalLength
+		state.UpdatedAt = time.Now()
+
+		newData, err := json.Marshal(state)
+		if err != nil {
+			return err
+		}
+		return b.Put([]byte(gid), newData)
+	})
+}
+
 func (d *DB) UpdateStatus(gid string, status string, jobId string) error {
 	return d.db.Update(func(tx *bbolt.Tx) error {
 		b := tx.Bucket([]byte(BucketUploads))
@@ -186,6 +216,73 @@ func (d *DB) UpdateJob(gid string, jobId string) error {
 			return err
 		}
 		return b.Put([]byte(gid), newData)
+	})
+}
+
+// UpdateError marks a task as error and saves the error message
+func (d *DB) UpdateError(gid string, errorMessage string) error {
+	return d.db.Update(func(tx *bbolt.Tx) error {
+		b := tx.Bucket([]byte(BucketUploads))
+		data := b.Get([]byte(gid))
+		if data == nil {
+			return fmt.Errorf("not found")
+		}
+
+		var state UploadState
+		if err := json.Unmarshal(data, &state); err != nil {
+			return err
+		}
+
+		state.Status = "error"
+		state.LastError = errorMessage
+		state.UpdatedAt = time.Now()
+
+		newData, err := json.Marshal(state)
+		if err != nil {
+			return err
+		}
+		return b.Put([]byte(gid), newData)
+	})
+}
+
+// UpsertTask creates or updates a task (used for startup sync and shadow import)
+func (d *DB) UpsertTask(state UploadState) error {
+	return d.db.Update(func(tx *bbolt.Tx) error {
+		b := tx.Bucket([]byte(BucketUploads))
+
+		// If it exists, preserve some fields like Rclone target if not provided in new state
+		existingData := b.Get([]byte(state.Gid))
+		if existingData != nil {
+			var existing UploadState
+			if err := json.Unmarshal(existingData, &existing); err == nil {
+				// Preserve TargetRemote if the incoming state is just from Aria2 (which doesn't know about Remotes)
+				if state.TargetRemote == "" {
+					state.TargetRemote = existing.TargetRemote
+				}
+				// Preserve Options
+				if state.Options == nil {
+					state.Options = existing.Options
+				}
+				// Preserve RetryCount
+				state.RetryCount = existing.RetryCount
+
+				// Keep JobID if we are just updating Aria2 status
+				if state.JobID == "" {
+					state.JobID = existing.JobID
+				}
+
+				// If the existing state is "uploading" or "complete", we should be careful about overwriting it
+				// with "active" from Aria2 unless we are sure.
+				// But for now, we assume Aria2 is the truth for download status.
+			}
+		}
+
+		state.UpdatedAt = time.Now()
+		data, err := json.Marshal(state)
+		if err != nil {
+			return err
+		}
+		return b.Put([]byte(state.Gid), data)
 	})
 }
 
@@ -241,6 +338,86 @@ func (d *DB) UpdateOptions(gid string, options map[string]interface{}) error {
 		}
 		return b.Put([]byte(gid), newData)
 	})
+}
+
+// StartUpload marks a task as uploading and stores metadata for tellUploading.
+// Returns error if the task is already uploading or finished.
+func (d *DB) StartUpload(gid, jobId, filePath string, totalLength int64) error {
+	return d.db.Update(func(tx *bbolt.Tx) error {
+		b := tx.Bucket([]byte(BucketUploads))
+		data := b.Get([]byte(gid))
+		if data == nil {
+			return fmt.Errorf("upload not found for gid %s", gid)
+		}
+
+		var state UploadState
+		if err := json.Unmarshal(data, &state); err != nil {
+			return err
+		}
+
+		// Prevent race: Only start if it's currently pending
+		if state.Status != "pending" {
+			return fmt.Errorf("task %s is already in state %s", gid, state.Status)
+		}
+
+		state.Status = "uploading"
+		state.JobID = jobId
+		state.FilePath = filePath
+		state.TotalLength = totalLength
+		state.UpdatedAt = time.Now()
+
+		newData, err := json.Marshal(state)
+		if err != nil {
+			return err
+		}
+		return b.Put([]byte(gid), newData)
+	})
+}
+
+// GetUploadingTasks returns all tasks currently in uploading state, sorted by updated time descending
+func (d *DB) GetUploadingTasks() ([]UploadState, error) {
+	var uploads []UploadState
+	err := d.db.View(func(tx *bbolt.Tx) error {
+		b := tx.Bucket([]byte(BucketUploads))
+		return b.ForEach(func(k, v []byte) error {
+			var state UploadState
+			if err := json.Unmarshal(v, &state); err != nil {
+				return nil
+			}
+			if state.Status == "uploading" {
+				uploads = append(uploads, state)
+			}
+			return nil
+		})
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Sort by UpdatedAt descending
+	sort.Slice(uploads, func(i, j int) bool {
+		return uploads[i].UpdatedAt.After(uploads[j].UpdatedAt)
+	})
+
+	return uploads, nil
+}
+
+// AdoptChildTask creates a new tracking record for a derived task (e.g. magnet handoff)
+func (d *DB) AdoptChildTask(childGid, parentGid string, targetRemote string, options map[string]interface{}) (bool, error) {
+	// Check if we already track it
+	_, err := d.GetUpload(childGid)
+	if err == nil {
+		return false, nil // Already tracked
+	}
+
+	err = d.SaveUpload(UploadState{
+		Gid:          childGid,
+		TargetRemote: targetRemote,
+		Status:       "pending",
+		StartedAt:    time.Now(),
+		Options:      options,
+	})
+	return err == nil, err
 }
 
 // GetGlobalStats returns cumulative transfer statistics
@@ -316,6 +493,95 @@ func (d *DB) IncrementUploadedTasks() error {
 func (d *DB) IncrementTotalTasks() error {
 	return d.UpdateGlobalStats(func(s *GlobalStats) {
 		s.TotalTasks++
+	})
+}
+
+// MarkComplete marks a task as complete and stores metadata
+func (d *DB) MarkComplete(gid, filePath string, totalLength int64) error {
+	return d.db.Update(func(tx *bbolt.Tx) error {
+		b := tx.Bucket([]byte(BucketUploads))
+		data := b.Get([]byte(gid))
+		if data == nil {
+			return fmt.Errorf("not found")
+		}
+
+		var state UploadState
+		if err := json.Unmarshal(data, &state); err != nil {
+			return err
+		}
+
+		state.Status = "complete"
+		state.FilePath = filePath
+		state.TotalLength = totalLength
+		state.UpdatedAt = time.Now()
+
+		newData, err := json.Marshal(state)
+		if err != nil {
+			return err
+		}
+		return b.Put([]byte(gid), newData)
+	})
+}
+
+// GetStoppedTasks returns tasks that are complete or in error state, sorted by updated time descending
+func (d *DB) GetStoppedTasks(offset, num int) ([]UploadState, int, error) {
+	var uploads []UploadState
+	err := d.db.View(func(tx *bbolt.Tx) error {
+		b := tx.Bucket([]byte(BucketUploads))
+		return b.ForEach(func(k, v []byte) error {
+			var state UploadState
+			if err := json.Unmarshal(v, &state); err != nil {
+				return nil
+			}
+			if state.Status == "complete" || state.Status == "error" || state.Status == "removed" {
+				uploads = append(uploads, state)
+			}
+			return nil
+		})
+	})
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// Sort by UpdatedAt descending
+	sort.Slice(uploads, func(i, j int) bool {
+		return uploads[i].UpdatedAt.After(uploads[j].UpdatedAt)
+	})
+
+	total := len(uploads)
+	if offset >= total {
+		return []UploadState{}, total, nil
+	}
+	end := offset + num
+	if end > total {
+		end = total
+	}
+
+	return uploads[offset:end], total, nil
+}
+
+// DeleteTask removes a task from the database
+func (d *DB) DeleteTask(gid string) error {
+	return d.db.Update(func(tx *bbolt.Tx) error {
+		b := tx.Bucket([]byte(BucketUploads))
+		return b.Delete([]byte(gid))
+	})
+}
+
+// PurgeTasks removes all stopped tasks (complete, error, removed) from the database
+func (d *DB) PurgeTasks() error {
+	return d.db.Update(func(tx *bbolt.Tx) error {
+		b := tx.Bucket([]byte(BucketUploads))
+		return b.ForEach(func(k, v []byte) error {
+			var state UploadState
+			if err := json.Unmarshal(v, &state); err != nil {
+				return nil
+			}
+			if state.Status == "complete" || state.Status == "error" || state.Status == "removed" {
+				return b.Delete(k)
+			}
+			return nil
+		})
 	})
 }
 

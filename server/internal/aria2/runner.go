@@ -13,6 +13,12 @@ type Runner struct {
 }
 
 func NewRunner(rpcPort int, rpcSecret string) *Runner {
+	home, _ := os.UserHomeDir()
+	dlDir := filepath.Join(home, "Downloads")
+	return NewCustomRunner(rpcPort, rpcSecret, dlDir)
+}
+
+func NewCustomRunner(rpcPort int, rpcSecret string, dlDir string) *Runner {
 	args := []string{
 		"--enable-rpc",
 		"--rpc-listen-all=false",
@@ -20,13 +26,8 @@ func NewRunner(rpcPort int, rpcSecret string) *Runner {
 		fmt.Sprintf("--rpc-listen-port=%d", rpcPort),
 		fmt.Sprintf("--rpc-secret=%s", rpcSecret),
 		"--continue=true",
-		// "--rpc-secure=false", // Default
+		fmt.Sprintf("--dir=%s", dlDir),
 	}
-
-	// Add default download dir if needed, or let user config handle it
-	home, _ := os.UserHomeDir()
-	dlDir := filepath.Join(home, "Downloads")
-	args = append(args, fmt.Sprintf("--dir=%s", dlDir))
 
 	return &Runner{
 		proc: process.New("aria2c", args),

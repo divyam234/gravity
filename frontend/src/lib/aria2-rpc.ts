@@ -332,6 +332,10 @@ export class Aria2Client {
 		]);
 	}
 
+	async tellUploading() {
+		return this.request<Aria2Task[]>("aria2.tellUploading");
+	}
+
 	async tellStatus(gid: string, keys?: string[]) {
 		return this.request<Aria2Task>("aria2.tellStatus", [gid, keys || []]);
 	}
@@ -447,6 +451,10 @@ export class Aria2Client {
 		return this.request<string>("aria2.saveSession");
 	}
 
+	async retryTask(gid: string) {
+		return this.request<string>("aria2.retryTask", [gid]);
+	}
+
 	// --- System ---
 
 	async multicall(methods: { methodName: string; params: any[] }[]) {
@@ -474,6 +482,14 @@ export class Aria2Client {
 
 	async rcloneGetVersion() {
 		return this.request<RcloneVersion>("rclone.getVersion", [{}]);
+	}
+
+	async rcloneCreateRemote(name: string, type: string, parameters: Record<string, string>) {
+		return this.request<any>("rclone.createRemote", [{ name, type, parameters }]);
+	}
+
+	async rcloneDeleteRemote(name: string) {
+		return this.request<any>("rclone.deleteRemote", [{ name }]);
 	}
 }
 

@@ -29,6 +29,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
 	const activeCount = Number(stats?.numActive ?? 0);
 	const waitingCount = Number(stats?.numWaiting ?? 0);
 	const stoppedCount = Number(stats?.numStopped ?? 0);
+	const uploadingCount = Number(stats?.numUploading ?? 0);
 
 	// Main Navigation Items
 	const mainNavItems = React.useMemo(
@@ -49,6 +50,14 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
 				color: "text-success",
 			},
 			{
+				key: "uploading",
+				label: "Uploading",
+				icon: <IconCloudArrowUpIn className="w-5 h-5" />,
+				linkOptions: tasksLinkOptions("uploading"),
+				count: uploadingCount,
+				color: "text-cyan-500",
+			},
+			{
 				key: "waiting",
 				label: "Queued",
 				icon: <IconClock className="w-5 h-5" />,
@@ -64,15 +73,8 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
 				count: stoppedCount,
 				color: "text-danger",
 			},
-			{
-				key: "transfers",
-				label: "Cloud Transfers",
-				icon: <IconCloudArrowUpIn className="w-5 h-5" />,
-				to: "/transfers",
-				count: null, // TODO: Fetch Rclone stats
-			},
 		],
-		[activeCount, waitingCount, stoppedCount],
+		[activeCount, waitingCount, stoppedCount, uploadingCount],
 	);
 
 	// Settings Navigation Items (derived from aria2GlobalAvailableOptions)

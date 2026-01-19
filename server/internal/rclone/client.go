@@ -6,15 +6,20 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 )
 
 type Client struct {
-	url string
+	url        string
+	httpClient *http.Client
 }
 
 func NewClient(url string) *Client {
 	return &Client{
 		url: url,
+		httpClient: &http.Client{
+			Timeout: 10 * time.Second,
+		},
 	}
 }
 
@@ -31,8 +36,7 @@ func (c *Client) Call(method string, params interface{}) (map[string]interface{}
 
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +65,7 @@ func (c *Client) CopyFile(srcFs, srcRemote, dstFs, dstRemote string) error {
 	return err
 }
 
-func (c *Client) CopyFileAsync(srcFs, srcRemote, dstFs, dstRemote string, customJobId int64) (string, error) {
+func (c *Client) CopyFileAsync(srcFs, srcRemote, dstFs, dstRemote, group string, customJobId int64) (string, error) {
 	params := map[string]interface{}{
 		"srcFs":     srcFs,
 		"srcRemote": srcRemote,
@@ -69,6 +73,7 @@ func (c *Client) CopyFileAsync(srcFs, srcRemote, dstFs, dstRemote string, custom
 		"dstRemote": dstRemote,
 		"_async":    true,
 		"_jobid":    customJobId,
+		"_group":    group,
 	}
 	res, err := c.Call("operations/copyfile", params)
 	if err != nil {
@@ -84,7 +89,28 @@ func (c *Client) CopyFileAsync(srcFs, srcRemote, dstFs, dstRemote string, custom
 	}
 
 	// If customJobId was respected, we can just return it stringified if response is missing it
-	// But let's trust the response or fallback
+	return fmt.Sprintf("%d", customJobId), nil
+}
+
+func (c *Client) CopyDirAsync(srcFs, dstFs, group string, customJobId int64) (string, error) {
+	params := map[string]interface{}{
+		"srcFs":  srcFs,
+		"dstFs":  dstFs,
+		"_async": true,
+		"_jobid": customJobId,
+		"_group": group,
+	}
+	res, err := c.Call("sync/copy", params)
+	if err != nil {
+		return "", err
+	}
+	if jobid, ok := res["jobid"].(json.Number); ok {
+		return jobid.String(), nil
+	} else if jobidStr, ok := res["jobid"].(string); ok {
+		return jobidStr, nil
+	} else if jobidInt, ok := res["jobid"].(float64); ok {
+		return fmt.Sprintf("%.0f", jobidInt), nil
+	}
 	return fmt.Sprintf("%d", customJobId), nil
 }
 

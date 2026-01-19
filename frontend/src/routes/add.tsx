@@ -56,7 +56,10 @@ function AddDownloadPage() {
 
   const { data: remotes = [] } = useRcloneRemotes();
 
-  const remoteOptions = remotes.map((r) => ({ id: r, name: r }));
+  const remoteOptions = [
+    { id: "none", name: "None (Local Only)" },
+    ...remotes.map((r) => ({ id: `${r}:`, name: `${r}:` }))
+  ];
 
   const { addUri, addTorrent, addMetalink } = useAria2Actions();
 
@@ -492,15 +495,15 @@ function AddDownloadPage() {
                       <Label className="text-[10px] font-black uppercase tracking-widest text-muted px-1">
                         Target Remote
                       </Label>
-                      <Select
-                        value={rcloneTargetRemote || "none"}
-                        onChange={(key) =>
-                          setRcloneTargetRemote(
-                            key === "none" ? "" : (key as string),
-                          )
-                        }
-                        placeholder="Select a remote..."
-                      >
+                        <Select
+                          selectedKey={rcloneTargetRemote || "none"}
+                          onSelectionChange={(key) =>
+                            setRcloneTargetRemote(
+                              key === "none" ? "" : (key as any),
+                            )
+                          }
+                          placeholder="Select a remote..."
+                        >
                         <Select.Trigger className="h-10 px-4 bg-default/10 rounded-xl hover:bg-default/20 transition-colors border-none outline-none">
                           <Select.Value className="text-sm font-medium" />
                           <Select.Indicator className="text-muted">

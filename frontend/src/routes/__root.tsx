@@ -2,6 +2,7 @@ import { TanStackDevtools } from "@tanstack/react-devtools";
 import type { QueryClient } from "@tanstack/react-query";
 import { createRootRouteWithContext, Outlet } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
+import { Toaster } from "sonner";
 import { Layout } from "../components/Layout";
 import TanStackQueryDevtools from "../integrations/tanstack-query/devtools";
 
@@ -17,6 +18,7 @@ function RootComponent() {
 	return (
 		<Layout>
 			<Outlet />
+			<Toaster position="bottom-right" richColors closeButton />
 			<TanStackDevtools
 				config={{
 					position: "bottom-right",
