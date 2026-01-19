@@ -29,6 +29,7 @@ import IconServer from "~icons/gravity-ui/server";
 import IconGear from "~icons/gravity-ui/gear";
 import { useEngineActions, useGlobalStat } from "../hooks/useEngine";
 import { useShortcuts } from "../hooks/useShortcuts";
+import { useWebSocketManager } from "../hooks/useWebSocket";
 import { useSettingsStore } from "../store/useSettingsStore";
 import { MobileSidebar, Sidebar } from "./Sidebar";
 
@@ -36,6 +37,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({
 	children,
 }) => {
 	useShortcuts();
+	useWebSocketManager();
 	const navigate = useNavigate();
 	const location = useLocation();
     const manageServersId = "manage-servers";

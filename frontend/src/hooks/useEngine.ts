@@ -7,6 +7,7 @@ import {
 import { toast } from "sonner";
 import { api } from "../lib/api";
 import { useSettingsStore } from "../store/useSettingsStore";
+import type { TaskStatus } from "../routes/tasks";
 
 // --- Query Options Helpers ---
 
@@ -56,7 +57,7 @@ export function useGlobalStat() {
 	const { pollingInterval } = useSettingsStore();
 	return useQuery({
 		...globalStatOptions(),
-		refetchInterval: pollingInterval,
+		refetchInterval: (query) => (query.state.status === 'error' ? false : pollingInterval),
 	});
 }
 
@@ -66,66 +67,41 @@ const fetchDownloads = async (status: string[], limit?: number, offset?: number)
 	return res.data;
 };
 
+export function useTasksByStatus(status: TaskStatus, options?: { enabled?: boolean, limit?: number, offset?: number }) {
+    const { pollingInterval } = useSettingsStore();
+    const limit = options?.limit ?? 50;
+    const offset = options?.offset ?? 0;
+    
+    return useQuery({
+        queryKey: ["gravity", "downloads", status, limit, offset],
+        queryFn: () => fetchDownloads([status], limit, offset),
+        refetchInterval: (query) => (query.state.status === 'error' ? false : pollingInterval),
+        enabled: options?.enabled ?? true,
+    });
+}
+
 export function useActiveTasks(options?: { enabled?: boolean }) {
-	const { pollingInterval } = useSettingsStore();
-	return useQuery({
-		queryKey: ["gravity", "downloads", "active"],
-		queryFn: () => fetchDownloads(['downloading', 'uploading', 'pending']),
-		refetchInterval: pollingInterval,
-		enabled: options?.enabled ?? true,
-	});
+    return useTasksByStatus("active", options);
 }
 
-export function useWaitingTasks(
-	offset = 0,
-	num = 100,
-	options?: { enabled?: boolean },
-) {
-	const { pollingInterval } = useSettingsStore();
-	return useQuery({
-		queryKey: ["gravity", "downloads", "waiting", offset, num],
-		queryFn: () => fetchDownloads(['paused'], num, offset),
-		refetchInterval: pollingInterval,
-		enabled: options?.enabled ?? true,
-	});
+export function useWaitingTasks(options?: { enabled?: boolean }) {
+    return useTasksByStatus("waiting", options);
 }
 
-export function useStoppedTasks(
-	offset = 0,
-	num = 100,
-	options?: { enabled?: boolean },
-) {
-	const { pollingInterval } = useSettingsStore();
-	return useQuery({
-		queryKey: ["gravity", "downloads", "stopped", offset, num],
-		queryFn: () => fetchDownloads(['complete'], num, offset),
-		refetchInterval: pollingInterval,
-		enabled: options?.enabled ?? true,
-	});
+export function usePausedTasks(options?: { enabled?: boolean }) {
+    return useTasksByStatus("paused", options);
 }
 
 export function useUploadingTasks(options?: { enabled?: boolean }) {
-	const { pollingInterval } = useSettingsStore();
-	return useQuery({
-		queryKey: ["gravity", "downloads", "uploading"],
-		queryFn: () => fetchDownloads(['uploading']),
-		refetchInterval: pollingInterval,
-		enabled: options?.enabled ?? true,
-	});
+    return useTasksByStatus("uploading", options);
 }
 
-export function useFailedTasks(
-	offset = 0,
-	num = 100,
-	options?: { enabled?: boolean },
-) {
-	const { pollingInterval } = useSettingsStore();
-	return useQuery({
-		queryKey: ["gravity", "downloads", "failed", offset, num],
-		queryFn: () => fetchDownloads(['error'], num, offset),
-		refetchInterval: pollingInterval,
-		enabled: options?.enabled ?? true,
-	});
+export function useCompletedTasks(options?: { enabled?: boolean }) {
+    return useTasksByStatus("complete", options);
+}
+
+export function useErrorTasks(options?: { enabled?: boolean }) {
+    return useTasksByStatus("error", options);
 }
 
 export function useRecentDownloads(limit = 5) {
@@ -133,37 +109,41 @@ export function useRecentDownloads(limit = 5) {
 	return useQuery({
 		queryKey: ["gravity", "downloads", "recent", limit],
 		queryFn: () => fetchDownloads([], limit),
-		refetchInterval: pollingInterval,
+		refetchInterval: (query) => (query.state.status === 'error' ? false : pollingInterval),
 	});
 }
 
 export function useAllTasks(
-	status: "active" | "waiting" | "stopped" | "uploading" | "failed" = "active",
+	status: TaskStatus = "active",
 ) {
 	const active = useActiveTasks({ enabled: status === "active" });
+	const waiting = useWaitingTasks({ enabled: status === "waiting" });
 	const uploading = useUploadingTasks({ enabled: status === "uploading" });
-	const waiting = useWaitingTasks(0, 50, { enabled: status === "waiting" });
-	const stopped = useStoppedTasks(0, 50, { enabled: status === "stopped" });
-	const failed = useFailedTasks(0, 50, { enabled: status === "failed" });
+	const paused = usePausedTasks({ enabled: status === "paused" });
+	const complete = useCompletedTasks({ enabled: status === "complete" });
+	const error = useErrorTasks({ enabled: status === "error" });
 
 	return {
 		active: active.data || [],
-		uploading: uploading.data || [],
 		waiting: waiting.data || [],
-		stopped: stopped.data || [],
-		failed: failed.data || [],
+		uploading: uploading.data || [],
+		paused: paused.data || [],
+		complete: complete.data || [],
+		error: error.data || [],
 		isLoading:
 			active.isLoading ||
 			waiting.isLoading ||
-			stopped.isLoading ||
 			uploading.isLoading ||
-			failed.isLoading,
+			paused.isLoading ||
+			complete.isLoading ||
+			error.isLoading,
 		refetch: () => {
 			if (status === "active") active.refetch();
-			if (status === "uploading") uploading.refetch();
 			if (status === "waiting") waiting.refetch();
-			if (status === "stopped") stopped.refetch();
-			if (status === "failed") failed.refetch();
+			if (status === "uploading") uploading.refetch();
+			if (status === "paused") paused.refetch();
+			if (status === "complete") complete.refetch();
+			if (status === "error") error.refetch();
 		},
 	};
 }
@@ -209,7 +189,7 @@ export function useTaskStatus(gid: string) {
 	return useQuery({
 		...taskStatusOptions(gid),
 		enabled: !!gid,
-		refetchInterval: 2000,
+		refetchInterval: (query) => (query.state.status === 'error' ? false : 2000),
 	});
 }
 

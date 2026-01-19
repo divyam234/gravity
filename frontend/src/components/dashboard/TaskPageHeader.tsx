@@ -2,34 +2,35 @@ import { Button, Checkbox, Tooltip } from "@heroui/react";
 import React from "react";
 import IconLayoutCellsLarge from "~icons/gravity-ui/layout-cells-large";
 import IconListUl from "~icons/gravity-ui/list-ul";
-import { useAllTasks, useEngineActions } from "../../hooks/useEngine";
+import { useTasksByStatus, useEngineActions } from "../../hooks/useEngine";
 import { cn } from "../../lib/utils";
 import { useSettingsStore } from "../../store/useSettingsStore";
+import type { TaskStatus } from "../../routes/tasks";
+import type { Download } from "../../lib/types";
 
 interface TaskPageHeaderProps {
 	title: string;
 	titleColor?: string;
+    status: TaskStatus;
 }
 
 export const TaskPageHeader: React.FC<TaskPageHeaderProps> = ({
 	title,
 	titleColor,
+    status,
 }) => {
 	const {
 		viewMode,
 		setViewMode,
 		isSelectionMode,
-		setIsSelectionMode,
 		selectedGids,
 		setSelectedGids,
+		setIsSelectionMode,
 	} = useSettingsStore();
-	const { active, waiting, stopped } = useAllTasks();
-	const { pause, unpause } = useEngineActions();
+    
+	const { data: allTasks = [] } = useTasksByStatus(status);
 
-	const allTasks = React.useMemo(
-		() => [...active, ...waiting, ...stopped],
-		[active, waiting, stopped],
-	);
+	const { pause, unpause } = useEngineActions();
 
 	const isAllSelected =
 		allTasks.length > 0 && selectedGids.size === allTasks.length;
@@ -59,7 +60,7 @@ export const TaskPageHeader: React.FC<TaskPageHeaderProps> = ({
 								isIndeterminate={isIndeterminate}
 								onChange={(selected) => {
 									if (selected)
-										setSelectedGids(new Set(allTasks.map((t) => t.id)));
+										setSelectedGids(new Set(allTasks.map((t: Download) => t.id)));
 									else setSelectedGids(new Set());
 								}}
 							/>

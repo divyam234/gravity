@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"embed"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -19,6 +20,10 @@ type Store struct {
 }
 
 func New(dataDir string) (*Store, error) {
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create data directory: %w", err)
+	}
+
 	dbPath := filepath.Join(dataDir, "gravity.db")
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {

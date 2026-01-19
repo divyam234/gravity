@@ -62,12 +62,13 @@ func (s *StatsService) GetCurrent(ctx context.Context) (map[string]interface{}, 
 	pausedDownloads := 0
 	downloadSpeed := int64(0)
 	for _, d := range downloads {
-		if d.Status == "active" || d.Status == "downloading" {
+		status := model.DownloadStatus(d.Status)
+		if status == model.StatusActive {
 			activeDownloads++
 			downloadSpeed += d.Speed
-		} else if d.Status == "paused" {
+		} else if status == model.StatusPaused {
 			pausedDownloads++
-		} else if d.Status == "waiting" || d.Status == "pending" {
+		} else if status == model.StatusWaiting {
 			pendingDownloads++
 		}
 	}

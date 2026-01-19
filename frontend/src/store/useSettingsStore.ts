@@ -119,8 +119,10 @@ export const useSettingsStore = create<SettingsState>()(
                 activeServerId: state.activeServerId,
 			}),
             onRehydrateStorage: () => (state) => {
+                if (!state) return;
+                
                 // Ensure default server if empty
-                if (state && state.servers.length === 0) {
+                if (state.servers.length === 0) {
                     const defaultId = "default-local";
                     state.servers = [{
                         id: defaultId,
@@ -129,6 +131,13 @@ export const useSettingsStore = create<SettingsState>()(
                         apiKey: ""
                     }];
                     state.activeServerId = defaultId;
+                }
+
+                // Sync API client with rehydrated state
+                const active = state.servers.find(s => s.id === state.activeServerId);
+                if (active) {
+                    api.setBaseUrl(active.serverUrl);
+                    api.setApiKey(active.apiKey);
                 }
             }
 		},

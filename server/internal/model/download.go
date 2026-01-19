@@ -7,12 +7,12 @@ import (
 type DownloadStatus string
 
 const (
-	StatusPending     DownloadStatus = "pending"
-	StatusDownloading DownloadStatus = "downloading"
-	StatusPaused      DownloadStatus = "paused"
-	StatusUploading   DownloadStatus = "uploading"
-	StatusComplete    DownloadStatus = "complete"
-	StatusError       DownloadStatus = "error"
+	StatusActive    DownloadStatus = "active"
+	StatusWaiting   DownloadStatus = "waiting"
+	StatusPaused    DownloadStatus = "paused"
+	StatusUploading DownloadStatus = "uploading"
+	StatusComplete  DownloadStatus = "complete"
+	StatusError     DownloadStatus = "error"
 )
 
 type Download struct {

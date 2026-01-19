@@ -87,6 +87,13 @@ func (s *UploadService) handleProgress(jobID string, p engine.UploadProgress) {
 		return
 	}
 
+	// Update DB with latest progress
+	if p.Size > 0 {
+		d.UploadProgress = int((p.Uploaded * 100) / p.Size)
+	}
+	d.UploadSpeed = p.Speed
+	s.repo.Update(ctx, d)
+
 	s.bus.Publish(event.Event{
 		Type:      event.UploadProgress,
 		Timestamp: time.Now(),

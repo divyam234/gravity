@@ -26,10 +26,11 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
   const { data: stats } = useStats();
 
   const activeCount = stats?.active?.downloads ?? 0;
-  const waitingCount = stats?.queue?.pending ?? 0;
-  const stoppedCount = (stats?.totals?.downloads_completed ?? 0) + (stats?.totals?.uploads_completed ?? 0);
+  const pendingCount = stats?.queue?.pending ?? 0;
+  const pausedCount = stats?.queue?.paused ?? 0;
+  const completeCount = stats?.totals?.downloads_completed ?? 0;
   const uploadingCount = stats?.active?.uploads ?? 0;
-  const failedCount = stats?.totals?.downloads_failed ?? 0;
+  const errorCount = stats?.totals?.downloads_failed ?? 0;
 
   const mainNavItems = React.useMemo(
     () => [
@@ -57,31 +58,39 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
         color: "text-cyan-500",
       },
       {
-        key: "waiting",
-        label: "Queued",
+        key: "paused",
+        label: "Paused",
         icon: <IconClock className="w-5 h-5" />,
-        linkOptions: tasksLinkOptions("waiting"),
-        count: waitingCount,
+        linkOptions: tasksLinkOptions("paused"),
+        count: pausedCount,
         color: "text-warning",
       },
       {
-        key: "stopped",
-        label: "Finished",
+        key: "waiting",
+        label: "Waiting",
+        icon: <IconClock className="w-5 h-5" />,
+        linkOptions: tasksLinkOptions("waiting"),
+        count: pendingCount,
+        color: "text-muted",
+      },
+      {
+        key: "complete",
+        label: "Completed",
         icon: <IconCheck className="w-5 h-5" />,
-        linkOptions: tasksLinkOptions("stopped"),
-        count: stoppedCount,
+        linkOptions: tasksLinkOptions("complete"),
+        count: completeCount,
         color: "text-accent",
       },
       {
-        key: "failed",
+        key: "error",
         label: "Failed",
         icon: <IconCircleXmark className="w-5 h-5" />,
-        linkOptions: tasksLinkOptions("failed"),
-        count: failedCount,
+        linkOptions: tasksLinkOptions("error"),
+        count: errorCount,
         color: "text-danger",
       },
     ],
-    [activeCount, waitingCount, stoppedCount, uploadingCount, failedCount]
+    [activeCount, pendingCount, pausedCount, completeCount, uploadingCount, errorCount]
   );
 
   const settingsNavItems = [

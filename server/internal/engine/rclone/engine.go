@@ -208,12 +208,12 @@ func (e *Engine) ListRemotes(ctx context.Context) ([]engine.Remote, error) {
 		return nil, err
 	}
 
-	results := make([]engine.Remote, len(remotes.Remotes))
-	for i, r := range remotes.Remotes {
-		results[i] = engine.Remote{
+	results := make([]engine.Remote, 0, len(remotes.Remotes))
+	for _, r := range remotes.Remotes {
+		results = append(results, engine.Remote{
 			Name:      r,
 			Connected: true,
-		}
+		})
 	}
 
 	return results, nil

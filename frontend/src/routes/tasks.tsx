@@ -5,7 +5,7 @@ import { TaskPageHeader } from "../components/dashboard/TaskPageHeader";
 
 const taskSearchSchema = z.object({
   status: z
-    .enum(["active", "waiting", "stopped", "uploading", "failed"])
+    .enum(["active", "waiting", "paused", "uploading", "complete", "error"])
     .default("active"),
 });
 
@@ -25,25 +25,27 @@ export const Route = createFileRoute("/tasks")({
 function TasksPage() {
   const { status } = Route.useSearch();
 
-  const titles: Record<string, string> = {
+  const titles: Record<TaskStatus, string> = {
     active: "Active",
-    waiting: "Queued",
-    stopped: "Finished",
+    waiting: "Waiting",
+    paused: "Paused",
     uploading: "Uploading",
-    failed: "Failed",
+    complete: "Completed",
+    error: "Failed",
   };
 
-  const colors: Record<string, string> = {
+  const colors: Record<TaskStatus, string> = {
     active: "text-success",
-    waiting: "text-warning",
-    stopped: "text-accent",
+    waiting: "text-muted",
+    paused: "text-warning",
     uploading: "text-cyan-500",
-    failed: "text-danger",
+    complete: "text-accent",
+    error: "text-danger",
   };
 
   return (
     <div className="space-y-6 px-1">
-      <TaskPageHeader title={titles[status]} titleColor={colors[status]} />
+      <TaskPageHeader title={titles[status]} titleColor={colors[status]} status={status} />
       <TaskList status={status} />
     </div>
   );

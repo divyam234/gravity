@@ -165,6 +165,12 @@ func (e *Engine) List(ctx context.Context) ([]*engine.DownloadStatus, error) {
 	return results, nil
 }
 
+func (e *Engine) Sync(ctx context.Context) error {
+	// Aria2 handles session recovery via its session file automatically.
+	// We can use this method to verify connectivity if needed.
+	return nil
+}
+
 func (e *Engine) Configure(ctx context.Context, options map[string]string) error {
 	// Map generic keys to Aria2 keys
 	keyMap := map[string]string{
@@ -307,16 +313,39 @@ func (e *Engine) mapStatus(t *Aria2Task) *engine.DownloadStatus {
 	completed, _ := strconv.ParseInt(t.CompletedLength, 10, 64)
 	speed, _ := strconv.ParseInt(t.DownloadSpeed, 10, 64)
 	conn, _ := strconv.Atoi(t.Connections)
-	eta, _ := strconv.Atoi(t.Eta)
+
+	// Calculate ETA manually if speed > 0
+	eta := 0
+	if speed > 0 && total > 0 {
+		remaining := total - completed
+		if remaining > 0 {
+			eta = int(remaining / speed)
+		}
+	}
+
+	// Map Aria2 status to Gravity canonical status
+	status := t.Status
+	switch t.Status {
+	case "active":
+		status = "active"
+	case "waiting":
+		status = "waiting"
+	case "paused":
+		status = "paused"
+	case "complete":
+		status = "complete"
+	case "error":
+		status = "error"
+	}
 
 	filename := ""
 	if len(t.Files) > 0 {
-		filename = t.Files[0].Path
+		filename = filepath.Base(t.Files[0].Path)
 	}
 
 	return &engine.DownloadStatus{
 		ID:          t.Gid,
-		Status:      t.Status,
+		Status:      status,
 		URL:         "", // Aria2 doesn't return original URL easily in tellStatus
 		Filename:    filename,
 		Dir:         t.Dir,

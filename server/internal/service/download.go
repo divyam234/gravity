@@ -55,7 +55,7 @@ func (s *DownloadService) Create(ctx context.Context, url string, filename strin
 		Filename:    filename,
 		Size:        res.Size,
 		Destination: destination,
-		Status:      model.StatusPending,
+		Status:      model.StatusWaiting,
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}
@@ -77,7 +77,7 @@ func (s *DownloadService) Create(ctx context.Context, url string, filename strin
 	}
 
 	d.EngineID = engineID
-	d.Status = model.StatusDownloading
+	d.Status = model.StatusActive
 	if err := s.repo.Update(ctx, d); err != nil {
 		return nil, err
 	}
@@ -129,7 +129,7 @@ func (s *DownloadService) Resume(ctx context.Context, id string) error {
 		return err
 	}
 
-	d.Status = model.StatusDownloading
+	d.Status = model.StatusActive
 	if err := s.repo.Update(ctx, d); err != nil {
 		return err
 	}
@@ -166,7 +166,7 @@ func (s *DownloadService) Retry(ctx context.Context, id string) error {
 	}
 
 	d.EngineID = engineID
-	d.Status = model.StatusDownloading
+	d.Status = model.StatusActive
 	d.Error = ""
 	d.Downloaded = 0 // Reset progress?
 	// d.Size = 0 // Keep size if known
@@ -208,12 +208,65 @@ func (s *DownloadService) List(ctx context.Context, status []string, limit, offs
 	return s.repo.List(ctx, status, limit, offset)
 }
 
+func (s *DownloadService) Sync(ctx context.Context) error {
+	// 1. Get all downloads from engine
+	engineTasks, err := s.engine.List(ctx)
+	if err != nil {
+		return err
+	}
+
+	// 2. Get all non-complete downloads from repo
+	dbDownloads, _, err := s.repo.List(ctx, []string{
+		string(model.StatusActive),
+		string(model.StatusPaused),
+		string(model.StatusWaiting),
+	}, 1000, 0)
+	if err != nil {
+		return err
+	}
+
+	// 3. Map engine tasks by filename (simplistic mapping)
+	engineMap := make(map[string]*engine.DownloadStatus)
+	for _, t := range engineTasks {
+		if t.Filename != "" {
+			engineMap[t.Filename] = t
+		}
+	}
+
+	// 4. Update EngineID for downloads that exist in engine
+	for _, d := range dbDownloads {
+		if t, ok := engineMap[d.Filename]; ok {
+			d.EngineID = t.ID
+			// Engine status is already mapped to canonical Gravity status
+			d.Status = model.DownloadStatus(t.Status)
+			s.repo.Update(ctx, d)
+		} else {
+			// If not in engine but was downloading, it might have failed or session lost
+			// Only mark as error if it was actually downloading before
+			if d.Status == model.StatusActive {
+				d.Status = model.StatusError
+				d.Error = "Engine task lost"
+				s.repo.Update(ctx, d)
+			}
+		}
+	}
+
+	return nil
+}
+
 func (s *DownloadService) handleProgress(engineID string, p engine.Progress) {
 	ctx := context.Background()
 	d, err := s.repo.GetByEngineID(ctx, engineID)
 	if err != nil {
 		return
 	}
+
+	// Update DB with latest progress
+	d.Downloaded = p.Downloaded
+	d.Size = p.Size
+	d.Speed = p.Speed
+	d.ETA = p.ETA
+	s.repo.Update(ctx, d)
 
 	s.bus.Publish(event.Event{
 		Type:      event.DownloadProgress,

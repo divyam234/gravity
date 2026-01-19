@@ -78,7 +78,7 @@ func (r *DownloadRepo) List(ctx context.Context, status []string, limit, offset 
 	}
 	defer rows.Close()
 
-	var downloads []*model.Download
+	downloads := []*model.Download{}
 	for rows.Next() {
 		d, err := r.scanDownload(rows)
 		if err != nil {

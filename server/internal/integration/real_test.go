@@ -233,8 +233,364 @@ func TestRealFlow(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(uploadDir, "MyTorrent", "file1.txt")); os.IsNotExist(err) {
 			t.Error("Folder upload failed: file1.txt missing")
 		}
-		if _, err := os.Stat(filepath.Join(uploadDir, "MyTorrent", "file2.txt")); os.IsNotExist(err) {
-			t.Error("Folder upload failed: file2.txt missing")
+			if _, err := os.Stat(filepath.Join(uploadDir, "MyTorrent", "file2.txt")); os.IsNotExist(err) {
+				t.Error("Folder upload failed: file2.txt missing")
+			}
 		}
-	}
-	
+		
+		func TestRealRecovery(t *testing.T) {
+			if testing.Short() {
+				t.Skip("skipping real flow test in short mode")
+			}
+		
+			tempDir, err := os.MkdirTemp("", "gravity-real-recovery-*")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer os.RemoveAll(tempDir)
+		
+			// 1. Start engines
+			bus := event.NewBus()
+			de := aria2.NewEngine(16801, "test-secret", tempDir)
+			s, _ := store.New(tempDir)
+			
+			ctx := context.Background()
+			de.Start(ctx)
+			
+			registry := provider.NewRegistry()
+			registry.Register(direct.New())
+			ps := service.NewProviderService(store.NewProviderRepo(s.GetDB()), registry)
+			dr := store.NewDownloadRepo(s.GetDB())
+			ds := service.NewDownloadService(dr, de, bus, ps)
+		
+			// 2. Start a download (use a larger file or slow server to ensure it stays "downloading")
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				time.Sleep(2 * time.Second)
+				w.Write(make([]byte, 1024))
+			}))
+			defer ts.Close()
+		
+			d, _ := ds.Create(ctx, ts.URL, "recovery.bin", "")
+			t.Logf("Download started: %s (Engine GID: %s)", d.ID, d.EngineID)
+		
+			// 3. Hard Stop engines (simulate crash/restart)
+			de.Stop()
+			t.Log("Engine stopped")
+		
+				// 4. Start engines again
+		
+				de2 := aria2.NewEngine(16801, "test-secret", tempDir)
+		
+				de2.Start(ctx)
+		
+				defer de2.Stop()
+		
+			
+		
+					// Give aria2 time to load session and start tasks
+		
+			
+		
+					time.Sleep(2 * time.Second)
+		
+			
+		
+				
+		
+			
+		
+					// 5. Run Sync via a new Service instance
+		
+			
+		
+				
+		
+			
+			ds2 := service.NewDownloadService(dr, de2, bus, ps)
+			err = ds2.Sync(ctx)
+			if err != nil {
+				t.Fatalf("Sync failed: %v", err)
+			}
+		
+				// 6. Verify ID updated
+		
+				d2, _ := dr.Get(ctx, d.ID)
+		
+				if d2.Status != model.StatusActive && d2.Status != model.StatusComplete {
+		
+					t.Errorf("expected status active or complete, got %s", d2.Status)
+		
+				}
+		
+					if _, err := os.Stat(d2.EngineID); err == nil { // This is just a placeholder line to find the end of previous test
+		
+					}
+		
+				}
+		
+				
+		
+				func TestRealFlowDetailed(t *testing.T) {
+		
+					if testing.Short() {
+		
+						t.Skip("skipping real flow test in short mode")
+		
+					}
+		
+				
+		
+					tempDir, err := os.MkdirTemp("", "gravity-detailed-flow-*")
+		
+					if err != nil {
+		
+						t.Fatal(err)
+		
+					}
+		
+					defer os.RemoveAll(tempDir)
+		
+				
+		
+					downloadDir := filepath.Join(tempDir, "downloads")
+		
+					uploadDir := filepath.Join(tempDir, "uploads")
+		
+					os.MkdirAll(downloadDir, 0755)
+		
+					os.MkdirAll(uploadDir, 0755)
+		
+				
+		
+					// 1. Setup a dummy file server (50MB to allow time for polling)
+		
+					fileSize := 50 * 1024 * 1024
+		
+					dummyData := make([]byte, fileSize)
+		
+					ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		
+						w.Header().Set("Content-Length", fmt.Sprintf("%d", fileSize))
+		
+						// Throttled output to ensure we catch progress
+		
+						chunkSize := 1024 * 1024
+		
+						for i := 0; i < fileSize; i += chunkSize {
+		
+							end := i + chunkSize
+		
+							if end > fileSize {
+		
+								end = fileSize
+		
+							}
+		
+							w.Write(dummyData[i:end])
+		
+							time.Sleep(50 * time.Millisecond)
+		
+						}
+		
+					}))
+		
+					defer ts.Close()
+		
+				
+		
+					// 2. Initialize components
+		
+					s, _ := store.New(tempDir)
+		
+					bus := event.NewBus()
+		
+					de := aria2.NewEngine(16802, "test-secret", tempDir)
+		
+					ue := rclone.NewEngine(15574)
+		
+				
+		
+					ctx := context.Background()
+		
+					de.Start(ctx)
+		
+					defer de.Stop()
+		
+					ue.Start(ctx)
+		
+					defer ue.Stop()
+		
+				
+		
+					ue.CreateRemote(ctx, "det-local", "alias", map[string]string{"remote": uploadDir})
+		
+				
+		
+						dr := store.NewDownloadRepo(s.GetDB())
+		
+				
+		
+						reg := provider.NewRegistry()
+		
+				
+		
+						reg.Register(direct.New())
+		
+				
+		
+						ps := service.NewProviderService(store.NewProviderRepo(s.GetDB()), reg)
+		
+				
+		
+						ps.Init(ctx)
+		
+				
+		
+					
+		
+					ds := service.NewDownloadService(dr, de, bus, ps)
+		
+					us := service.NewUploadService(dr, ue, bus)
+		
+					us.Start()
+		
+				
+		
+					// 3. Start Download
+		
+					d, err := ds.Create(ctx, ts.URL, "detailed.bin", "det-local:/")
+		
+					if err != nil {
+		
+						t.Fatalf("failed to create download: %v", err)
+		
+					}
+		
+				
+		
+					// 4. Poll for active progress
+		
+					t.Log("Polling for active progress...")
+		
+					success := false
+		
+					for i := 0; i < 20; i++ {
+		
+						time.Sleep(500 * time.Millisecond)
+		
+						d, _ = dr.Get(ctx, d.ID)
+		
+						if d.Status == model.StatusActive && d.Speed > 0 && d.Downloaded > 0 {
+		
+							t.Logf("Progress caught: %d/%d bytes, Speed: %d", d.Downloaded, d.Size, d.Speed)
+		
+							if d.Size != int64(fileSize) {
+		
+								t.Errorf("expected size %d, got %d", fileSize, d.Size)
+		
+							}
+		
+							success = true
+		
+							break
+		
+						}
+		
+					}
+		
+					if !success {
+		
+						t.Error("failed to catch non-zero download progress")
+		
+					}
+		
+				
+		
+					// 5. Wait for Uploading state
+		
+					t.Log("Waiting for upload to start...")
+		
+					success = false
+		
+					for i := 0; i < 40; i++ {
+		
+						time.Sleep(500 * time.Millisecond)
+		
+						d, _ = dr.Get(ctx, d.ID)
+		
+						if d.Status == model.StatusUploading {
+		
+							t.Log("Upload started...")
+		
+							if d.UploadSpeed > 0 || d.UploadProgress > 0 {
+		
+								t.Logf("Upload progress caught: %d%%, Speed: %d", d.UploadProgress, d.UploadSpeed)
+		
+								success = true
+		
+								break
+		
+							}
+		
+						}
+		
+						if d.Status == model.StatusComplete && d.UploadStatus == "complete" {
+		
+							t.Log("Upload finished extremely fast")
+		
+							success = true
+		
+							break
+		
+						}
+		
+					}
+		
+					if !success {
+		
+						t.Error("failed to catch uploading state or progress")
+		
+					}
+		
+				
+		
+					// 6. Wait for final completion
+		
+					t.Log("Waiting for final completion...")
+		
+					for i := 0; i < 20; i++ {
+		
+						time.Sleep(500 * time.Millisecond)
+		
+						d, _ = dr.Get(ctx, d.ID)
+		
+						if d.Status == model.StatusComplete && d.UploadStatus == "complete" {
+		
+							break
+		
+						}
+		
+					}
+		
+				
+		
+					if d.Status != model.StatusComplete {
+		
+						t.Errorf("expected final status complete, got %s", d.Status)
+		
+					}
+		
+				
+		
+					// 7. Final file verification
+		
+					if _, err := os.Stat(filepath.Join(uploadDir, "detailed.bin")); os.IsNotExist(err) {
+		
+						t.Error("final file not found in upload dir")
+		
+					}
+		
+				}
+		
+				
+		

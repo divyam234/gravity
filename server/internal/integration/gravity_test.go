@@ -46,6 +46,9 @@ func (m *mockDownloadEngine) Status(ctx context.Context, id string) (*engine.Dow
 func (m *mockDownloadEngine) List(ctx context.Context) ([]*engine.DownloadStatus, error) {
 	return []*engine.DownloadStatus{}, nil
 }
+func (m *mockDownloadEngine) Sync(ctx context.Context) error {
+	return nil
+}
 func (m *mockDownloadEngine) Configure(ctx context.Context, options map[string]string) error {
 	m.config = options
 	return nil
@@ -159,8 +162,8 @@ func TestDownloadLifecycle(t *testing.T) {
 	// 3. Resume
 	ds.Resume(context.Background(), id)
 	dUpdated, _ = ds.Get(context.Background(), id)
-	if dUpdated.Status != model.StatusDownloading {
-		t.Errorf("expected downloading, got %s", dUpdated.Status)
+	if dUpdated.Status != model.StatusActive {
+		t.Errorf("expected active, got %s", dUpdated.Status)
 	}
 
 	// 4. Complete (simulate engine event)
@@ -287,8 +290,8 @@ func TestRetry(t *testing.T) {
 	}
 
 	d, _ = ds.Get(context.Background(), d.ID)
-	if d.Status != model.StatusDownloading {
-		t.Errorf("expected downloading after retry, got %s", d.Status)
+	if d.Status != model.StatusActive {
+		t.Errorf("expected active after retry, got %s", d.Status)
 	}
 	if d.Error != "" {
 		t.Errorf("expected error cleared, got %s", d.Error)

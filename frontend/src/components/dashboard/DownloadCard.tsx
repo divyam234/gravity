@@ -25,7 +25,7 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
   const progress = task.size > 0 ? (task.downloaded / task.size) * 100 : 0;
   
   const isPaused = task.status === "paused";
-  const isActive = task.status === "downloading";
+  const isActive = task.status === "active";
   const isError = task.status === "error";
   const isComplete = task.status === "complete";
   const isUploading = task.status === "uploading";

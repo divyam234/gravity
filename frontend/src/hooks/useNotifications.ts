@@ -1,15 +1,16 @@
 import { useEffect, useRef } from "react";
 import { api } from "../lib/api";
 import { useSettingsStore } from "../store/useSettingsStore";
-import { useActiveTasks, useGlobalStat } from "./useEngine";
+import { useActiveTasks, useUploadingTasks, useGlobalStat } from "./useEngine";
 
 export function useNotifications() {
 	const { enableNotifications } = useSettingsStore();
 	const { data: stats } = useGlobalStat();
 	// Only poll active tasks if notifications are enabled AND there are active tasks
-	const hasActive = enableNotifications && Number(stats?.numActive) > 0;
+	const hasActive = enableNotifications && ((stats?.numActive ?? 0) > 0);
 
 	const { data: activeTasks } = useActiveTasks({ enabled: hasActive });
+	const { data: uploadingTasks } = useUploadingTasks({ enabled: hasActive });
 	const previousActiveGids = useRef<Set<string>>(new Set());
 
 	useEffect(() => {
@@ -26,9 +27,12 @@ export function useNotifications() {
 		if (!enableNotifications) return;
 
 		// If we have no active tasks and no history, nothing to do
-		if (!activeTasks && previousActiveGids.current.size === 0) return;
+		if (!activeTasks && !uploadingTasks && previousActiveGids.current.size === 0) return;
 
-		const currentActiveGids = new Set(activeTasks?.map((t: any) => t.id) || []); // Changed .gid to .id
+		const currentActiveGids = new Set([
+            ...(activeTasks?.map((t: any) => t.id) || []),
+            ...(uploadingTasks?.map((t: any) => t.id) || [])
+        ]);
 
 		// Check for tasks that were active and are now missing
 		const checkFinishedTasks = async () => {
@@ -61,6 +65,12 @@ export function useNotifications() {
 			previousActiveGids.current = currentActiveGids;
 		};
 
-		checkFinishedTasks();
-	}, [activeTasks, enableNotifications]);
-}
+						checkFinishedTasks();
+
+					}, [activeTasks, uploadingTasks, enableNotifications]);
+
+				}
+
+				
+
+		

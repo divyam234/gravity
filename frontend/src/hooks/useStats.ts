@@ -11,7 +11,7 @@ export function useStats() {
   const query = useQuery({
     queryKey: ['stats'],
     queryFn: () => api.getStats(),
-    refetchInterval: 5000,
+    refetchInterval: (query) => (query.state.status === 'error' ? false : 5000),
   });
 
   useEffect(() => {

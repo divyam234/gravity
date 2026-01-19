@@ -6,18 +6,19 @@ import IconPause from "~icons/gravity-ui/pause";
 import IconPlay from "~icons/gravity-ui/play";
 import IconPulse from "~icons/gravity-ui/pulse";
 import IconTrashBin from "~icons/gravity-ui/trash-bin";
-import { useDownloadActions, useDownloads } from "../../hooks/useDownloads";
+import { useTasksByStatus, useEngineActions } from "../../hooks/useEngine";
 import { cn } from "../../lib/utils";
 import { useSettingsStore } from "../../store/useSettingsStore";
 import { DownloadCard } from "./DownloadCard";
+import type { TaskStatus } from "../../routes/tasks";
 
 interface TaskListProps {
-  status: string;
+  status: TaskStatus;
 }
 
 export const TaskList: React.FC<TaskListProps> = ({ status }) => {
-  const { data, isLoading } = useDownloads({ status: [status] });
-  const { pause, resume, remove } = useDownloadActions();
+  const { data: tasks = [], isLoading } = useTasksByStatus(status);
+  const { pause, unpause, remove } = useEngineActions();
   const baseId = useId();
   const {
     viewMode,
@@ -27,8 +28,8 @@ export const TaskList: React.FC<TaskListProps> = ({ status }) => {
     toggleGidSelection,
   } = useSettingsStore();
 
-  const tasks = React.useMemo(() => {
-    let t = data?.data || [];
+  const filteredTasks = React.useMemo(() => {
+    let t = tasks;
 
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
@@ -39,16 +40,16 @@ export const TaskList: React.FC<TaskListProps> = ({ status }) => {
     }
 
     return t;
-  }, [data, searchQuery]);
+  }, [tasks, searchQuery]);
 
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-4">
-        {isLoading && tasks.length === 0 ? (
+        {isLoading && filteredTasks.length === 0 ? (
           <div className="flex justify-center py-12">
             <IconPulse className="w-8 h-8 text-muted animate-pulse" />
           </div>
-        ) : tasks.length === 0 ? (
+        ) : filteredTasks.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-muted">
             <IconArchive className="w-12 h-12 mb-4 opacity-50" />
             <p className="text-lg font-medium">No tasks found</p>
@@ -68,7 +69,7 @@ export const TaskList: React.FC<TaskListProps> = ({ status }) => {
                 : "flex flex-col border border-border rounded-[32px] bg-muted-background/20 overflow-hidden divide-y divide-border",
             )}
           >
-            {tasks.map((task) => (
+            {filteredTasks.map((task) => (
               <ListBox.Item
                 key={task.id}
                 id={task.id}
@@ -96,8 +97,8 @@ export const TaskList: React.FC<TaskListProps> = ({ status }) => {
                       onAction={(key) => {
                         const action = String(key).replace(`${baseId}-`, "");
                         if (action === "pause") pause.mutate(task.id);
-                        if (action === "resume") resume.mutate(task.id);
-                        if (action === "remove") remove.mutate({ id: task.id });
+                        if (action === "resume") unpause.mutate(task.id);
+                        if (action === "remove") remove.mutate(task.id);
                         if (action === "copy") {
                           navigator.clipboard.writeText(task.url);
                         }

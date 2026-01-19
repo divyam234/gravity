@@ -3,7 +3,7 @@ export interface Download {
   url: string;
   resolvedUrl?: string;
   provider?: string;
-  status: 'pending' | 'downloading' | 'paused' | 'uploading' | 'complete' | 'error';
+  status: 'active' | 'waiting' | 'paused' | 'uploading' | 'complete' | 'error';
   error?: string;
   filename?: string;
   size: number;

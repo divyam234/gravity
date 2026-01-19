@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"path/filepath"
 	"strconv"
 )
 
@@ -15,9 +16,12 @@ type Config struct {
 }
 
 func Load() *Config {
+	home, _ := os.UserHomeDir()
+	defaultDataDir := filepath.Join(home, ".config", "gravity")
+
 	return &Config{
 		Port:          getEnvInt("PORT", 8080),
-		DataDir:       getEnv("DATA_DIR", ".gravity"),
+		DataDir:       getEnv("DATA_DIR", defaultDataDir),
 		Aria2Secret:   getEnv("ARIA2_SECRET", "gravity-secret"),
 		Aria2RPCPort:  getEnvInt("ARIA2_RPC_PORT", 6800),
 		RcloneRPCPort: getEnvInt("RCLONE_RPC_PORT", 5572),

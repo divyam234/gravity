@@ -2,6 +2,13 @@ import type { ApiResponse, Download, Provider, Remote, Stats } from './types';
 
 export type { ApiResponse };
 
+export class ApiError extends Error {
+  constructor(public status: number, message: string) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
 class ApiClient {
   private apiKey: string = '';
   private baseUrl: string = '/api/v1';
@@ -29,8 +36,8 @@ class ApiClient {
     });
 
     if (!response.ok) {
-      const error = await response.text();
-      throw new Error(error || response.statusText);
+      const errorText = await response.text();
+      throw new ApiError(response.status, errorText || response.statusText);
     }
 
     if (response.status === 204) {

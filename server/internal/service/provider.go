@@ -42,7 +42,7 @@ func (s *ProviderService) Init(ctx context.Context) error {
 
 func (s *ProviderService) List(ctx context.Context) ([]map[string]interface{}, error) {
 	// Combine implementation info with stored config/status
-	var results []map[string]interface{}
+	results := []map[string]interface{}{}
 
 	for _, impl := range s.registry.List() {
 		res := map[string]interface{}{

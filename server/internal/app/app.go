@@ -134,6 +134,11 @@ func (a *App) Run() error {
 	// Init provider configs
 	a.providerService.Init(ctx)
 
+	// Sync engine state
+	if err := a.downloadService.Sync(ctx); err != nil {
+		log.Printf("Warning: Engine sync failed: %v", err)
+	}
+
 	// Start background services
 	a.uploadService.Start()
 	a.statsService.Start()
