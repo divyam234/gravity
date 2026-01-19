@@ -8,6 +8,7 @@ export interface Aria2GlobalStat {
 	// Augmented stats from backend
 	cloudUploadSpeed?: string;
 	numUploading?: string;
+	numFailed?: string;
 	totalDownloaded?: string;
 	totalUploaded?: string;
 	totalTasks?: string;
@@ -238,10 +239,15 @@ export class Aria2Client {
 
 	private async request<T>(method: string, params: any[] = []): Promise<T> {
 		const id = Math.random().toString(36).substring(7);
-		
+
 		// Don't inject secret for Rclone methods or if secret is empty
-		const shouldInjectSecret = this.secret && !method.startsWith("rclone.") && method !== "system.multicall";
-		const finalParams = shouldInjectSecret ? [`token:${this.secret}`, ...params] : params;
+		const shouldInjectSecret =
+			this.secret &&
+			!method.startsWith("rclone.") &&
+			method !== "system.multicall";
+		const finalParams = shouldInjectSecret
+			? [`token:${this.secret}`, ...params]
+			: params;
 
 		const payload: JsonRpcRequest = {
 			jsonrpc: "2.0",
@@ -333,7 +339,7 @@ export class Aria2Client {
 	}
 
 	async tellUploading() {
-		return this.request<Aria2Task[]>("aria2.tellUploading");
+		return this.request<Aria2Task[]>("rclone.tellUploading");
 	}
 
 	async tellStatus(gid: string, keys?: string[]) {
@@ -484,8 +490,14 @@ export class Aria2Client {
 		return this.request<RcloneVersion>("rclone.getVersion", [{}]);
 	}
 
-	async rcloneCreateRemote(name: string, type: string, parameters: Record<string, string>) {
-		return this.request<any>("rclone.createRemote", [{ name, type, parameters }]);
+	async rcloneCreateRemote(
+		name: string,
+		type: string,
+		parameters: Record<string, string>,
+	) {
+		return this.request<any>("rclone.createRemote", [
+			{ name, type, parameters },
+		]);
 	}
 
 	async rcloneDeleteRemote(name: string) {

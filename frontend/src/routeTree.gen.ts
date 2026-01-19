@@ -14,6 +14,7 @@ import { Route as AddRouteImport } from './routes/add'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SettingsIndexRouteImport } from './routes/settings.index'
 import { Route as TaskGidRouteImport } from './routes/task.$gid'
+import { Route as SettingsProvidersRouteImport } from './routes/settings.providers'
 import { Route as SettingsCategoryRouteImport } from './routes/settings.$category'
 
 const TasksRoute = TasksRouteImport.update({
@@ -41,6 +42,11 @@ const TaskGidRoute = TaskGidRouteImport.update({
   path: '/task/$gid',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SettingsProvidersRoute = SettingsProvidersRouteImport.update({
+  id: '/settings/providers',
+  path: '/settings/providers',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsCategoryRoute = SettingsCategoryRouteImport.update({
   id: '/settings/$category',
   path: '/settings/$category',
@@ -52,6 +58,7 @@ export interface FileRoutesByFullPath {
   '/add': typeof AddRoute
   '/tasks': typeof TasksRoute
   '/settings/$category': typeof SettingsCategoryRoute
+  '/settings/providers': typeof SettingsProvidersRoute
   '/task/$gid': typeof TaskGidRoute
   '/settings': typeof SettingsIndexRoute
 }
@@ -60,6 +67,7 @@ export interface FileRoutesByTo {
   '/add': typeof AddRoute
   '/tasks': typeof TasksRoute
   '/settings/$category': typeof SettingsCategoryRoute
+  '/settings/providers': typeof SettingsProvidersRoute
   '/task/$gid': typeof TaskGidRoute
   '/settings': typeof SettingsIndexRoute
 }
@@ -69,6 +77,7 @@ export interface FileRoutesById {
   '/add': typeof AddRoute
   '/tasks': typeof TasksRoute
   '/settings/$category': typeof SettingsCategoryRoute
+  '/settings/providers': typeof SettingsProvidersRoute
   '/task/$gid': typeof TaskGidRoute
   '/settings/': typeof SettingsIndexRoute
 }
@@ -79,6 +88,7 @@ export interface FileRouteTypes {
     | '/add'
     | '/tasks'
     | '/settings/$category'
+    | '/settings/providers'
     | '/task/$gid'
     | '/settings'
   fileRoutesByTo: FileRoutesByTo
@@ -87,6 +97,7 @@ export interface FileRouteTypes {
     | '/add'
     | '/tasks'
     | '/settings/$category'
+    | '/settings/providers'
     | '/task/$gid'
     | '/settings'
   id:
@@ -95,6 +106,7 @@ export interface FileRouteTypes {
     | '/add'
     | '/tasks'
     | '/settings/$category'
+    | '/settings/providers'
     | '/task/$gid'
     | '/settings/'
   fileRoutesById: FileRoutesById
@@ -104,6 +116,7 @@ export interface RootRouteChildren {
   AddRoute: typeof AddRoute
   TasksRoute: typeof TasksRoute
   SettingsCategoryRoute: typeof SettingsCategoryRoute
+  SettingsProvidersRoute: typeof SettingsProvidersRoute
   TaskGidRoute: typeof TaskGidRoute
   SettingsIndexRoute: typeof SettingsIndexRoute
 }
@@ -145,6 +158,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TaskGidRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings/providers': {
+      id: '/settings/providers'
+      path: '/settings/providers'
+      fullPath: '/settings/providers'
+      preLoaderRoute: typeof SettingsProvidersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings/$category': {
       id: '/settings/$category'
       path: '/settings/$category'
@@ -160,6 +180,7 @@ const rootRouteChildren: RootRouteChildren = {
   AddRoute: AddRoute,
   TasksRoute: TasksRoute,
   SettingsCategoryRoute: SettingsCategoryRoute,
+  SettingsProvidersRoute: SettingsProvidersRoute,
   TaskGidRoute: TaskGidRoute,
   SettingsIndexRoute: SettingsIndexRoute,
 }

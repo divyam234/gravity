@@ -2,76 +2,49 @@ import { createFileRoute, linkOptions } from "@tanstack/react-router";
 import { z } from "zod";
 import { TaskList } from "../components/dashboard/TaskList";
 import { TaskPageHeader } from "../components/dashboard/TaskPageHeader";
-import {
-	activeTasksOptions,
-	stoppedTasksOptions,
-	uploadingTasksOptions,
-	waitingTasksOptions,
-} from "../hooks/useAria2";
-import { useNotifications } from "../hooks/useNotifications";
-import { useSettingsStore } from "../store/useSettingsStore";
 
 const taskSearchSchema = z.object({
-	status: z.enum(["active", "waiting", "stopped", "uploading"]).default("active"),
+  status: z
+    .enum(["active", "waiting", "stopped", "uploading", "failed"])
+    .default("active"),
 });
 
 export type TaskStatus = z.infer<typeof taskSearchSchema>["status"];
 
 export const tasksLinkOptions = (status: TaskStatus) =>
-	linkOptions({
-		to: "/tasks",
-		search: { status },
-	});
+  linkOptions({
+    to: "/tasks",
+    search: { status },
+  });
 
 export const Route = createFileRoute("/tasks")({
-	validateSearch: (search) => taskSearchSchema.parse(search),
-	loaderDeps: ({ search: { status } }) => ({ status }),
-	loader: async ({ context: { queryClient }, deps: { status } }) => {
-		const { rpcUrl, pollingInterval } = useSettingsStore.getState();
-		if (!rpcUrl) return;
-
-		if (status === "active") {
-			queryClient.prefetchQuery(activeTasksOptions(rpcUrl, pollingInterval));
-		}
-		if (status === "uploading") {
-			queryClient.prefetchQuery(uploadingTasksOptions(rpcUrl, pollingInterval));
-		}
-		if (status === "waiting") {
-			queryClient.prefetchQuery(
-				waitingTasksOptions(rpcUrl, pollingInterval, 0, 50),
-			);
-		}
-		if (status === "stopped") {
-			queryClient.prefetchQuery(
-				stoppedTasksOptions(rpcUrl, pollingInterval, 0, 50),
-			);
-		}
-	},
-	component: TasksPage,
+  validateSearch: (search) => taskSearchSchema.parse(search),
+  component: TasksPage,
 });
 
 function TasksPage() {
-	const { status } = Route.useSearch();
-	useNotifications();
+  const { status } = Route.useSearch();
 
-	const titles: Record<string, string> = {
-		active: "Active",
-		waiting: "Queued",
-		stopped: "Finished",
-		uploading: "Uploading",
-	};
+  const titles: Record<string, string> = {
+    active: "Active",
+    waiting: "Queued",
+    stopped: "Finished",
+    uploading: "Uploading",
+    failed: "Failed",
+  };
 
-	const colors: Record<string, string> = {
-		active: "text-success",
-		waiting: "text-warning",
-		stopped: "text-danger",
-		uploading: "text-cyan-500",
-	};
+  const colors: Record<string, string> = {
+    active: "text-success",
+    waiting: "text-warning",
+    stopped: "text-accent",
+    uploading: "text-cyan-500",
+    failed: "text-danger",
+  };
 
-	return (
-		<div className="space-y-6 px-1">
-			<TaskPageHeader title={titles[status]} titleColor={colors[status]} />
-			<TaskList status={status} />
-		</div>
-	);
+  return (
+    <div className="space-y-6 px-1">
+      <TaskPageHeader title={titles[status]} titleColor={colors[status]} />
+      <TaskList status={status} />
+    </div>
+  );
 }

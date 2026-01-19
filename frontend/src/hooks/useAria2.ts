@@ -162,29 +162,65 @@ export function useUploadingTasks(options?: { enabled?: boolean }) {
 	});
 }
 
+export const failedTasksOptions = (
+	rpcUrl: string,
+	pollingInterval: number,
+	offset = 0,
+	num = 100,
+) =>
+	queryOptions({
+		queryKey: ["aria2", "tasks", "failed", offset, num, rpcUrl],
+		queryFn: async () => {
+			const tasks = await aria2.tellStopped(offset, num);
+			return tasks.filter(
+				(t) => t.status === "error" || t.rclone?.status === "error",
+			);
+		},
+		refetchInterval: pollingInterval,
+		retry: false,
+	});
+
+export function useFailedTasks(
+	offset = 0,
+	num = 100,
+	options?: { enabled?: boolean },
+) {
+	const { pollingInterval, rpcUrl } = useSettingsStore();
+	return useQuery({
+		...failedTasksOptions(rpcUrl, pollingInterval, offset, num),
+		enabled: !!rpcUrl && (options?.enabled ?? true),
+	});
+}
+
 export function useAllTasks(
-	status: "active" | "waiting" | "stopped" | "uploading" = "active",
+	status: "active" | "waiting" | "stopped" | "uploading" | "failed" = "active",
 ) {
 	const active = useActiveTasks({ enabled: status === "active" });
 	const uploading = useUploadingTasks({ enabled: status === "uploading" });
 	const waiting = useWaitingTasks(0, 50, { enabled: status === "waiting" });
 	const stopped = useStoppedTasks(0, 50, { enabled: status === "stopped" });
+	const failed = useFailedTasks(0, 50, { enabled: status === "failed" });
 
 	return {
 		active: active.data || [],
 		uploading: uploading.data || [],
 		waiting: waiting.data || [],
-		stopped: stopped.data || [],
+		stopped: (stopped.data || []).filter(
+			(t) => t.status !== "error" && t.rclone?.status !== "error",
+		),
+		failed: failed.data || [],
 		isLoading:
 			active.isLoading ||
 			waiting.isLoading ||
 			stopped.isLoading ||
-			uploading.isLoading,
+			uploading.isLoading ||
+			failed.isLoading,
 		refetch: () => {
 			if (status === "active") active.refetch();
 			if (status === "uploading") uploading.refetch();
 			if (status === "waiting") waiting.refetch();
 			if (status === "stopped") stopped.refetch();
+			if (status === "failed") failed.refetch();
 		},
 	};
 }
@@ -260,7 +296,8 @@ export function useAria2Actions() {
 			invalidateTasks();
 			toast.success("Download started");
 		},
-		onError: (err: Error) => toast.error(`Failed to add download: ${err.message}`),
+		onError: (err: Error) =>
+			toast.error(`Failed to add download: ${err.message}`),
 	});
 
 	const addTorrent = useMutation({
@@ -277,7 +314,8 @@ export function useAria2Actions() {
 			invalidateTasks();
 			toast.success("Torrent added");
 		},
-		onError: (err: Error) => toast.error(`Failed to add torrent: ${err.message}`),
+		onError: (err: Error) =>
+			toast.error(`Failed to add torrent: ${err.message}`),
 	});
 
 	const addMetalink = useMutation({
@@ -292,7 +330,8 @@ export function useAria2Actions() {
 			invalidateTasks();
 			toast.success("Metalink added");
 		},
-		onError: (err: Error) => toast.error(`Failed to add metalink: ${err.message}`),
+		onError: (err: Error) =>
+			toast.error(`Failed to add metalink: ${err.message}`),
 	});
 
 	const pause = useMutation({
@@ -328,7 +367,8 @@ export function useAria2Actions() {
 			invalidateTasks();
 			toast.info("Download force removed");
 		},
-		onError: (err: Error) => toast.error(`Failed to force remove: ${err.message}`),
+		onError: (err: Error) =>
+			toast.error(`Failed to force remove: ${err.message}`),
 	});
 
 	const removeDownloadResult = useMutation({
@@ -337,7 +377,8 @@ export function useAria2Actions() {
 			invalidateTasks();
 			toast.info("Task removed from list");
 		},
-		onError: (err: Error) => toast.error(`Failed to remove task: ${err.message}`),
+		onError: (err: Error) =>
+			toast.error(`Failed to remove task: ${err.message}`),
 	});
 
 	const purgeDownloadResult = useMutation({
@@ -346,7 +387,8 @@ export function useAria2Actions() {
 			invalidateTasks();
 			toast.info("Finished tasks purged");
 		},
-		onError: (err: Error) => toast.error(`Failed to purge tasks: ${err.message}`),
+		onError: (err: Error) =>
+			toast.error(`Failed to purge tasks: ${err.message}`),
 	});
 
 	const saveSession = useMutation({
