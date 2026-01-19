@@ -225,6 +225,10 @@ func (e *Engine) Version(ctx context.Context) (string, error) {
 	return v.Version, nil
 }
 
+func (e *Engine) GetClient() *Client {
+	return e.client
+}
+
 func (e *Engine) OnProgress(h func(string, engine.Progress)) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -249,7 +253,7 @@ func (e *Engine) handleNotification(method string, gid string) {
 					filePath = filepath.Join(status.Dir, status.Filename)
 				}
 
-				// If the file is in a subdirectory of the download dir, 
+				// If the file is in a subdirectory of the download dir,
 				// it's likely a multi-file download (torrent).
 				// We should return the directory path instead of the first file.
 				parent := filepath.Dir(filePath)

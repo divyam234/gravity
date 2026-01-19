@@ -77,6 +77,11 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
                   ? `${formatBytes(uploadedBytes)} / ${formatBytes(task.size)}`
                   : `${formatBytes(task.downloaded)} / ${formatBytes(task.size)}`}
               </span>
+              {task.isMagnet && task.totalFiles && (
+                <span className="text-[10px] text-muted font-black uppercase tracking-widest bg-default/10 px-1.5 py-0.5 rounded-md">
+                  {task.filesComplete || 0} / {task.totalFiles} files
+                </span>
+              )}
             </div>
             {isError && task.error && (
               <p className="text-[10px] text-danger font-bold mt-1 uppercase tracking-tight truncate max-w-[300px]">
@@ -175,6 +180,11 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
                   ? `${formatBytes(uploadedBytes)} / ${formatBytes(task.size)}`
                   : `${formatBytes(task.downloaded)} / ${formatBytes(task.size)}`}
               </span>
+              {task.isMagnet && task.totalFiles && (
+                <span className="text-[10px] text-muted font-black uppercase tracking-widest bg-default/10 px-1.5 py-0.5 rounded-md ml-auto">
+                  {task.filesComplete || 0} / {task.totalFiles} files
+                </span>
+              )}
             </div>
             {isError && task.error && (
               <p className="text-[10px] text-danger font-bold mt-1 uppercase tracking-tight">

@@ -36,6 +36,7 @@ type App struct {
 	downloadService *service.DownloadService
 	uploadService   *service.UploadService
 	providerService *service.ProviderService
+	magnetService   *service.MagnetService
 	statsService    *service.StatsService
 
 	httpServer *http.Server
@@ -63,13 +64,15 @@ func New() (*App, error) {
 	// Providers
 	registry := provider.NewRegistry()
 	registry.Register(direct.New())
-	registry.Register(alldebrid.New())
+	ad := alldebrid.New()
+	registry.Register(ad)
 	registry.Register(realdebrid.New())
 
 	// Services
 	ps := service.NewProviderService(pr, registry)
 	ds := service.NewDownloadService(dr, de, ue, bus, ps)
 	us := service.NewUploadService(dr, ue, bus)
+	ms := service.NewMagnetService(dr, store.NewSettingsRepo(s.GetDB()), de, ad, ue)
 	ss := service.NewStatsService(sr, dr, de, ue, bus)
 
 	// API
@@ -81,6 +84,7 @@ func New() (*App, error) {
 	sh := api.NewStatsHandler(ss)
 	seth := api.NewSettingsHandler(store.NewSettingsRepo(s.GetDB()), de)
 	sysh := api.NewSystemHandler(de, ue)
+	mh := api.NewMagnetHandler(ms)
 
 	// V1 Router
 	v1 := chi.NewRouter()
@@ -91,6 +95,7 @@ func New() (*App, error) {
 	v1.Mount("/stats", sh.Routes())
 	v1.Mount("/settings", seth.Routes())
 	v1.Mount("/system", sysh.Routes())
+	v1.Mount("/magnets", mh.Routes())
 
 	// Mount V1 to root
 	router.Mount("/api/v1", v1)
@@ -113,6 +118,7 @@ func New() (*App, error) {
 		downloadService: ds,
 		uploadService:   us,
 		providerService: ps,
+		magnetService:   ms,
 		statsService:    ss,
 		httpServer:      srv,
 	}, nil

@@ -51,9 +51,12 @@ type DebridProvider interface {
 type MagnetProvider interface {
 	Provider
 
-	// CheckMagnet checks if a magnet is available/cached and returns file list
+	// CheckMagnet checks if a magnet is available and returns file list
 	// Returns nil, nil if magnet is not cached (for debrid providers)
 	CheckMagnet(ctx context.Context, magnet string) (*model.MagnetInfo, error)
+
+	// GetMagnetFiles returns file tree for a magnet (by ID for debrid, by hash for aria2)
+	GetMagnetFiles(ctx context.Context, magnetID string) ([]model.MagnetFile, error)
 
 	// DeleteMagnet removes a magnet from user's account (debrid only)
 	DeleteMagnet(ctx context.Context, magnetID string) error

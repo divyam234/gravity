@@ -13,10 +13,6 @@ import (
 
 // CheckMagnet uploads magnet to AllDebrid and checks if cached
 func (p *AllDebridProvider) CheckMagnet(ctx context.Context, magnet string) (*model.MagnetInfo, error) {
-	if !p.IsConfigured() {
-		return nil, fmt.Errorf("alldebrid not configured")
-	}
-
 	// POST /v4/magnet/upload
 	endpoint := fmt.Sprintf("%s/magnet/upload?agent=%s&apikey=%s", baseURL, agent, p.apiKey)
 
@@ -51,25 +47,14 @@ func (p *AllDebridProvider) CheckMagnet(ctx context.Context, magnet string) (*mo
 				} `json:"error,omitempty"`
 			} `json:"magnets"`
 		} `json:"data"`
-		Error *struct {
-			Code    string `json:"code"`
-			Message string `json:"message"`
-		} `json:"error,omitempty"`
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, err
 	}
 
-	if result.Status != "success" {
-		if result.Error != nil {
-			return nil, fmt.Errorf("alldebrid error: %s", result.Error.Message)
-		}
+	if result.Status != "success" || len(result.Data.Magnets) == 0 {
 		return nil, fmt.Errorf("failed to check magnet")
-	}
-
-	if len(result.Data.Magnets) == 0 {
-		return nil, fmt.Errorf("no magnet response")
 	}
 
 	m := result.Data.Magnets[0]
@@ -83,7 +68,7 @@ func (p *AllDebridProvider) CheckMagnet(ctx context.Context, magnet string) (*mo
 	}
 
 	// Get files
-	files, err := p.getMagnetFiles(ctx, fmt.Sprintf("%d", m.ID))
+	files, err := p.GetMagnetFiles(ctx, fmt.Sprintf("%d", m.ID))
 	if err != nil {
 		return nil, err
 	}
@@ -99,8 +84,8 @@ func (p *AllDebridProvider) CheckMagnet(ctx context.Context, magnet string) (*mo
 	}, nil
 }
 
-// getMagnetFiles retrieves file tree for a magnet
-func (p *AllDebridProvider) getMagnetFiles(ctx context.Context, magnetID string) ([]model.MagnetFile, error) {
+// GetMagnetFiles retrieves file tree for a magnet
+func (p *AllDebridProvider) GetMagnetFiles(ctx context.Context, magnetID string) ([]model.MagnetFile, error) {
 	// POST /v4/magnet/files
 	endpoint := fmt.Sprintf("%s/magnet/files?agent=%s&apikey=%s", baseURL, agent, p.apiKey)
 
@@ -125,10 +110,6 @@ func (p *AllDebridProvider) getMagnetFiles(ctx context.Context, magnetID string)
 			Magnets []struct {
 				ID    string            `json:"id"`
 				Files []json.RawMessage `json:"files"`
-				Error *struct {
-					Code    string `json:"code"`
-					Message string `json:"message"`
-				} `json:"error,omitempty"`
 			} `json:"magnets"`
 		} `json:"data"`
 	}
@@ -141,23 +122,15 @@ func (p *AllDebridProvider) getMagnetFiles(ctx context.Context, magnetID string)
 		return nil, fmt.Errorf("failed to get magnet files")
 	}
 
-	if result.Data.Magnets[0].Error != nil {
-		return nil, fmt.Errorf("alldebrid error: %s", result.Data.Magnets[0].Error.Message)
-	}
-
 	// Parse AllDebrid's nested file format
-	return p.parseFiles(result.Data.Magnets[0].Files, "", 1)
+	return p.parseFiles(result.Data.Magnets[0].Files, "")
 }
 
-// parseFiles converts AllDebrid's nested format to MagnetFile array
-// AllDebrid format: { n: "name", s: size, l: "link" } for files
-//
-//	{ n: "name", e: [...] } for folders
-func (p *AllDebridProvider) parseFiles(rawFiles []json.RawMessage, parentPath string, startIndex int) ([]model.MagnetFile, error) {
+// parseFiles converts AllDebrid's nested format to flat MagnetFile array
+func (p *AllDebridProvider) parseFiles(rawFiles []json.RawMessage, parentPath string) ([]model.MagnetFile, error) {
 	var files []model.MagnetFile
-	index := startIndex
 
-	for _, raw := range rawFiles {
+	for i, raw := range rawFiles {
 		var node struct {
 			N string            `json:"n"` // name
 			S int64             `json:"s"` // size (file only)
@@ -176,26 +149,19 @@ func (p *AllDebridProvider) parseFiles(rawFiles []json.RawMessage, parentPath st
 
 		if len(node.E) > 0 {
 			// Folder
-			children, err := p.parseFiles(node.E, path, index)
+			children, err := p.parseFiles(node.E, path)
 			if err != nil {
 				continue
 			}
 
-			// Calculate folder size from children
+			// Calculate folder size
 			var folderSize int64
 			for _, child := range children {
 				folderSize += child.Size
 			}
 
-			// Update index based on children count
-			for range children {
-				if !children[0].IsFolder {
-					index++
-				}
-			}
-
 			files = append(files, model.MagnetFile{
-				ID:       fmt.Sprintf("folder_%s", path),
+				ID:       fmt.Sprintf("folder_%d_%s", i, path),
 				Name:     node.N,
 				Path:     path,
 				Size:     folderSize,
@@ -205,14 +171,13 @@ func (p *AllDebridProvider) parseFiles(rawFiles []json.RawMessage, parentPath st
 		} else {
 			// File
 			files = append(files, model.MagnetFile{
-				ID:    node.L, // Use link as ID for easy lookup
-				Name:  node.N,
-				Path:  path,
-				Size:  node.S,
-				Link:  node.L,
-				Index: index,
+				ID:       node.L, // Use link as ID for easy lookup
+				Name:     node.N,
+				Path:     path,
+				Size:     node.S,
+				Link:     node.L,
+				IsFolder: false,
 			})
-			index++
 		}
 	}
 
@@ -221,10 +186,6 @@ func (p *AllDebridProvider) parseFiles(rawFiles []json.RawMessage, parentPath st
 
 // DeleteMagnet removes a magnet from user's AllDebrid account
 func (p *AllDebridProvider) DeleteMagnet(ctx context.Context, magnetID string) error {
-	if !p.IsConfigured() {
-		return fmt.Errorf("alldebrid not configured")
-	}
-
 	endpoint := fmt.Sprintf("%s/magnet/delete?agent=%s&apikey=%s", baseURL, agent, p.apiKey)
 
 	form := url.Values{}

@@ -103,8 +103,17 @@ func (s *DownloadService) Pause(ctx context.Context, id string) error {
 		return err
 	}
 
-	if err := s.engine.Pause(ctx, d.EngineID); err != nil {
-		return err
+	if d.IsMagnet && d.MagnetSource == "alldebrid" {
+		files, _ := s.repo.GetFiles(ctx, d.ID)
+		for _, f := range files {
+			if f.EngineID != "" {
+				s.engine.Pause(ctx, f.EngineID)
+			}
+		}
+	} else if d.EngineID != "" {
+		if err := s.engine.Pause(ctx, d.EngineID); err != nil {
+			return err
+		}
 	}
 
 	d.Status = model.StatusPaused
@@ -127,8 +136,17 @@ func (s *DownloadService) Resume(ctx context.Context, id string) error {
 		return err
 	}
 
-	if err := s.engine.Resume(ctx, d.EngineID); err != nil {
-		return err
+	if d.IsMagnet && d.MagnetSource == "alldebrid" {
+		files, _ := s.repo.GetFiles(ctx, d.ID)
+		for _, f := range files {
+			if f.EngineID != "" {
+				s.engine.Resume(ctx, f.EngineID)
+			}
+		}
+	} else if d.EngineID != "" {
+		if err := s.engine.Resume(ctx, d.EngineID); err != nil {
+			return err
+		}
 	}
 
 	d.Status = model.StatusActive
@@ -193,26 +211,46 @@ func (s *DownloadService) Delete(ctx context.Context, id string, deleteFiles boo
 		return err
 	}
 
-	// Stop in engine
-	s.engine.Cancel(ctx, d.EngineID)
-	if deleteFiles {
-		s.engine.Remove(ctx, d.EngineID)
+	// 1. Stop in engine
+	if d.IsMagnet && d.MagnetSource == "alldebrid" {
+		// Cancel all individual files for AllDebrid
+		files, _ := s.repo.GetFiles(ctx, d.ID)
+		for _, f := range files {
+			if f.EngineID != "" {
+				s.engine.Cancel(ctx, f.EngineID)
+				if deleteFiles {
+					s.engine.Remove(ctx, f.EngineID)
+				}
+			}
+		}
+	} else if d.EngineID != "" {
+		// Stop parent task for raw magnets or single files
+		s.engine.Cancel(ctx, d.EngineID)
+		if deleteFiles {
+			s.engine.Remove(ctx, d.EngineID)
+		}
 	}
 
-	// Also stop upload if active
+	// 2. Also stop upload if active
 	if d.Status == model.StatusUploading && d.UploadJobID != "" {
 		s.uploadEngine.Cancel(ctx, d.UploadJobID)
 	}
 
+	// 3. Clean up database
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return err
 	}
 
+	// Files will be deleted by CASCADE in DB
 	return nil
 }
 
 func (s *DownloadService) List(ctx context.Context, status []string, limit, offset int) ([]*model.Download, int, error) {
 	return s.repo.List(ctx, status, limit, offset)
+}
+
+func (s *DownloadService) GetFiles(ctx context.Context, id string) ([]model.DownloadFile, error) {
+	return s.repo.GetFiles(ctx, id)
 }
 
 func (s *DownloadService) Sync(ctx context.Context) error {
@@ -263,70 +301,172 @@ func (s *DownloadService) Sync(ctx context.Context) error {
 
 func (s *DownloadService) handleProgress(engineID string, p engine.Progress) {
 	ctx := context.Background()
+
+	// 1. Try to find if this is a single-file download
 	d, err := s.repo.GetByEngineID(ctx, engineID)
+	if err == nil {
+		// Update DB with latest progress
+		d.Downloaded = p.Downloaded
+		d.Size = p.Size
+		d.Speed = p.Speed
+		d.ETA = p.ETA
+		s.repo.Update(ctx, d)
+
+		s.publishProgress(d)
+		return
+	}
+
+	// 2. Try to find if this is an individual file within a magnet
+	file, err := s.repo.GetFileByEngineID(ctx, engineID)
+	if err == nil {
+		file.Downloaded = p.Downloaded
+		file.Progress = 0
+		if file.Size > 0 {
+			file.Progress = int((file.Downloaded * 100) / file.Size)
+		}
+		file.Status = model.StatusActive
+		s.repo.UpdateFile(ctx, file)
+
+		// Update parent download aggregate progress
+		parent, err := s.repo.Get(ctx, file.DownloadID)
+		if err == nil {
+			s.updateAggregateProgress(ctx, parent)
+		}
+		return
+	}
+}
+
+func (s *DownloadService) updateAggregateProgress(ctx context.Context, d *model.Download) {
+	files, err := s.repo.GetFiles(ctx, d.ID)
 	if err != nil {
 		return
 	}
 
-	// Update DB with latest progress
-	d.Downloaded = p.Downloaded
-	d.Size = p.Size
-	d.Speed = p.Speed
-	d.ETA = p.ETA
-	s.repo.Update(ctx, d)
+	var totalDownloaded int64
+	var totalSize int64
+	filesComplete := 0
+	activeFiles := 0
 
+	for _, f := range files {
+		totalDownloaded += f.Downloaded
+		totalSize += f.Size
+		if f.Status == model.StatusComplete {
+			filesComplete++
+		} else if f.Status == model.StatusActive {
+			activeFiles++
+			// We don't have per-file speed in the file record yet,
+			// but we could get it from the engine if needed.
+			// For now, we'll let handleProgress trigger aggregate updates.
+		}
+	}
+
+	// If we don't have aggregate speed yet, we might need to store it.
+	// For simplicity, let's just update the totals for now.
+	d.Downloaded = totalDownloaded
+	d.Size = totalSize
+	d.FilesComplete = filesComplete
+
+	// If all files complete, mark download as complete or uploading
+	if filesComplete == len(files) && len(files) > 0 && d.Status != model.StatusComplete && d.Status != model.StatusUploading {
+		if d.Destination != "" {
+			d.Status = model.StatusUploading
+		} else {
+			d.Status = model.StatusComplete
+		}
+		now := time.Now()
+		d.CompletedAt = &now
+	}
+
+	s.repo.Update(ctx, d)
+	s.publishProgress(d)
+}
+
+func (s *DownloadService) publishProgress(d *model.Download) {
 	s.bus.Publish(event.Event{
 		Type:      event.DownloadProgress,
 		Timestamp: time.Now(),
 		Data: map[string]interface{}{
 			"id":         d.ID,
-			"downloaded": p.Downloaded,
-			"size":       p.Size,
-			"speed":      p.Speed,
-			"eta":        p.ETA,
+			"downloaded": d.Downloaded,
+			"size":       d.Size,
+			"speed":      d.Speed,
+			"eta":        d.ETA,
 		},
 	})
 }
 
 func (s *DownloadService) handleComplete(engineID string, filePath string) {
 	ctx := context.Background()
+
+	// 1. Try single-file
 	d, err := s.repo.GetByEngineID(ctx, engineID)
-	if err != nil {
+	if err == nil {
+		if d.Destination != "" {
+			d.Status = model.StatusUploading
+		} else {
+			d.Status = model.StatusComplete
+		}
+
+		d.LocalPath = filePath
+		now := time.Now()
+		d.CompletedAt = &now
+		s.repo.Update(ctx, d)
+
+		s.bus.Publish(event.Event{
+			Type:      event.DownloadCompleted,
+			Timestamp: time.Now(),
+			Data:      d,
+		})
 		return
 	}
 
-	if d.Destination != "" {
-		d.Status = model.StatusUploading
-	} else {
-		d.Status = model.StatusComplete
+	// 2. Try file within magnet
+	file, err := s.repo.GetFileByEngineID(ctx, engineID)
+	if err == nil {
+		file.Status = model.StatusComplete
+		file.Downloaded = file.Size
+		file.Progress = 100
+		s.repo.UpdateFile(ctx, file)
+
+		parent, err := s.repo.Get(ctx, file.DownloadID)
+		if err == nil {
+			s.updateAggregateProgress(ctx, parent)
+		}
+		return
 	}
-
-	d.LocalPath = filePath
-	now := time.Now()
-	d.CompletedAt = &now
-	s.repo.Update(ctx, d)
-
-	s.bus.Publish(event.Event{
-		Type:      event.DownloadCompleted,
-		Timestamp: time.Now(),
-		Data:      d,
-	})
 }
 
 func (s *DownloadService) handleError(engineID string, err error) {
 	ctx := context.Background()
+
+	// 1. Try single-file
 	d, repoErr := s.repo.GetByEngineID(ctx, engineID)
-	if repoErr != nil {
+	if repoErr == nil {
+		d.Status = model.StatusError
+		d.Error = err.Error()
+		s.repo.Update(ctx, d)
+
+		s.bus.Publish(event.Event{
+			Type:      event.DownloadError,
+			Timestamp: time.Now(),
+			Data:      map[string]string{"id": d.ID, "error": d.Error},
+		})
 		return
 	}
 
-	d.Status = model.StatusError
-	d.Error = err.Error()
-	s.repo.Update(ctx, d)
+	// 2. Try file within magnet
+	file, repoErr := s.repo.GetFileByEngineID(ctx, engineID)
+	if repoErr == nil {
+		file.Status = model.StatusError
+		file.Error = err.Error()
+		s.repo.UpdateFile(ctx, file)
 
-	s.bus.Publish(event.Event{
-		Type:      event.DownloadError,
-		Timestamp: time.Now(),
-		Data:      map[string]string{"id": d.ID, "error": d.Error},
-	})
+		parent, err := s.repo.Get(ctx, file.DownloadID)
+		if err == nil {
+			// Even if a file fails, we might want to continue others
+			// For now, just update aggregate
+			s.updateAggregateProgress(ctx, parent)
+		}
+		return
+	}
 }

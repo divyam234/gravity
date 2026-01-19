@@ -1,7 +1,8 @@
 -- 002_magnet_files.sql
 
--- Add magnet fields to downloads table (SQLite requires separate ALTER statements)
--- Using IF NOT EXISTS pattern via checking sqlite_master to be idempotent
+-- Add magnet fields to downloads table if they don't exist
+-- SQLite doesn't support IF NOT EXISTS in ALTER TABLE, so we handle it gracefully in code or just try
+-- The store/sqlite.go runner doesn't handle errors well, so we use a safe approach.
 
 -- Create download_files table for individual file tracking
 CREATE TABLE IF NOT EXISTS download_files (

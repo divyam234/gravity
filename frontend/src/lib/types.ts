@@ -20,6 +20,14 @@ export interface Download {
   startedAt?: string;
   completedAt?: string;
   updatedAt: string;
+
+  // Multi-file support
+  isMagnet?: boolean;
+  magnetHash?: string;
+  magnetSource?: 'alldebrid' | 'aria2';
+  files?: DownloadFile[];
+  totalFiles?: number;
+  filesComplete?: number;
 }
 
 export interface Provider {
@@ -32,6 +40,48 @@ export interface Provider {
   cachedHosts?: string[];
   cachedAccount?: AccountInfo;
   updatedAt: string;
+}
+
+export interface DownloadFile {
+  id: string;
+  name: string;
+  path: string;
+  size: number;
+  downloaded: number;
+  progress: number;
+  status: 'pending' | 'active' | 'complete' | 'error';
+  error?: string;
+}
+
+export interface MagnetInfo {
+  source: 'alldebrid' | 'aria2';
+  cached: boolean;
+  magnetId?: string;
+  name: string;
+  hash: string;
+  size: number;
+  files: MagnetFile[];
+}
+
+export interface MagnetFile {
+  id: string;
+  name: string;
+  path: string;
+  size: number;
+  isFolder: boolean;
+  children?: MagnetFile[];
+  index?: number;
+  link?: string;
+}
+
+export interface MagnetDownloadRequest {
+  magnet: string;
+  source: string;
+  magnetId?: string;
+  name: string;
+  selectedFiles: string[];
+  destination?: string;
+  files: any[];
 }
 
 export interface AccountInfo {

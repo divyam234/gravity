@@ -1,4 +1,4 @@
-import type { ApiResponse, Download, Provider, Remote, Stats } from './types';
+import type { ApiResponse, Download, Provider, Remote, Stats, MagnetInfo, MagnetDownloadRequest, DownloadFile } from './types';
 
 export type { ApiResponse };
 
@@ -115,6 +115,23 @@ class ApiClient {
   // System
   getVersion() {
     return this.request<{ version: string; aria2: string; rclone: string }>('GET', '/system/version');
+  }
+
+  // Magnets
+  checkMagnet(magnet: string) {
+    return this.request<MagnetInfo>('POST', '/magnets/check', { magnet });
+  }
+
+  checkTorrent(torrentBase64: string) {
+    return this.request<MagnetInfo>('POST', '/magnets/check-torrent', { torrentBase64 });
+  }
+
+  downloadMagnet(req: MagnetDownloadRequest) {
+    return this.request<Download>('POST', '/magnets/download', req);
+  }
+
+  getDownloadFiles(id: string) {
+    return this.request<{ files: DownloadFile[] }>('GET', `/downloads/${id}/files`);
   }
 }
 

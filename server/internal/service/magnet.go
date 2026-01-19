@@ -2,14 +2,17 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"log"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"gravity/internal/engine"
 	"gravity/internal/engine/aria2"
 	"gravity/internal/model"
-	"gravity/internal/provider"
+	"gravity/internal/provider/alldebrid"
 	"gravity/internal/store"
 
 	"github.com/google/uuid"
@@ -17,55 +20,77 @@ import (
 
 type MagnetService struct {
 	downloadRepo *store.DownloadRepo
+	settingsRepo *store.SettingsRepo
 	aria2Engine  *aria2.Engine
-	registry     *provider.Registry
+	allDebrid    *alldebrid.AllDebridProvider
+	uploadEngine engine.UploadEngine
 }
 
 func NewMagnetService(
 	repo *store.DownloadRepo,
-	aria2Engine *aria2.Engine,
-	registry *provider.Registry,
+	settingsRepo *store.SettingsRepo,
+	aria2 *aria2.Engine,
+	allDebrid *alldebrid.AllDebridProvider,
+	uploadEngine engine.UploadEngine,
 ) *MagnetService {
 	return &MagnetService{
 		downloadRepo: repo,
-		aria2Engine:  aria2Engine,
-		registry:     registry,
+		settingsRepo: settingsRepo,
+		aria2Engine:  aria2,
+		allDebrid:    allDebrid,
+		uploadEngine: uploadEngine,
 	}
 }
 
 // CheckMagnet checks if a magnet is available and returns file list
 func (s *MagnetService) CheckMagnet(ctx context.Context, magnet string) (*model.MagnetInfo, error) {
-	// Validate magnet URI
-	if !strings.HasPrefix(strings.ToLower(magnet), "magnet:") {
-		return nil, fmt.Errorf("invalid magnet URI")
-	}
+	log.Printf("[MagnetService] Checking magnet: %s", magnet)
 
-	// 1. Try debrid providers first (AllDebrid)
-	for _, p := range s.registry.List() {
-		magnetProvider, ok := p.(provider.MagnetProvider)
-		if !ok {
-			continue
-		}
+	// Set a reasonable timeout for the whole check process
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer cancel()
 
-		if !p.IsConfigured() {
-			continue
-		}
-
-		info, err := magnetProvider.CheckMagnet(ctx, magnet)
-		if err != nil {
-			// Log error but continue to next provider or fallback
-			continue
-		}
-
-		if info != nil && info.Cached {
+	// 1. Try AllDebrid first (if configured)
+	if s.allDebrid != nil && s.allDebrid.IsConfigured() {
+		log.Printf("[MagnetService] Trying AllDebrid...")
+		info, err := s.allDebrid.CheckMagnet(ctx, magnet)
+		if err == nil && info != nil && info.Cached {
+			log.Printf("[MagnetService] Found cached magnet on AllDebrid: %s", info.Name)
 			return info, nil
 		}
+		log.Printf("[MagnetService] AllDebrid check failed or not cached: %v", err)
 	}
 
 	// 2. Fall back to raw magnet via aria2
+	log.Printf("[MagnetService] Falling back to aria2 metadata fetch...")
 	info, err := s.aria2Engine.GetMagnetFiles(ctx, magnet)
 	if err != nil {
+		log.Printf("[MagnetService] aria2 fetch failed: %v", err)
 		return nil, fmt.Errorf("failed to get magnet files: %w", err)
+	}
+
+	log.Printf("[MagnetService] Successfully fetched files via aria2: %s", info.Name)
+	return info, nil
+}
+
+// CheckTorrent checks if a .torrent file's content is available and returns file list
+func (s *MagnetService) CheckTorrent(ctx context.Context, torrentBase64 string) (*model.MagnetInfo, error) {
+	log.Printf("[MagnetService] Checking torrent file")
+
+	// 1. Get metadata from aria2 first to get the hash
+	info, err := s.aria2Engine.GetTorrentFiles(ctx, torrentBase64)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse torrent: %w", err)
+	}
+
+	// 2. Try AllDebrid cache check with the hash
+	if s.allDebrid != nil && s.allDebrid.IsConfigured() && info.Hash != "" {
+		magnet := fmt.Sprintf("magnet:?xt=urn:btih:%s", info.Hash)
+		cached, err := s.allDebrid.CheckMagnet(ctx, magnet)
+		if err == nil && cached != nil && cached.Cached {
+			log.Printf("[MagnetService] Torrent found in AllDebrid cache: %s", info.Name)
+			return cached, nil
+		}
 	}
 
 	return info, nil
@@ -74,27 +99,33 @@ func (s *MagnetService) CheckMagnet(ctx context.Context, magnet string) (*model.
 // MagnetDownloadRequest contains parameters for starting a magnet download
 type MagnetDownloadRequest struct {
 	Magnet        string             `json:"magnet"`
-	Source        string             `json:"source"`   // "alldebrid" or "aria2"
-	MagnetID      string             `json:"magnetId"` // AllDebrid magnet ID
+	TorrentBase64 string             `json:"torrentBase64"`
+	Source        string             `json:"source"`
+	MagnetID      string             `json:"magnetId"`
 	Name          string             `json:"name"`
 	SelectedFiles []string           `json:"selectedFiles"`
 	Destination   string             `json:"destination"`
-	Files         []model.MagnetFile `json:"files"` // Full file list for lookup
+	AllFiles      []model.MagnetFile `json:"allFiles"`
 }
 
 // DownloadMagnet starts download of selected files from a magnet
 func (s *MagnetService) DownloadMagnet(ctx context.Context, req MagnetDownloadRequest) (*model.Download, error) {
-	if len(req.SelectedFiles) == 0 {
-		return nil, fmt.Errorf("no files selected")
+	// Get download directory from settings
+	settings, _ := s.settingsRepo.Get(ctx)
+	downloadDir := settings["download_dir"]
+	if downloadDir == "" {
+		downloadDir = "/downloads"
 	}
+
+	localPath := filepath.Join(downloadDir, req.Name)
 
 	// Create download record
 	d := &model.Download{
 		ID:           "d_" + uuid.New().String()[:8],
 		URL:          req.Magnet,
-		Filename:     req.Name,
 		Status:       model.StatusActive,
 		Destination:  req.Destination,
+		LocalPath:    localPath,
 		IsMagnet:     true,
 		MagnetSource: req.Source,
 		MagnetID:     req.MagnetID,
@@ -103,32 +134,29 @@ func (s *MagnetService) DownloadMagnet(ctx context.Context, req MagnetDownloadRe
 		UpdatedAt:    time.Now(),
 	}
 
-	// Build file list from selected files
-	selectedMap := make(map[string]bool)
-	for _, id := range req.SelectedFiles {
-		selectedMap[id] = true
-	}
-
+	// Build file list and calculate total size
 	var totalSize int64
-	for _, file := range flattenFiles(req.Files) {
-		if !selectedMap[file.ID] {
+	for _, fileID := range req.SelectedFiles {
+		file := req.FindFile(fileID)
+		if file == nil {
 			continue
 		}
 
 		d.Files = append(d.Files, model.DownloadFile{
-			ID:     file.ID,
+			ID:     fileID,
 			Name:   file.Name,
 			Path:   file.Path,
 			Size:   file.Size,
 			Status: model.StatusWaiting,
-			URL:    file.Link,
-			Index:  file.Index,
+			URL:    file.Link,  // Only for AllDebrid
+			Index:  file.Index, // Only for aria2
 		})
 		totalSize += file.Size
 	}
 
 	d.Size = totalSize
 	d.TotalFiles = len(d.Files)
+	d.Filename = req.Name // Torrent name
 
 	// Save to database
 	if err := s.downloadRepo.CreateWithFiles(ctx, d); err != nil {
@@ -138,6 +166,8 @@ func (s *MagnetService) DownloadMagnet(ctx context.Context, req MagnetDownloadRe
 	// Start downloads based on source
 	if req.Source == "alldebrid" {
 		go s.startAllDebridDownload(context.Background(), d)
+	} else if req.TorrentBase64 != "" {
+		go s.startTorrentDownload(context.Background(), d, req.TorrentBase64)
 	} else {
 		go s.startAria2Download(context.Background(), d, req.Magnet)
 	}
@@ -151,15 +181,13 @@ func (s *MagnetService) startAllDebridDownload(ctx context.Context, d *model.Dow
 	for i := range d.Files {
 		file := &d.Files[i]
 		if file.URL == "" {
-			file.Status = model.StatusError
-			file.Error = "no download URL"
 			continue
 		}
 
 		// Add to aria2
 		gid, err := s.aria2Engine.Add(ctx, file.URL, engine.DownloadOptions{
-			Dir:      d.LocalPath,
-			Filename: file.Path,
+			Dir:      d.LocalPath, // Base directory
+			Filename: file.Path,   // Preserve path structure
 		})
 
 		if err != nil {
@@ -173,7 +201,7 @@ func (s *MagnetService) startAllDebridDownload(ctx context.Context, d *model.Dow
 	}
 
 	// Update database
-	s.downloadRepo.UpdateFiles(ctx, d.ID, d.Files)
+	s.downloadRepo.UpdateFiles(context.Background(), d.ID, d.Files)
 }
 
 // startAria2Download downloads magnet via native aria2 BitTorrent
@@ -200,6 +228,61 @@ func (s *MagnetService) startAria2Download(ctx context.Context, d *model.Downloa
 
 	d.EngineID = gid
 	s.downloadRepo.Update(ctx, d)
+}
+
+// startTorrentDownload downloads torrent via native aria2 BitTorrent from file
+func (s *MagnetService) startTorrentDownload(ctx context.Context, d *model.Download, torrentBase64 string) {
+	// Collect selected file indexes
+	var indexes []string
+	for _, file := range d.Files {
+		if file.Index > 0 {
+			indexes = append(indexes, fmt.Sprintf("%d", file.Index))
+		}
+	}
+
+	// Build select-file string
+	options := map[string]interface{}{
+		"paused": "false",
+	}
+	if len(indexes) > 0 {
+		options["select-file"] = strings.Join(indexes, ",")
+	}
+	if d.LocalPath != "" {
+		options["dir"] = d.LocalPath
+	}
+
+	// aria2.addTorrent expects: [base64_torrent, urls, options]
+	res, err := s.aria2Engine.GetClient().Call(ctx, "aria2.addTorrent", torrentBase64, []interface{}{}, options)
+	if err != nil {
+		d.Status = model.StatusError
+		d.Error = err.Error()
+		s.downloadRepo.Update(ctx, d)
+		return
+	}
+
+	var gid string
+	json.Unmarshal(res, &gid)
+
+	d.EngineID = gid
+	s.downloadRepo.Update(ctx, d)
+}
+
+func (r *MagnetDownloadRequest) FindFile(id string) *model.MagnetFile {
+	return findFileRecursive(r.AllFiles, id)
+}
+
+func findFileRecursive(files []model.MagnetFile, id string) *model.MagnetFile {
+	for i := range files {
+		if files[i].ID == id {
+			return &files[i]
+		}
+		if len(files[i].Children) > 0 {
+			if found := findFileRecursive(files[i].Children, id); found != nil {
+				return found
+			}
+		}
+	}
+	return nil
 }
 
 // flattenFiles converts nested MagnetFile tree to flat array
