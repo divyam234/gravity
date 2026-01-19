@@ -200,7 +200,7 @@ func (s *DownloadService) Delete(ctx context.Context, id string, deleteFiles boo
 	}
 
 	// Also stop upload if active
-	if d.UploadJobID != "" {
+	if d.Status == model.StatusUploading && d.UploadJobID != "" {
 		s.uploadEngine.Cancel(ctx, d.UploadJobID)
 	}
 

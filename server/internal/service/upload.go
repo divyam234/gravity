@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"time"
 
@@ -50,8 +51,14 @@ func (s *UploadService) Start() {
 func (s *UploadService) TriggerUpload(ctx context.Context, d *model.Download) error {
 	log.Printf("Upload: Triggering upload for %s to %s", d.ID, d.Destination)
 
+	// Generate job ID upfront so we can save it before starting the upload
+	// This avoids race condition with handleProgress overwriting it
+	jobID := time.Now().UnixNano()
+	jobIDStr := fmt.Sprintf("%d", jobID)
+
 	d.Status = model.StatusUploading
 	d.UploadStatus = "running"
+	d.UploadJobID = jobIDStr // Save job ID BEFORE starting upload
 	s.repo.Update(ctx, d)
 
 	// Trigger in engine
@@ -60,16 +67,17 @@ func (s *UploadService) TriggerUpload(ctx context.Context, d *model.Download) er
 	if srcPath == "" {
 		srcPath = d.Filename
 	}
-	jobID, err := s.engine.Upload(ctx, srcPath, d.Destination, engine.UploadOptions{})
+	_, err := s.engine.Upload(ctx, srcPath, d.Destination, engine.UploadOptions{
+		TrackingID: d.ID,  // Pass download ID for progress tracking callbacks
+		JobID:      jobID, // Pass the pre-generated job ID
+	})
 	if err != nil {
 		d.Status = model.StatusError
 		d.Error = "Upload failed: " + err.Error()
+		d.UploadJobID = "" // Clear job ID on failure
 		s.repo.Update(ctx, d)
 		return err
 	}
-
-	d.UploadJobID = jobID
-	s.repo.Update(ctx, d)
 
 	s.bus.Publish(event.Event{
 		Type:      event.UploadStarted,
@@ -80,16 +88,18 @@ func (s *UploadService) TriggerUpload(ctx context.Context, d *model.Download) er
 	return nil
 }
 
-func (s *UploadService) handleProgress(jobID string, p engine.UploadProgress) {
+func (s *UploadService) handleProgress(downloadID string, p engine.UploadProgress) {
 	ctx := context.Background()
-	d, err := s.repo.GetByUploadJobID(ctx, jobID)
+	d, err := s.repo.Get(ctx, downloadID)
 	if err != nil {
+		// Download may have been deleted - this is expected, silently ignore
 		return
 	}
 
 	// Update DB with latest progress
 	if p.Size > 0 {
 		d.UploadProgress = int((p.Uploaded * 100) / p.Size)
+		d.Size = p.Size // Update size from rclone stats
 	}
 	d.UploadSpeed = p.Speed
 	s.repo.Update(ctx, d)
@@ -106,10 +116,11 @@ func (s *UploadService) handleProgress(jobID string, p engine.UploadProgress) {
 	})
 }
 
-func (s *UploadService) handleComplete(jobID string) {
+func (s *UploadService) handleComplete(downloadID string) {
 	ctx := context.Background()
-	d, err := s.repo.GetByUploadJobID(ctx, jobID)
+	d, err := s.repo.Get(ctx, downloadID)
 	if err != nil {
+		// Download may have been deleted - this is expected, silently ignore
 		return
 	}
 
@@ -125,10 +136,11 @@ func (s *UploadService) handleComplete(jobID string) {
 	})
 }
 
-func (s *UploadService) handleError(jobID string, err error) {
+func (s *UploadService) handleError(downloadID string, err error) {
 	ctx := context.Background()
-	d, repoErr := s.repo.GetByUploadJobID(ctx, jobID)
+	d, repoErr := s.repo.Get(ctx, downloadID)
 	if repoErr != nil {
+		// Download may have been deleted - this is expected, silently ignore
 		return
 	}
 

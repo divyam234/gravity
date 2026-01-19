@@ -23,6 +23,8 @@ type UploadStatus struct {
 
 type UploadOptions struct {
 	DeleteAfter bool
+	TrackingID  string // Download ID to use for progress tracking callbacks
+	JobID       int64  // Custom job ID to use (if 0, one will be generated)
 }
 
 type Remote struct {
@@ -63,5 +65,3 @@ type UploadEngine interface {
 	DeleteRemote(ctx context.Context, name string) error
 	TestRemote(ctx context.Context, name string) error
 }
-
-

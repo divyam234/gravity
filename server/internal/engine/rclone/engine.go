@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"time"
 
@@ -22,8 +23,11 @@ type Engine struct {
 	onComplete func(jobID string)
 	onError    func(jobID string, err error)
 
-	activeJobs map[string]string // map[jobID]trackingID
-	mu         sync.RWMutex
+	activeJobs map[string]struct {
+		trackID string
+		size    int64
+	}
+	mu sync.RWMutex
 }
 
 func NewEngine(port int) *Engine {
@@ -31,9 +35,12 @@ func NewEngine(port int) *Engine {
 	client := NewClient(fmt.Sprintf("http://localhost:%d", port))
 
 	return &Engine{
-		runner:     runner,
-		client:     client,
-		activeJobs: make(map[string]string),
+		runner: runner,
+		client: client,
+		activeJobs: make(map[string]struct {
+			trackID string
+			size    int64
+		}),
 	}
 }
 
@@ -72,11 +79,23 @@ func (e *Engine) Upload(ctx context.Context, src, dst string, opts engine.Upload
 		return "", fmt.Errorf("failed to stat source: %w", err)
 	}
 
-	trackingID := uuid.New().String()
+	// Use provided TrackingID (download ID) or generate a new one
+	trackingID := opts.TrackingID
+	if trackingID == "" {
+		trackingID = uuid.New().String()
+	}
+
+	// Use provided job ID or generate one
+	customJobID := opts.JobID
+	if customJobID == 0 {
+		customJobID = time.Now().UnixNano()
+	}
+
 	var method string
 	params := map[string]interface{}{
 		"_async": true,
 		"_group": trackingID,
+		"_jobid": customJobID, // Use our own job ID
 	}
 
 	if info.IsDir() {
@@ -91,32 +110,48 @@ func (e *Engine) Upload(ctx context.Context, src, dst string, opts engine.Upload
 		params["dstRemote"] = filepath.Base(src)
 	}
 
-	res, err := e.client.Call(ctx, method, params)
+	_, err = e.client.Call(ctx, method, params)
 	if err != nil {
 		return "", err
 	}
 
-	var asyncRes struct {
-		JobID int64 `json:"jobid"`
-	}
-	if err := json.Unmarshal(res, &asyncRes); err != nil {
-		return "", err
-	}
-
-	jobID := fmt.Sprintf("%d", asyncRes.JobID)
+	jobID := fmt.Sprintf("%d", customJobID)
 	e.mu.Lock()
-	e.activeJobs[jobID] = trackingID
+	e.activeJobs[jobID] = struct {
+		trackID string
+		size    int64
+	}{trackID: trackingID, size: info.Size()}
 	e.mu.Unlock()
 
 	return jobID, nil
 }
 
 func (e *Engine) Cancel(ctx context.Context, jobID string) error {
-	params := map[string]interface{}{
-		"jobid": jobID,
+	// Convert string job ID to int64 for rclone API
+	jobIDInt, err := strconv.ParseInt(jobID, 10, 64)
+	if err != nil {
+		return fmt.Errorf("invalid job ID: %w", err)
 	}
-	_, err := e.client.Call(ctx, "job/stop", params)
 
+	// Get the tracking ID before we delete from activeJobs
+	e.mu.RLock()
+	jobData, exists := e.activeJobs[jobID]
+	e.mu.RUnlock()
+
+	// Stop the job
+	params := map[string]interface{}{
+		"jobid": jobIDInt,
+	}
+	_, err = e.client.Call(ctx, "job/stop", params)
+
+	// Clean up stats for this group if we have the tracking ID
+	if exists && jobData.trackID != "" {
+		e.client.Call(ctx, "core/stats-delete", map[string]interface{}{
+			"group": jobData.trackID,
+		})
+	}
+
+	// Always clean up our tracking
 	e.mu.Lock()
 	delete(e.activeJobs, jobID)
 	e.mu.Unlock()
@@ -125,8 +160,14 @@ func (e *Engine) Cancel(ctx context.Context, jobID string) error {
 }
 
 func (e *Engine) Status(ctx context.Context, jobID string) (*engine.UploadStatus, error) {
+	// Convert string job ID to int64 for rclone API
+	jobIDInt, err := strconv.ParseInt(jobID, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid job ID: %w", err)
+	}
+
 	params := map[string]interface{}{
-		"jobid": jobID,
+		"jobid": jobIDInt,
 	}
 	res, err := e.client.Call(ctx, "job/status", params)
 	if err != nil {
@@ -167,15 +208,21 @@ func (e *Engine) GetGlobalStats(ctx context.Context) (*engine.GlobalStats, error
 	}
 
 	var stats struct {
-		Speed        float64 `json:"speed"`
-		Transferring []interface{} `json:"transferring"`
+		Transferring []struct {
+			Speed float64 `json:"speed"`
+		} `json:"transferring"`
 	}
 	if err := json.Unmarshal(res, &stats); err != nil {
 		return nil, err
 	}
 
+	currentSpeed := float64(0)
+	for _, t := range stats.Transferring {
+		currentSpeed += t.Speed
+	}
+
 	return &engine.GlobalStats{
-		Speed:           int64(stats.Speed),
+		Speed:           int64(currentSpeed),
 		ActiveTransfers: len(stats.Transferring),
 	}, nil
 }
@@ -258,13 +305,16 @@ func (e *Engine) pollProgress() {
 
 	for range ticker.C {
 		e.mu.RLock()
-		jobs := make(map[string]string)
-		for id, track := range e.activeJobs {
-			jobs[id] = track
+		jobs := make(map[string]struct {
+			trackID string
+			size    int64
+		})
+		for id, data := range e.activeJobs {
+			jobs[id] = data
 		}
 		e.mu.RUnlock()
 
-		for id, track := range jobs {
+		for id, data := range jobs {
 			status, err := e.Status(context.Background(), id)
 			if err != nil {
 				continue
@@ -272,60 +322,33 @@ func (e *Engine) pollProgress() {
 
 			if status.Status == "complete" {
 				if h := e.onComplete; h != nil {
-					h(id)
+					h(data.trackID) // Pass trackID (download ID) instead of rclone job ID
 				}
 				e.mu.Lock()
 				delete(e.activeJobs, id)
 				e.mu.Unlock()
 			} else if status.Status == "error" {
 				if h := e.onError; h != nil {
-					h(id, fmt.Errorf("%s", status.Error))
+					h(data.trackID, fmt.Errorf("%s", status.Error)) // Pass trackID (download ID)
 				}
 				e.mu.Lock()
 				delete(e.activeJobs, id)
 				e.mu.Unlock()
 			} else {
-				// Query global stats
-				res, err := e.client.Call(context.Background(), "core/stats", nil)
-				if err == nil {
-					var stats struct {
-						Transferring []struct {
-							Size  int64  `json:"size"`
-							Bytes int64  `json:"bytes"`
-							Speed int64  `json:"speed"`
-							Group string `json:"group"`
-						} `json:"transferring"`
-					}
-					if err := json.Unmarshal(res, &stats); err == nil {
-						for _, t := range stats.Transferring {
-							if t.Group == track {
-								if h := e.onProgress; h != nil {
-									h(id, engine.UploadProgress{
-										Uploaded: t.Bytes,
-										Size:     t.Size,
-										Speed:    t.Speed,
-									})
-								}
-							}
-						}
-					}
-				}
-
 				// Also query group-specific stats for better accuracy
-				groupRes, err := e.client.Call(context.Background(), "core/stats", map[string]string{"group": track})
+				groupRes, err := e.client.Call(context.Background(), "core/stats", map[string]string{"group": data.trackID})
 				if err == nil {
 					var gStats struct {
-						Bytes int64 `json:"bytes"`
-						Speed int64 `json:"speed"`
+						Bytes int64   `json:"bytes"`
+						Speed float64 `json:"speed"`
 					}
-					if err := json.Unmarshal(groupRes, &gStats); err == nil && gStats.Speed > 0 {
+					if err := json.Unmarshal(groupRes, &gStats); err == nil {
 						if h := e.onProgress; h != nil {
-							// Note: gStats from group query might not have individual file size,
-							// but it has total bytes transferred for the group.
-							h(id, engine.UploadProgress{
+							// Pass trackID (download ID) instead of rclone job ID
+							h(data.trackID, engine.UploadProgress{
 								Uploaded: gStats.Bytes,
-								Size:     0, // We'll rely on the global stats for size if possible
-								Speed:    gStats.Speed,
+								Size:     data.size,
+								Speed:    int64(gStats.Speed),
 							})
 						}
 					}

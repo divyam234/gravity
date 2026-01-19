@@ -30,6 +30,9 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
   const isComplete = task.status === "complete";
   const isUploading = task.status === "uploading";
 
+  // Calculate uploaded bytes from progress percentage
+  const uploadedBytes = task.size > 0 ? Math.floor((task.uploadProgress / 100) * task.size) : 0;
+
   // Effective display values
   const effectiveProgress = isUploading ? task.uploadProgress : progress;
   const effectiveSpeed = isUploading ? task.uploadSpeed : task.speed;
@@ -71,7 +74,7 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
               />
               <span className="text-xs text-muted font-bold">
                 {isUploading
-                  ? `${task.uploadProgress}%`
+                  ? `${formatBytes(uploadedBytes)} / ${formatBytes(task.size)}`
                   : `${formatBytes(task.downloaded)} / ${formatBytes(task.size)}`}
               </span>
             </div>
@@ -169,7 +172,7 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
               <StatusChip status={task.status} />
               <span className="text-sm text-muted font-medium">
                 {isUploading
-                  ? `${task.uploadProgress}% uploaded`
+                  ? `${formatBytes(uploadedBytes)} / ${formatBytes(task.size)}`
                   : `${formatBytes(task.downloaded)} / ${formatBytes(task.size)}`}
               </span>
             </div>

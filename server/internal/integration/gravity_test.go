@@ -61,12 +61,14 @@ func (m *mockDownloadEngine) OnComplete(h func(string, string))          { m.onC
 func (m *mockDownloadEngine) OnError(h func(string, error))              { m.onError = h }
 
 type mockUploadEngine struct {
-	onComplete func(string)
+	onComplete     func(string)
+	lastTrackingID string // Store the tracking ID from the last upload
 }
 
 func (m *mockUploadEngine) Start(ctx context.Context) error { return nil }
 func (m *mockUploadEngine) Stop() error                     { return nil }
 func (m *mockUploadEngine) Upload(ctx context.Context, src, dst string, opts engine.UploadOptions) (string, error) {
+	m.lastTrackingID = opts.TrackingID // Store tracking ID for test callbacks
 	return "job_" + uuid.New().String()[:8], nil
 }
 func (m *mockUploadEngine) Cancel(ctx context.Context, jobID string) error { return nil }
@@ -148,7 +150,7 @@ func TestDownloadLifecycle(t *testing.T) {
 	// api.Handler functions expect chi context. We need to wrap or mock chi.
 	// Easiest is to call Service directly for logic tests, or use router.
 	// Let's use Service directly for lifecycle logic to avoid routing boilerplate in test.
-	
+
 	err := ds.Pause(context.Background(), id)
 	if err != nil {
 		t.Errorf("Pause failed: %v", err)
@@ -170,10 +172,10 @@ func TestDownloadLifecycle(t *testing.T) {
 	if me.onComplete != nil {
 		me.onComplete(dUpdated.EngineID, "/tmp/file.zip")
 	}
-	
+
 	// Wait for event bus
 	time.Sleep(100 * time.Millisecond)
-	
+
 	dFinal, _ := ds.Get(context.Background(), id)
 	if dFinal.Status != model.StatusComplete {
 		t.Errorf("expected complete, got %s", dFinal.Status)
@@ -185,12 +187,12 @@ func TestUploadLifecycle(t *testing.T) {
 
 	// Create with destination to trigger upload
 	d, _ := ds.Create(context.Background(), "https://example.com/up.zip", "up.zip", "gdrive:/")
-	
+
 	// Simulate download complete
 	if me.onComplete != nil {
 		me.onComplete(d.EngineID, "/tmp/up.zip")
 	}
-	
+
 	time.Sleep(100 * time.Millisecond)
 
 	// Check if upload started
@@ -202,9 +204,9 @@ func TestUploadLifecycle(t *testing.T) {
 		t.Error("expected UploadJobID to be set")
 	}
 
-	// Simulate upload complete
+	// Simulate upload complete - now callbacks receive download ID, not job ID
 	if mue.onComplete != nil {
-		mue.onComplete(d.UploadJobID)
+		mue.onComplete(d.ID) // Use download ID directly
 	}
 
 	time.Sleep(100 * time.Millisecond)
@@ -275,9 +277,9 @@ func TestSettings(t *testing.T) {
 
 func TestRetry(t *testing.T) {
 	s, _, ds, _, _, _, _ := setupTest(t)
-	
+
 	d, _ := ds.Create(context.Background(), "https://example.com/fail.zip", "fail.zip", "")
-	
+
 	// Manually set to error
 	d.Status = model.StatusError
 	d.Error = "Simulated error"

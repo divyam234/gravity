@@ -229,10 +229,12 @@ func TestRealFlowDetailed(t *testing.T) {
 	os.MkdirAll(downloadDir, 0755)
 	os.MkdirAll(uploadDir, 0755)
 
-	fileSize := 50 * 1024 * 1024
+	// 1. Setup a dummy file server (100MB to allow time for polling)
+	fileSize := 100 * 1024 * 1024
 	dummyData := make([]byte, fileSize)
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Length", fmt.Sprintf("%d", fileSize))
+		// Throttled output to ensure we catch progress
 		chunkSize := 1024 * 1024
 		for i := 0; i < fileSize; i += chunkSize {
 			end := i + chunkSize
@@ -240,7 +242,7 @@ func TestRealFlowDetailed(t *testing.T) {
 				end = fileSize
 			}
 			w.Write(dummyData[i:end])
-			time.Sleep(50 * time.Millisecond)
+			time.Sleep(20 * time.Millisecond)
 		}
 	}))
 	defer ts.Close()

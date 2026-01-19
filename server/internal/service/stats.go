@@ -76,19 +76,25 @@ func (s *StatsService) GetCurrent(ctx context.Context) (*model.Stats, error) {
 		}
 	}
 
-		uploadStats, _ := s.uploadEngine.GetGlobalStats(ctx)
+			uploadStats, _ := s.uploadEngine.GetGlobalStats(ctx)
 
-		activeUploads := 0
+			activeUploads := 0
 
-		uploadSpeed := int64(0)
+			uploadSpeed := int64(0)
 
-		if uploadStats != nil {
+			if uploadStats != nil {
 
-			activeUploads = uploadStats.ActiveTransfers
+				activeUploads = uploadStats.ActiveTransfers
 
-			uploadSpeed = uploadStats.Speed
+				if activeUploads > 0 {
 
-		}
+					uploadSpeed = uploadStats.Speed
+
+				}
+
+			}
+
+		
 
 	
 
