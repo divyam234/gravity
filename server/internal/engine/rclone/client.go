@@ -19,12 +19,18 @@ func NewClient(url string) *Client {
 }
 
 func (c *Client) Call(ctx context.Context, method string, params interface{}) (json.RawMessage, error) {
-	jsonData, err := json.Marshal(params)
-	if err != nil {
-		return nil, err
+	var body io.Reader
+	if params == nil {
+		body = bytes.NewBufferString("{}")
+	} else {
+		jsonData, err := json.Marshal(params)
+		if err != nil {
+			return nil, err
+		}
+		body = bytes.NewBuffer(jsonData)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", fmt.Sprintf("%s/%s", c.url, method), bytes.NewBuffer(jsonData))
+	req, err := http.NewRequestWithContext(ctx, "POST", c.url+"/"+method, body)
 	if err != nil {
 		return nil, err
 	}
@@ -37,14 +43,14 @@ func (c *Client) Call(ctx context.Context, method string, params interface{}) (j
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
 
 	if resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("rclone error: %d %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("rclone error: %d %s", resp.StatusCode, string(respBody))
 	}
 
-	return json.RawMessage(body), nil
+	return json.RawMessage(respBody), nil
 }

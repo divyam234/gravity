@@ -285,6 +285,7 @@ func (e *Engine) pollProgress() {
 				delete(e.activeJobs, id)
 				e.mu.Unlock()
 			} else {
+				// Query global stats
 				res, err := e.client.Call(context.Background(), "core/stats", nil)
 				if err == nil {
 					var stats struct {
@@ -306,6 +307,26 @@ func (e *Engine) pollProgress() {
 									})
 								}
 							}
+						}
+					}
+				}
+
+				// Also query group-specific stats for better accuracy
+				groupRes, err := e.client.Call(context.Background(), "core/stats", map[string]string{"group": track})
+				if err == nil {
+					var gStats struct {
+						Bytes int64 `json:"bytes"`
+						Speed int64 `json:"speed"`
+					}
+					if err := json.Unmarshal(groupRes, &gStats); err == nil && gStats.Speed > 0 {
+						if h := e.onProgress; h != nil {
+							// Note: gStats from group query might not have individual file size,
+							// but it has total bytes transferred for the group.
+							h(id, engine.UploadProgress{
+								Uploaded: gStats.Bytes,
+								Size:     0, // We'll rely on the global stats for size if possible
+								Speed:    gStats.Speed,
+							})
 						}
 					}
 				}
