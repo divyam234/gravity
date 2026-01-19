@@ -49,6 +49,9 @@ type UploadEngine interface {
 	Status(ctx context.Context, jobID string) (*UploadStatus, error)
 	GetGlobalStats(ctx context.Context) (*GlobalStats, error)
 
+	// Meta
+	Version(ctx context.Context) (string, error)
+
 	// Events
 	OnProgress(handler func(jobID string, progress UploadProgress))
 	OnComplete(handler func(jobID string))

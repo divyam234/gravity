@@ -204,6 +204,20 @@ func (e *Engine) Configure(ctx context.Context, options map[string]string) error
 	return err
 }
 
+func (e *Engine) Version(ctx context.Context) (string, error) {
+	res, err := e.client.Call(ctx, "aria2.getVersion", nil)
+	if err != nil {
+		return "", err
+	}
+	var v struct {
+		Version string `json:"version"`
+	}
+	if err := json.Unmarshal(res, &v); err != nil {
+		return "", err
+	}
+	return v.Version, nil
+}
+
 func (e *Engine) OnProgress(h func(string, engine.Progress)) {
 	e.mu.Lock()
 	defer e.mu.Unlock()

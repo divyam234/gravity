@@ -159,6 +159,20 @@ func (e *Engine) GetGlobalStats(ctx context.Context) (*engine.GlobalStats, error
 	}, nil
 }
 
+func (e *Engine) Version(ctx context.Context) (string, error) {
+	res, err := e.client.Call(ctx, "core/version", nil)
+	if err != nil {
+		return "", err
+	}
+	var v struct {
+		Version string `json:"version"`
+	}
+	if err := json.Unmarshal(res, &v); err != nil {
+		return "", err
+	}
+	return v.Version, nil
+}
+
 func (e *Engine) ListRemotes(ctx context.Context) ([]engine.Remote, error) {
 	res, err := e.client.Call(ctx, "config/listremotes", nil)
 	if err != nil {

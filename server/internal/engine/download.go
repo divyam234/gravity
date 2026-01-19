@@ -52,6 +52,9 @@ type DownloadEngine interface {
 	// Configuration
 	Configure(ctx context.Context, options map[string]string) error
 
+	// Meta
+	Version(ctx context.Context) (string, error)
+
 	// Events
 	OnProgress(handler func(id string, progress Progress))
 	OnComplete(handler func(id string, filePath string))

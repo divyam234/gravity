@@ -80,6 +80,7 @@ func New() (*App, error) {
 	rh := api.NewRemoteHandler(ue)
 	sh := api.NewStatsHandler(ss)
 	seth := api.NewSettingsHandler(store.NewSettingsRepo(s.GetDB()), de)
+	sysh := api.NewSystemHandler(de, ue)
 	wsh := api.NewWSHandler(bus)
 
 	// V1 Router
@@ -90,6 +91,7 @@ func New() (*App, error) {
 	v1.Mount("/remotes", rh.Routes())
 	v1.Mount("/stats", sh.Routes())
 	v1.Mount("/settings", seth.Routes())
+	v1.Mount("/system", sysh.Routes())
 
 	// Mount V1 to root
 	router.Mount("/api/v1", v1)

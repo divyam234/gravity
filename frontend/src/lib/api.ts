@@ -104,6 +104,11 @@ class ApiClient {
   updateSettings(settings: Record<string, string>) {
     return this.request<void>('PATCH', '/settings', settings);
   }
+
+  // System
+  getVersion() {
+    return this.request<{ version: string; aria2: string; rclone: string }>('GET', '/system/version');
+  }
 }
 
 export const api = new ApiClient();

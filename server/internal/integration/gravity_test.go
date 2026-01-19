@@ -45,6 +45,9 @@ func (m *mockDownloadEngine) List(ctx context.Context) ([]*engine.DownloadStatus
 func (m *mockDownloadEngine) Configure(ctx context.Context, options map[string]string) error {
 	return nil
 }
+func (m *mockDownloadEngine) Version(ctx context.Context) (string, error) {
+	return "mock-1.0", nil
+}
 func (m *mockDownloadEngine) OnProgress(h func(string, engine.Progress)) { m.onProgress = h }
 func (m *mockDownloadEngine) OnComplete(h func(string, string))          {}
 func (m *mockDownloadEngine) OnError(h func(string, error))              {}

@@ -48,7 +48,7 @@ export const taskFilesOptions = (gid: string) =>
 export function useGravityVersion() {
 	return useQuery({
 		queryKey: ["gravity", "version"],
-		queryFn: () => Promise.resolve({ version: "1.0.0", enabledFeatures: ["gravity"] }),
+		queryFn: () => api.getVersion(),
 	});
 }
 

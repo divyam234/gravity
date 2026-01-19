@@ -5,11 +5,14 @@ import IconCheck from "~icons/gravity-ui/check";
 import IconPencil from "~icons/gravity-ui/pencil";
 import IconPlus from "~icons/gravity-ui/plus";
 import IconTrashBin from "~icons/gravity-ui/trash-bin";
+import IconServer from "~icons/gravity-ui/server";
 import { useSettingsStore, type ServerConfig } from "../../../store/useSettingsStore";
 import { cn } from "../../../lib/utils";
+import { useGravityVersion } from "../../../hooks/useEngine";
 
 export const ConnectionSettings: React.FC = () => {
   const { servers, activeServerId, addServer, updateServer, removeServer, setActiveServer } = useSettingsStore();
+  const { data: version } = useGravityVersion();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
 
@@ -19,6 +22,8 @@ export const ConnectionSettings: React.FC = () => {
     serverUrl: "http://localhost:8080/api/v1",
     apiKey: "",
   });
+
+  const activeServer = servers.find(s => s.id === activeServerId);
 
   const resetForm = () => {
     setFormData({
@@ -65,6 +70,32 @@ export const ConnectionSettings: React.FC = () => {
 
   return (
     <div className="space-y-8">
+      {/* Active Server Status */}
+      {activeServer && (
+        <Card className="p-6 border border-accent/20 bg-accent/5">
+            <div className="flex items-center gap-4">
+                <div className="p-3 bg-accent/10 rounded-full">
+                    <IconServer className="w-6 h-6 text-accent" />
+                </div>
+                <div>
+                    <h4 className="font-bold text-lg flex items-center gap-2">
+                        {activeServer.name}
+                        <Chip size="sm" color="success" variant="soft" className="px-2">
+                            <span className="flex items-center gap-1 font-bold">
+                                <IconCheck className="w-3 h-3" /> Connected
+                            </span>
+                        </Chip>
+                    </h4>
+                    <p className="text-sm text-muted">
+                        Version: <span className="font-mono font-bold">{version?.version || "Unknown"}</span>
+                        {version?.aria2 && <span className="text-xs text-muted ml-2">Aria2: {version.aria2}</span>}
+                        {version?.rclone && <span className="text-xs text-muted ml-2">Rclone: {version.rclone}</span>}
+                    </p>
+                </div>
+            </div>
+        </Card>
+      )}
+
       <div className="space-y-6">
         <div className="flex items-center justify-between border-b border-border pb-2">
           <div>

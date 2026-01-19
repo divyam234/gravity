@@ -1,0 +1,59 @@
+version: '3'
+
+tasks:
+  default:
+    cmds:
+      - task: dev
+
+  install:
+    desc: Install dependencies
+    cmds:
+      - cd frontend && bun install
+      - cd server && go mod download
+
+  dev:
+    desc: Run development server
+    deps: [install]
+    cmds:
+      - task: dev:frontend
+      - task: dev:backend
+
+  dev:frontend:
+    dir: frontend
+    cmd: bun run dev
+
+  dev:backend:
+    dir: server
+    cmd: go run cmd/gravity/main.go
+
+  build:
+    desc: Build for production
+    deps: [build:frontend, build:backend]
+
+  build:frontend:
+    dir: frontend
+    cmd: bun run build
+
+  build:backend:
+    dir: server
+    cmd: go build -o ../gravity cmd/gravity/main.go
+
+  test:
+    desc: Run tests
+    cmds:
+      - task: test:backend
+      - task: test:frontend
+
+  test:backend:
+    dir: server
+    cmd: go test ./...
+
+  test:frontend:
+    dir: frontend
+    cmd: bun run test
+
+  clean:
+    desc: Clean build artifacts
+    cmds:
+      - rm -rf server/dist
+      - rm -f gravity
