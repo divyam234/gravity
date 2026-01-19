@@ -7,7 +7,7 @@ export function useNotifications() {
 	const { enableNotifications } = useSettingsStore();
 	const { data: stats } = useGlobalStat();
 	// Only poll active tasks if notifications are enabled AND there are active tasks
-	const hasActive = enableNotifications && ((stats?.numActive ?? 0) > 0);
+	const hasActive = enableNotifications && ((stats?.active.downloads ?? 0) + (stats?.active.uploads ?? 0) > 0);
 
 	const { data: activeTasks } = useActiveTasks({ enabled: hasActive });
 	const { data: uploadingTasks } = useUploadingTasks({ enabled: hasActive });

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+
 	"gravity/internal/engine"
 	"gravity/internal/event"
 	"gravity/internal/model"
@@ -10,14 +11,16 @@ import (
 
 type StatsService struct {
 	repo           *store.StatsRepo
+	downloadRepo   *store.DownloadRepo
 	downloadEngine engine.DownloadEngine
 	uploadEngine   engine.UploadEngine
 	bus            *event.Bus
 }
 
-func NewStatsService(repo *store.StatsRepo, de engine.DownloadEngine, ue engine.UploadEngine, bus *event.Bus) *StatsService {
+func NewStatsService(repo *store.StatsRepo, dr *store.DownloadRepo, de engine.DownloadEngine, ue engine.UploadEngine, bus *event.Bus) *StatsService {
 	return &StatsService{
 		repo:           repo,
+		downloadRepo:   dr,
 		downloadEngine: de,
 		uploadEngine:   ue,
 		bus:            bus,
@@ -49,7 +52,7 @@ func (s *StatsService) Start() {
 	}()
 }
 
-func (s *StatsService) GetCurrent(ctx context.Context) (map[string]interface{}, error) {
+func (s *StatsService) GetCurrent(ctx context.Context) (*model.Stats, error) {
 	historical, err := s.repo.Get(ctx)
 	if err != nil {
 		return nil, err
@@ -73,25 +76,118 @@ func (s *StatsService) GetCurrent(ctx context.Context) (map[string]interface{}, 
 		}
 	}
 
-	uploadStats, _ := s.uploadEngine.GetGlobalStats(ctx)
-	activeUploads := 0
-	uploadSpeed := int64(0)
-	if uploadStats != nil {
-		activeUploads = uploadStats.ActiveTransfers
-		uploadSpeed = uploadStats.Speed
-	}
+		uploadStats, _ := s.uploadEngine.GetGlobalStats(ctx)
 
-	return map[string]interface{}{
-		"active": map[string]interface{}{
-			"downloads":     activeDownloads,
-			"downloadSpeed": downloadSpeed,
-			"uploads":       activeUploads,
-			"uploadSpeed":   uploadSpeed,
-		},
-		"queue": map[string]interface{}{
-			"pending": pendingDownloads,
-			"paused":  pausedDownloads,
-		},
-		"totals": historical,
-	}, nil
-}
+		activeUploads := 0
+
+		uploadSpeed := int64(0)
+
+		if uploadStats != nil {
+
+			activeUploads = uploadStats.ActiveTransfers
+
+			uploadSpeed = uploadStats.Speed
+
+		}
+
+	
+
+		// Fetch current counts from DB to reflect deletions
+
+		_, currentCompleted, _ := s.downloadRepo.List(ctx, []string{string(model.StatusComplete)}, 0, 0)
+
+		_, currentFailed, _ := s.downloadRepo.List(ctx, []string{string(model.StatusError)}, 0, 0)
+
+	
+
+						return &model.Stats{
+
+	
+
+							Active: model.ActiveStats{
+
+	
+
+								Downloads:     activeDownloads,
+
+	
+
+								DownloadSpeed: downloadSpeed,
+
+	
+
+								Uploads:       activeUploads,
+
+	
+
+								UploadSpeed:   uploadSpeed,
+
+	
+
+							},
+
+	
+
+							Queue: model.QueueStats{
+
+	
+
+								Pending: pendingDownloads,
+
+	
+
+								Paused:  pausedDownloads,
+
+	
+
+							},
+
+	
+
+							Totals: model.TotalStats{
+
+	
+
+								TotalDownloaded:    historical["total_downloaded"],
+
+	
+
+								TotalUploaded:      historical["total_uploaded"],
+
+	
+
+								TasksFinished:      int64(currentCompleted),
+
+	
+
+								TasksFailed:        int64(currentFailed),
+
+	
+
+							},
+
+	
+
+						}, nil
+
+	
+
+					}
+
+	
+
+					
+
+	
+
+				
+
+	
+
+			
+
+	
+
+		
+
+	

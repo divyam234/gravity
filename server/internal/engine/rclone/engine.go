@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"gravity/internal/engine"
+
+	"github.com/google/uuid"
 )
 
 type Engine struct {
@@ -20,7 +22,7 @@ type Engine struct {
 	onComplete func(jobID string)
 	onError    func(jobID string, err error)
 
-	activeJobs map[string]struct{}
+	activeJobs map[string]string // map[jobID]trackingID
 	mu         sync.RWMutex
 }
 
@@ -31,7 +33,7 @@ func NewEngine(port int) *Engine {
 	return &Engine{
 		runner:     runner,
 		client:     client,
-		activeJobs: make(map[string]struct{}),
+		activeJobs: make(map[string]string),
 	}
 }
 
@@ -65,25 +67,23 @@ func (e *Engine) Stop() error {
 }
 
 func (e *Engine) Upload(ctx context.Context, src, dst string, opts engine.UploadOptions) (string, error) {
-	// src is absolute path to file or directory
-	// dst is Remote:Path/To/Dir
-	
 	info, err := os.Stat(src)
 	if err != nil {
 		return "", fmt.Errorf("failed to stat source: %w", err)
 	}
 
+	trackingID := uuid.New().String()
 	var method string
-	params := map[string]interface{}{"_async": true}
+	params := map[string]interface{}{
+		"_async": true,
+		"_group": trackingID,
+	}
 
 	if info.IsDir() {
-		// For directories, use sync/copy
-		// We want to preserve the folder name, so we append it to dst
 		method = "sync/copy"
 		params["srcFs"] = src
 		params["dstFs"] = filepath.Join(dst, filepath.Base(src))
 	} else {
-		// For single files, use operations/copyfile
 		method = "operations/copyfile"
 		params["srcFs"] = filepath.Dir(src)
 		params["srcRemote"] = filepath.Base(src)
@@ -105,7 +105,7 @@ func (e *Engine) Upload(ctx context.Context, src, dst string, opts engine.Upload
 
 	jobID := fmt.Sprintf("%d", asyncRes.JobID)
 	e.mu.Lock()
-	e.activeJobs[jobID] = struct{}{}
+	e.activeJobs[jobID] = trackingID
 	e.mu.Unlock()
 
 	return jobID, nil
@@ -167,10 +167,9 @@ func (e *Engine) GetGlobalStats(ctx context.Context) (*engine.GlobalStats, error
 	}
 
 	var stats struct {
-		Speed        float64 `json:"speed"` // Rclone returns float bytes/sec? Check docs. Usually float or int.
+		Speed        float64 `json:"speed"`
 		Transferring []interface{} `json:"transferring"`
 	}
-    // Rclone speed is float64 in JSON
 	if err := json.Unmarshal(res, &stats); err != nil {
 		return nil, err
 	}
@@ -259,13 +258,13 @@ func (e *Engine) pollProgress() {
 
 	for range ticker.C {
 		e.mu.RLock()
-		jobs := make([]string, 0, len(e.activeJobs))
-		for id := range e.activeJobs {
-			jobs = append(jobs, id)
+		jobs := make(map[string]string)
+		for id, track := range e.activeJobs {
+			jobs[id] = track
 		}
 		e.mu.RUnlock()
 
-		for _, id := range jobs {
+		for id, track := range jobs {
 			status, err := e.Status(context.Background(), id)
 			if err != nil {
 				continue
@@ -298,7 +297,7 @@ func (e *Engine) pollProgress() {
 					}
 					if err := json.Unmarshal(res, &stats); err == nil {
 						for _, t := range stats.Transferring {
-							if t.Group == "job/"+id {
+							if t.Group == track {
 								if h := e.onProgress; h != nil {
 									h(id, engine.UploadProgress{
 										Uploaded: t.Bytes,

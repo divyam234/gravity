@@ -5,8 +5,8 @@ import IconListUl from "~icons/gravity-ui/list-ul";
 import IconPause from "~icons/gravity-ui/pause";
 import IconPlay from "~icons/gravity-ui/play";
 import IconTrashBin from "~icons/gravity-ui/trash-bin";
-import { useDownloadActions } from "../../hooks/useDownloads";
-import { formatBytes, formatTime } from "../../lib/utils";
+import { useEngineActions } from "../../hooks/useEngine";
+import { cn, formatBytes, formatTime } from "../../lib/utils";
 import { ProgressBar } from "../ui/ProgressBar";
 import { StatusChip } from "../ui/StatusChip";
 import type { Download } from "../../lib/types";
@@ -20,10 +20,10 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
   task,
   variant = "list",
 }) => {
-  const { pause, resume, remove } = useDownloadActions();
+  const { pause, unpause, remove } = useEngineActions();
 
   const progress = task.size > 0 ? (task.downloaded / task.size) * 100 : 0;
-  
+
   const isPaused = task.status === "paused";
   const isActive = task.status === "active";
   const isError = task.status === "error";
@@ -31,13 +31,23 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
   const isUploading = task.status === "uploading";
 
   // Effective display values
-  const displayStatus = task.status;
   const effectiveProgress = isUploading ? task.uploadProgress : progress;
   const effectiveSpeed = isUploading ? task.uploadSpeed : task.speed;
+  const isActionable = isActive || isPaused;
 
   const handleRemove = () => {
-    remove.mutate({ id: task.id });
+    remove.mutate(task.id);
   };
+
+  const statusColor = isError
+    ? "danger"
+    : isUploading
+      ? "default"
+      : isComplete
+        ? "success"
+        : "accent";
+
+  const progressClassName = isUploading ? "h-2 [&>div]:bg-cyan-500" : "h-2";
 
   if (variant === "list") {
     return (
@@ -56,11 +66,13 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
             </h3>
             <div className="flex items-center gap-3 mt-1.5">
               <StatusChip
-                status={displayStatus}
+                status={task.status}
                 className="h-5 text-[10px] px-2"
               />
               <span className="text-xs text-muted font-bold">
-                {formatBytes(task.downloaded)} / {formatBytes(task.size)}
+                {isUploading
+                  ? `${task.uploadProgress}%`
+                  : `${formatBytes(task.downloaded)} / ${formatBytes(task.size)}`}
               </span>
             </div>
             {isError && task.error && (
@@ -74,38 +86,29 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
             <ProgressBar
               value={effectiveProgress}
               size="sm"
-              color={
-                isError
-                  ? "danger"
-                  : isUploading
-                    ? "default"
-                    : isComplete
-                      ? "success"
-                      : "accent"
-              }
-              className={isUploading ? "h-2 [&>div]:bg-cyan-500" : "h-2"}
-              isIndeterminate={isUploading && effectiveProgress === 0}
+              color={statusColor}
+              className={progressClassName}
             />
           </div>
 
           <div className="w-32 shrink-0 hidden md:flex flex-col items-end gap-0.5">
-            {isUploading ? (
-              <>
-                <span className="text-xs font-black text-cyan-500">
-                  ↑ {formatBytes(effectiveSpeed)}/s
-                </span>
-              </>
-            ) : (
-              <>
-                <span className="text-xs font-black text-success/80">
-                  ↓ {formatBytes(task.speed)}/s
-                </span>
-                {isActive && (
-                  <span className="text-[10px] text-muted font-bold uppercase tracking-wider">
-                    {formatTime(task.eta)}
-                  </span>
-                )}
-              </>
+            <span
+              className={cn(
+                "text-xs font-black",
+                isUploading ? "text-cyan-500" : "text-success/80",
+              )}
+            >
+              {isUploading ? "↑" : "↓"} {formatBytes(effectiveSpeed)}/s
+            </span>
+            {!isUploading && isActive && (
+              <span className="text-[10px] text-muted font-bold uppercase tracking-wider">
+                {formatTime(task.eta)}
+              </span>
+            )}
+            {isUploading && task.destination && (
+              <span className="text-[9px] text-muted font-black truncate max-w-full uppercase tracking-tighter">
+                → {task.destination}
+              </span>
             )}
           </div>
         </Link>
@@ -127,7 +130,7 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
               isIconOnly
               size="sm"
               variant="ghost"
-              onPress={() => resume.mutate(task.id)}
+              onPress={() => unpause.mutate(task.id)}
               className="h-8 w-8 min-w-0"
             >
               <IconPlay className="w-4 h-4 text-success" />
@@ -163,9 +166,11 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
               {task.filename || task.id}
             </h3>
             <div className="flex items-center gap-2 mt-1.5">
-              <StatusChip status={displayStatus} />
+              <StatusChip status={task.status} />
               <span className="text-sm text-muted font-medium">
-                {formatBytes(task.downloaded)} / {formatBytes(task.size)}
+                {isUploading
+                  ? `${task.uploadProgress}% uploaded`
+                  : `${formatBytes(task.downloaded)} / ${formatBytes(task.size)}`}
               </span>
             </div>
             {isError && task.error && (
@@ -189,38 +194,27 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
               </Tooltip.Content>
             </Tooltip>
 
-            {isActive && (
+            {isActionable && (
               <Tooltip>
                 <Tooltip.Trigger>
                   <Button
                     isIconOnly
                     size="sm"
                     variant="ghost"
-                    onPress={() => pause.mutate(task.id)}
+                    onPress={() =>
+                      isActive ? pause.mutate(task.id) : unpause.mutate(task.id)
+                    }
                   >
-                    <IconPause className="w-4.5 h-4.5 text-warning" />
+                    {isActive ? (
+                      <IconPause className="w-4.5 h-4.5 text-warning" />
+                    ) : (
+                      <IconPlay className="w-4.5 h-4.5 text-success" />
+                    )}
                   </Button>
                 </Tooltip.Trigger>
                 <Tooltip.Content className="p-2 text-xs flex items-center gap-2">
-                  Pause <Kbd>P</Kbd>
-                </Tooltip.Content>
-              </Tooltip>
-            )}
-
-            {isPaused && (
-              <Tooltip>
-                <Tooltip.Trigger>
-                  <Button
-                    isIconOnly
-                    size="sm"
-                    variant="ghost"
-                    onPress={() => resume.mutate(task.id)}
-                  >
-                    <IconPlay className="w-4.5 h-4.5 text-success" />
-                  </Button>
-                </Tooltip.Trigger>
-                <Tooltip.Content className="p-2 text-xs flex items-center gap-2">
-                  Resume <Kbd>R</Kbd>
+                  {isActive ? "Pause" : "Resume"}{" "}
+                  <Kbd>{isActive ? "P" : "R"}</Kbd>
                 </Tooltip.Content>
               </Tooltip>
             )}
@@ -245,33 +239,27 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
         <ProgressBar
           value={effectiveProgress}
           size="md"
-          color={
-            isError
-              ? "danger"
-              : isUploading
-                ? "default"
-                : isComplete
-                  ? "success"
-                  : "accent"
-          }
-          className={isUploading ? "[&>div]:bg-cyan-500" : ""}
-          showValueLabel={!isUploading || effectiveProgress > 0}
-          isIndeterminate={isUploading && effectiveProgress === 0}
+          color={statusColor}
+          className={progressClassName}
+          showValueLabel={effectiveProgress > 0}
         />
 
         <div className="flex justify-between items-center text-sm text-muted bg-muted-background/50 p-2 rounded-xl border border-border/50">
           <div className="flex gap-4">
-            {isUploading ? (
-              <span className="flex items-center gap-1.5 font-bold text-cyan-500">
-                <div className="w-1.5 h-1.5 rounded-full bg-cyan-500" />↑{" "}
-                {formatBytes(effectiveSpeed)}/s
-              </span>
-            ) : (
-              <span className="flex items-center gap-1.5 font-bold text-success/80">
-                <div className="w-1.5 h-1.5 rounded-full bg-success" />
-                {formatBytes(task.speed)}/s
-              </span>
-            )}
+            <span
+              className={cn(
+                "flex items-center gap-1.5 font-bold",
+                isUploading ? "text-cyan-500" : "text-success/80",
+              )}
+            >
+              <div
+                className={cn(
+                  "w-1.5 h-1.5 rounded-full",
+                  isUploading ? "bg-cyan-500" : "bg-success",
+                )}
+              />
+              {isUploading ? "↑" : "↓"} {formatBytes(effectiveSpeed)}/s
+            </span>
           </div>
 
           <div className="flex gap-4 font-medium">
@@ -280,7 +268,9 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
                 → {task.destination}
               </span>
             )}
-            {!isUploading && isActive && <span>ETA: {formatTime(task.eta)}</span>}
+            {!isUploading && isActive && (
+              <span>ETA: {formatTime(task.eta)}</span>
+            )}
           </div>
         </div>
       </Card.Content>

@@ -14,18 +14,20 @@ import (
 )
 
 type DownloadService struct {
-	repo     *store.DownloadRepo
-	engine   engine.DownloadEngine
-	bus      *event.Bus
-	provider *ProviderService
+	repo         *store.DownloadRepo
+	engine       engine.DownloadEngine
+	uploadEngine engine.UploadEngine
+	bus          *event.Bus
+	provider     *ProviderService
 }
 
-func NewDownloadService(repo *store.DownloadRepo, eng engine.DownloadEngine, bus *event.Bus, provider *ProviderService) *DownloadService {
+func NewDownloadService(repo *store.DownloadRepo, eng engine.DownloadEngine, ue engine.UploadEngine, bus *event.Bus, provider *ProviderService) *DownloadService {
 	s := &DownloadService{
-		repo:     repo,
-		engine:   eng,
-		bus:      bus,
-		provider: provider,
+		repo:         repo,
+		engine:       eng,
+		uploadEngine: ue,
+		bus:          bus,
+		provider:     provider,
 	}
 
 	// Wire up engine events
@@ -197,6 +199,11 @@ func (s *DownloadService) Delete(ctx context.Context, id string, deleteFiles boo
 		s.engine.Remove(ctx, d.EngineID)
 	}
 
+	// Also stop upload if active
+	if d.UploadJobID != "" {
+		s.uploadEngine.Cancel(ctx, d.UploadJobID)
+	}
+
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return err
 	}
@@ -288,7 +295,12 @@ func (s *DownloadService) handleComplete(engineID string, filePath string) {
 		return
 	}
 
-	d.Status = model.StatusComplete
+	if d.Destination != "" {
+		d.Status = model.StatusUploading
+	} else {
+		d.Status = model.StatusComplete
+	}
+
 	d.LocalPath = filePath
 	now := time.Now()
 	d.CompletedAt = &now

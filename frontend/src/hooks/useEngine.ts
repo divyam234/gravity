@@ -20,16 +20,7 @@ export const globalOptionOptions = () =>
 export const globalStatOptions = () =>
 	queryOptions({
 		queryKey: ["gravity", "stats"],
-		queryFn: async () => {
-			const stats = await api.getStats();
-			return {
-				numActive: stats.active.downloads + stats.active.uploads,
-				numWaiting: stats.queue.pending + stats.queue.paused,
-				numStopped: stats.totals.completed + stats.totals.failed,
-				downloadSpeed: stats.active.downloadSpeed,
-				uploadSpeed: stats.active.uploadSpeed,
-			};
-		},
+		queryFn: () => api.getStats(),
 	});
 
 export const taskStatusOptions = (gid: string) =>
@@ -102,15 +93,6 @@ export function useCompletedTasks(options?: { enabled?: boolean }) {
 
 export function useErrorTasks(options?: { enabled?: boolean }) {
     return useTasksByStatus("error", options);
-}
-
-export function useRecentDownloads(limit = 5) {
-	const { pollingInterval } = useSettingsStore();
-	return useQuery({
-		queryKey: ["gravity", "downloads", "recent", limit],
-		queryFn: () => fetchDownloads([], limit),
-		refetchInterval: (query) => (query.state.status === 'error' ? false : pollingInterval),
-	});
 }
 
 export function useAllTasks(

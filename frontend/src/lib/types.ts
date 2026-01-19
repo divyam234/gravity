@@ -58,13 +58,10 @@ export interface Stats {
     paused: number;
   };
   totals: {
-    total_downloaded: number;
-    total_uploaded: number;
-    downloads_completed: number;
-    uploads_completed: number;
-    downloads_failed: number;
-    uploads_failed: number;
-    [key: string]: number;
+    totalDownloaded: number;
+    totalUploaded: number;
+    tasksFinished: number;
+    tasksFailed: number;
   };
 }
 

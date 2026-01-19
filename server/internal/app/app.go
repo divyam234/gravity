@@ -68,9 +68,9 @@ func New() (*App, error) {
 
 	// Services
 	ps := service.NewProviderService(pr, registry)
-	ds := service.NewDownloadService(dr, de, bus, ps)
+	ds := service.NewDownloadService(dr, de, ue, bus, ps)
 	us := service.NewUploadService(dr, ue, bus)
-	ss := service.NewStatsService(sr, de, ue, bus)
+	ss := service.NewStatsService(sr, dr, de, ue, bus)
 
 	// API
 	router := api.NewRouter(cfg.APIKey)
@@ -81,7 +81,6 @@ func New() (*App, error) {
 	sh := api.NewStatsHandler(ss)
 	seth := api.NewSettingsHandler(store.NewSettingsRepo(s.GetDB()), de)
 	sysh := api.NewSystemHandler(de, ue)
-	wsh := api.NewWSHandler(bus)
 
 	// V1 Router
 	v1 := chi.NewRouter()
@@ -95,7 +94,6 @@ func New() (*App, error) {
 
 	// Mount V1 to root
 	router.Mount("/api/v1", v1)
-	router.Handle("/ws", wsh)
 
 	// Frontend
 	fs := http.FileServer(http.Dir("./dist"))

@@ -3,21 +3,19 @@ import type React from "react";
 import IconArrowDown from "~icons/gravity-ui/arrow-down";
 import IconArrowUp from "~icons/gravity-ui/arrow-up";
 import IconPulse from "~icons/gravity-ui/pulse";
-import { useStats } from "../../hooks/useStats";
+import { useGlobalStat } from "../../hooks/useEngine";
 import { useSpeedHistory } from "../../hooks/useSpeedHistory";
 import { formatBytes } from "../../lib/utils";
 import { SpeedGraph } from "../ui/SpeedGraph";
 
 export const StatsOverview: React.FC = () => {
-  const { data: stats } = useStats();
+  const { data: stats } = useGlobalStat();
   const { downloadHistory, uploadHistory } = useSpeedHistory();
 
   const uploadSpeed = stats?.active?.uploadSpeed ?? 0;
 
-  const downloadsCompleted = stats?.totals?.downloads_completed ?? 0;
-  const downloadsFailed = stats?.totals?.downloads_failed ?? 0;
-  const uploadsCompleted = stats?.totals?.uploads_completed ?? 0;
-  const uploadsFailed = stats?.totals?.uploads_failed ?? 0;
+  const tasksFinished = stats?.totals?.tasksFinished ?? 0;
+  const tasksFailed = stats?.totals?.tasksFailed ?? 0;
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -35,8 +33,8 @@ export const StatsOverview: React.FC = () => {
             </div>
           </div>
           <div className="mt-2 flex items-center justify-between text-xs text-muted font-medium">
-            <span>{downloadsCompleted} finished</span>
-            {downloadsFailed > 0 && <span className="text-danger">{downloadsFailed} failed</span>}
+            <span>{tasksFinished} tasks finished</span>
+            {tasksFailed > 0 && <span className="text-danger">{tasksFailed} failed</span>}
           </div>
           <SpeedGraph
             data={downloadHistory}
@@ -61,8 +59,8 @@ export const StatsOverview: React.FC = () => {
             </div>
           </div>
           <div className="mt-2 flex items-center justify-between text-xs text-muted font-medium">
-            <span>{uploadsCompleted} uploaded</span>
-            {uploadsFailed > 0 && <span className="text-danger">{uploadsFailed} failed</span>}
+            <span>{stats?.active?.uploads ?? 0} active uploads</span>
+            <span>{formatBytes(stats?.totals?.totalUploaded ?? 0)} total</span>
           </div>
           <SpeedGraph
             data={uploadHistory}
@@ -87,7 +85,7 @@ export const StatsOverview: React.FC = () => {
               </span>
             </div>
             <div className="text-xs text-muted mt-1 font-medium">
-              Total Data: {formatBytes(stats?.totals?.total_downloaded ?? 0)}
+              Lifetime: {formatBytes(stats?.totals?.totalDownloaded ?? 0)}
             </div>
           </div>
         </Card.Content>

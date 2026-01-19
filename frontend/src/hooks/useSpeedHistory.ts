@@ -19,11 +19,11 @@ export function useSpeedHistory() {
 			const now = Date.now();
 			if (now - lastUpdate.current >= 950) {
 				setDownloadHistory((prev) => {
-					const next = [...prev, Number(stats.downloadSpeed)];
+					const next = [...prev, Number(stats.active.downloadSpeed)];
 					return next.slice(-MAX_HISTORY);
 				});
 				setUploadHistory((prev) => {
-					const next = [...prev, Number(stats.uploadSpeed)];
+					const next = [...prev, Number(stats.active.uploadSpeed)];
 					return next.slice(-MAX_HISTORY);
 				});
 				lastUpdate.current = now;

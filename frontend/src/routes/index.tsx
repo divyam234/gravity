@@ -1,12 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { StatsOverview } from "../components/dashboard/StatsOverview";
-import { RecentDownloads } from "../components/dashboard/RecentDownloads";
 import { globalStatOptions } from "../hooks/useEngine";
 import { useNotifications } from "../hooks/useNotifications";
 
 export const Route = createFileRoute("/")({
 	component: Dashboard,
 	loader: async ({ context: { queryClient } }) => {
+		// Prefetch essential data for the dashboard without blocking
 		queryClient.prefetchQuery(globalStatOptions());
 	},
 });
@@ -22,8 +22,6 @@ function Dashboard() {
 			</div>
 
 			<StatsOverview />
-
-            <RecentDownloads />
 		</div>
 	);
 }

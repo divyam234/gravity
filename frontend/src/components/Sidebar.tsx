@@ -12,7 +12,7 @@ import IconLayoutHeaderCellsLarge from "~icons/gravity-ui/layout-header-cells-la
 import IconNodesDown from "~icons/gravity-ui/nodes-down";
 import IconServer from "~icons/gravity-ui/server";
 import IconXmark from "~icons/gravity-ui/xmark";
-import { useStats } from "../hooks/useStats";
+import { useGlobalStat } from "../hooks/useEngine";
 import { cn, formatBytes } from "../lib/utils";
 import { tasksLinkOptions } from "../routes/tasks";
 
@@ -23,14 +23,14 @@ interface SidebarContentProps {
 export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { data: stats } = useStats();
+  const { data: stats } = useGlobalStat();
 
   const activeCount = stats?.active?.downloads ?? 0;
   const pendingCount = stats?.queue?.pending ?? 0;
   const pausedCount = stats?.queue?.paused ?? 0;
-  const completeCount = stats?.totals?.downloads_completed ?? 0;
+  const completeCount = stats?.totals?.tasksFinished ?? 0;
   const uploadingCount = stats?.active?.uploads ?? 0;
-  const errorCount = stats?.totals?.downloads_failed ?? 0;
+  const errorCount = stats?.totals?.tasksFailed ?? 0;
 
   const mainNavItems = React.useMemo(
     () => [
@@ -139,7 +139,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
 
     if (path === "/") return "dashboard";
     return null;
-  }, [location.pathname, location.search]);
+  }, [location.pathname, location.search, settingsNavItems]);
 
   return (
     <div className="flex flex-col h-full w-full">
