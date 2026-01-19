@@ -236,6 +236,7 @@ func (s *DownloadService) handleComplete(engineID string, filePath string) {
 	}
 
 	d.Status = model.StatusComplete
+	d.LocalPath = filePath
 	now := time.Now()
 	d.CompletedAt = &now
 	s.repo.Update(ctx, d)

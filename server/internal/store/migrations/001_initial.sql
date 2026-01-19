@@ -8,7 +8,9 @@ CREATE TABLE IF NOT EXISTS downloads (
     provider TEXT,
     status TEXT NOT NULL DEFAULT 'pending',
     error TEXT,
+    -- File info
     filename TEXT,
+    local_path TEXT,
     size INTEGER DEFAULT 0,
     downloaded INTEGER DEFAULT 0,
     speed INTEGER DEFAULT 0,

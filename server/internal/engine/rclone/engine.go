@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -63,13 +65,33 @@ func (e *Engine) Stop() error {
 }
 
 func (e *Engine) Upload(ctx context.Context, src, dst string, opts engine.UploadOptions) (string, error) {
-	params := map[string]interface{}{
-		"srcFs":  src,
-		"dstFs":  dst,
-		"_async": true,
+	// src is absolute path to file or directory
+	// dst is Remote:Path/To/Dir
+	
+	info, err := os.Stat(src)
+	if err != nil {
+		return "", fmt.Errorf("failed to stat source: %w", err)
 	}
 
-	res, err := e.client.Call(ctx, "sync/copy", params)
+	var method string
+	params := map[string]interface{}{"_async": true}
+
+	if info.IsDir() {
+		// For directories, use sync/copy
+		// We want to preserve the folder name, so we append it to dst
+		method = "sync/copy"
+		params["srcFs"] = src
+		params["dstFs"] = filepath.Join(dst, filepath.Base(src))
+	} else {
+		// For single files, use operations/copyfile
+		method = "operations/copyfile"
+		params["srcFs"] = filepath.Dir(src)
+		params["srcRemote"] = filepath.Base(src)
+		params["dstFs"] = dst
+		params["dstRemote"] = filepath.Base(src)
+	}
+
+	res, err := e.client.Call(ctx, method, params)
 	if err != nil {
 		return "", err
 	}

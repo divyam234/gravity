@@ -55,10 +55,12 @@ func (s *UploadService) TriggerUpload(ctx context.Context, d *model.Download) er
 	s.repo.Update(ctx, d)
 
 	// Trigger in engine
-	// In a real scenario, we need the local file path.
-	// Aria2 gives us the path in OnComplete.
-	// For now, let's assume destination is correctFs:remotePath
-	jobID, err := s.engine.Upload(ctx, d.Filename, d.Destination, engine.UploadOptions{})
+	// Use LocalPath (absolute) if available, otherwise Filename (relative/fallback)
+	srcPath := d.LocalPath
+	if srcPath == "" {
+		srcPath = d.Filename
+	}
+	jobID, err := s.engine.Upload(ctx, srcPath, d.Destination, engine.UploadOptions{})
 	if err != nil {
 		d.Status = model.StatusError
 		d.Error = "Upload failed: " + err.Error()

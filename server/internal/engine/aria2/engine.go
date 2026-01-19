@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"path/filepath"
 	"strconv"
 	"sync"
 	"time"
@@ -237,7 +238,18 @@ func (e *Engine) handleNotification(method string, gid string) {
 			status, _ := e.Status(context.Background(), gid)
 			filePath := ""
 			if status != nil {
-				filePath = status.Dir + "/" + status.Filename
+				filePath = status.Filename
+				if !filepath.IsAbs(filePath) {
+					filePath = filepath.Join(status.Dir, status.Filename)
+				}
+
+				// If the file is in a subdirectory of the download dir, 
+				// it's likely a multi-file download (torrent).
+				// We should return the directory path instead of the first file.
+				parent := filepath.Dir(filePath)
+				if parent != filepath.Clean(status.Dir) && parent != "." && parent != "/" {
+					filePath = parent
+				}
 			}
 			h(gid, filePath)
 		}

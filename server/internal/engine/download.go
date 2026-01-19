@@ -48,6 +48,7 @@ type DownloadEngine interface {
 	// Status
 	Status(ctx context.Context, id string) (*DownloadStatus, error)
 	List(ctx context.Context) ([]*DownloadStatus, error)
+	Sync(ctx context.Context) error
 
 	// Configuration
 	Configure(ctx context.Context, options map[string]string) error

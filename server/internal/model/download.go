@@ -23,6 +23,7 @@ type Download struct {
 	Status         DownloadStatus `json:"status"`
 	Error          string         `json:"error,omitempty"`
 	Filename       string         `json:"filename,omitempty"`
+	LocalPath      string         `json:"localPath,omitempty"`
 	Size           int64          `json:"size"`
 	Downloaded     int64          `json:"downloaded"`
 	Speed          int64          `json:"speed"`

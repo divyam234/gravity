@@ -23,12 +23,12 @@ func (r *DownloadRepo) Create(ctx context.Context, d *model.Download) error {
 	tagsJson, _ := json.Marshal(d.Tags)
 	query := `
 		INSERT INTO downloads (
-			id, url, resolved_url, provider, status, error, filename, size, 
+			id, url, resolved_url, provider, status, error, filename, local_path, size, 
 			downloaded, speed, eta, destination, category, tags, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 	_, err := r.db.ExecContext(ctx, query,
-		d.ID, d.URL, d.ResolvedURL, d.Provider, d.Status, d.Error, d.Filename, d.Size,
+		d.ID, d.URL, d.ResolvedURL, d.Provider, d.Status, d.Error, d.Filename, d.LocalPath, d.Size,
 		d.Downloaded, d.Speed, d.ETA, d.Destination, d.Category, string(tagsJson),
 		d.CreatedAt, d.UpdatedAt,
 	)
@@ -96,7 +96,7 @@ func (r *DownloadRepo) Update(ctx context.Context, d *model.Download) error {
 
 	query := `
 		UPDATE downloads SET
-			status = ?, error = ?, filename = ?, size = ?, downloaded = ?, 
+			status = ?, error = ?, filename = ?, local_path = ?, size = ?, downloaded = ?, 
 			speed = ?, eta = ?, destination = ?, upload_status = ?, 
 			upload_progress = ?, upload_speed = ?, category = ?, tags = ?, 
 			engine_id = ?, upload_job_id = ?, started_at = ?, 
@@ -104,7 +104,7 @@ func (r *DownloadRepo) Update(ctx context.Context, d *model.Download) error {
 		WHERE id = ?
 	`
 	_, err := r.db.ExecContext(ctx, query,
-		d.Status, d.Error, d.Filename, d.Size, d.Downloaded,
+		d.Status, d.Error, d.Filename, d.LocalPath, d.Size, d.Downloaded,
 		d.Speed, d.ETA, d.Destination, d.UploadStatus,
 		d.UploadProgress, d.UploadSpeed, d.Category, string(tagsJson),
 		d.EngineID, d.UploadJobID, d.StartedAt,
@@ -124,12 +124,12 @@ func (r *DownloadRepo) scanDownload(scanner interface {
 }) (*model.Download, error) {
 	d := &model.Download{}
 	var tags string
-	var resolvedURL, provider, errStr, filename, destination, uploadStatus, category, engineID, uploadJobID sql.NullString
+	var resolvedURL, provider, errStr, filename, localPath, destination, uploadStatus, category, engineID, uploadJobID sql.NullString
 	var startedAt, completedAt sql.NullTime
 
 	err := scanner.Scan(
 		&d.ID, &d.URL, &resolvedURL, &provider, &d.Status, &errStr,
-		&filename, &d.Size, &d.Downloaded, &d.Speed, &d.ETA,
+		&filename, &localPath, &d.Size, &d.Downloaded, &d.Speed, &d.ETA,
 		&destination, &uploadStatus, &d.UploadProgress, &d.UploadSpeed,
 		&category, &tags, &engineID, &uploadJobID,
 		&d.CreatedAt, &startedAt, &completedAt, &d.UpdatedAt,
@@ -142,6 +142,7 @@ func (r *DownloadRepo) scanDownload(scanner interface {
 	d.Provider = provider.String
 	d.Error = errStr.String
 	d.Filename = filename.String
+	d.LocalPath = localPath.String
 	d.Destination = destination.String
 	d.UploadStatus = uploadStatus.String
 	d.Category = category.String
