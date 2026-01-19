@@ -23,6 +23,14 @@ CREATE TABLE IF NOT EXISTS downloads (
     tags TEXT,
     engine_id TEXT,
     upload_job_id TEXT,
+    -- Magnet/torrent fields
+    is_magnet INTEGER DEFAULT 0,
+    magnet_hash TEXT,
+    magnet_source TEXT,
+    magnet_id TEXT,
+    total_files INTEGER DEFAULT 0,
+    files_complete INTEGER DEFAULT 0,
+    -- Timestamps
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     started_at DATETIME,
     completed_at DATETIME,

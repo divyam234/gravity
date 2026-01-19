@@ -12,6 +12,7 @@ import IconLayoutHeaderCellsLarge from "~icons/gravity-ui/layout-header-cells-la
 import IconNodesDown from "~icons/gravity-ui/nodes-down";
 import IconServer from "~icons/gravity-ui/server";
 import IconXmark from "~icons/gravity-ui/xmark";
+import { useQueryClient } from "@tanstack/react-query";
 import { useGlobalStat } from "../hooks/useEngine";
 import { cn, formatBytes } from "../lib/utils";
 import { tasksLinkOptions } from "../routes/tasks";
@@ -23,6 +24,7 @@ interface SidebarContentProps {
 export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const queryClient = useQueryClient();
   const { data: stats } = useGlobalStat();
 
   const activeCount = stats?.active?.downloads ?? 0;
@@ -90,7 +92,14 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
         color: "text-danger",
       },
     ],
-    [activeCount, pendingCount, pausedCount, completeCount, uploadingCount, errorCount]
+    [
+      activeCount,
+      pendingCount,
+      pausedCount,
+      completeCount,
+      uploadingCount,
+      errorCount,
+    ],
   );
 
   const settingsNavItems = [
@@ -179,16 +188,21 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
             <ListBox.Item
               key={item.key}
               id={item.key}
+              href="/tasks"
+              routerOptions={item.linkOptions}
               textValue={item.label}
               onPress={() => {
-                if (item.linkOptions) navigate(item.linkOptions);
-                else if (item.to) navigate({ to: item.to });
+                if (item.linkOptions) {
+                  queryClient.refetchQueries({
+                    queryKey: ["gravity", "downloads", item.key],
+                  });
+                }
                 if (onClose) onClose();
               }}
               className={cn(
                 "px-4 py-3 rounded-2xl data-[hover=true]:bg-default/10 transition-colors cursor-pointer outline-none",
                 selectedKey === item.key &&
-                  "bg-accent text-accent-foreground shadow-lg shadow-accent/20"
+                  "bg-accent text-accent-foreground shadow-lg shadow-accent/20",
               )}
             >
               <div className="flex items-center justify-between w-full">
@@ -197,7 +211,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
                     className={cn(
                       "text-muted",
                       item.color,
-                      selectedKey === item.key && "text-inherit"
+                      selectedKey === item.key && "text-inherit",
                     )}
                   >
                     {item.icon}
@@ -212,7 +226,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
                       "text-[10px] font-black px-2 py-0.5 rounded-full bg-default/30 group-hover:bg-default/50 transition-colors",
                       selectedKey === item.key
                         ? "bg-accent-foreground/20 text-accent-foreground"
-                        : ""
+                        : "",
                     )}
                   >
                     {item.count}
@@ -221,29 +235,30 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
               </div>
             </ListBox.Item>
           ))}
-          
+
           <ListBox.Section className="mt-4">
-            <Header className="px-4 py-2 text-xs font-black uppercase tracking-widest text-muted">Settings</Header>
+            <Header className="px-4 py-2 text-xs font-black uppercase tracking-widest text-muted">
+              Settings
+            </Header>
             {settingsNavItems.map((item) => (
-                <ListBox.Item
-                    key={item.key}
-                    id={item.key}
-                    textValue={item.label}
-                    onPress={() => {
-                        navigate({ to: item.to });
-                        if (onClose) onClose();
-                    }}
-                    className={cn(
-                        "px-4 py-2.5 rounded-2xl data-[hover=true]:bg-default/10 transition-colors cursor-pointer outline-none",
-                        selectedKey === item.key &&
-                        "bg-default/20 font-bold"
-                    )}
-                >
-                    <div className="flex items-center gap-3">
-                        <span className="text-muted">{item.icon}</span>
-                        <span className="text-sm font-medium">{item.label}</span>
-                    </div>
-                </ListBox.Item>
+              <ListBox.Item
+                key={item.key}
+                id={item.key}
+                textValue={item.label}
+                onPress={() => {
+                  navigate({ to: item.to });
+                  if (onClose) onClose();
+                }}
+                className={cn(
+                  "px-4 py-2.5 rounded-2xl data-[hover=true]:bg-default/10 transition-colors cursor-pointer outline-none",
+                  selectedKey === item.key && "bg-default/20 font-bold",
+                )}
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-muted">{item.icon}</span>
+                  <span className="text-sm font-medium">{item.label}</span>
+                </div>
+              </ListBox.Item>
             ))}
           </ListBox.Section>
         </ListBox>
@@ -296,7 +311,7 @@ export const MobileSidebar: React.FC<{
       <div
         className={cn(
           "fixed inset-y-0 left-0 z-50 w-72 bg-background shadow-2xl transform transition-transform duration-300 md:hidden",
-          isOpen ? "translate-x-0" : "-translate-x-full"
+          isOpen ? "translate-x-0" : "-translate-x-full",
         )}
       >
         <SidebarContent onClose={onClose} />

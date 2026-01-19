@@ -181,8 +181,8 @@ export function useEngineActions() {
 	const queryClient = useQueryClient();
 
 	const invalidateTasks = () => {
-		queryClient.invalidateQueries({ queryKey: ["gravity", "downloads"] });
-		queryClient.invalidateQueries({ queryKey: ["gravity", "stats"] });
+		queryClient.refetchQueries({ queryKey: ["gravity", "downloads"] });
+		queryClient.refetchQueries({ queryKey: ["gravity", "stats"] });
 	};
 
 	const addUri = useMutation({

@@ -11,8 +11,6 @@ import (
 	"time"
 
 	"gravity/internal/engine"
-
-	"github.com/google/uuid"
 )
 
 type Engine struct {
@@ -79,23 +77,11 @@ func (e *Engine) Upload(ctx context.Context, src, dst string, opts engine.Upload
 		return "", fmt.Errorf("failed to stat source: %w", err)
 	}
 
-	// Use provided TrackingID (download ID) or generate a new one
-	trackingID := opts.TrackingID
-	if trackingID == "" {
-		trackingID = uuid.New().String()
-	}
-
-	// Use provided job ID or generate one
-	customJobID := opts.JobID
-	if customJobID == 0 {
-		customJobID = time.Now().UnixNano()
-	}
-
 	var method string
 	params := map[string]interface{}{
 		"_async": true,
-		"_group": trackingID,
-		"_jobid": customJobID, // Use our own job ID
+		"_group": opts.TrackingID,
+		"_jobid": opts.JobID,
 	}
 
 	if info.IsDir() {
@@ -115,12 +101,12 @@ func (e *Engine) Upload(ctx context.Context, src, dst string, opts engine.Upload
 		return "", err
 	}
 
-	jobID := fmt.Sprintf("%d", customJobID)
+	jobID := fmt.Sprintf("%d", opts.JobID)
 	e.mu.Lock()
 	e.activeJobs[jobID] = struct {
 		trackID string
 		size    int64
-	}{trackID: trackingID, size: info.Size()}
+	}{trackID: opts.TrackingID, size: info.Size()}
 	e.mu.Unlock()
 
 	return jobID, nil
@@ -143,7 +129,6 @@ func (e *Engine) Cancel(ctx context.Context, jobID string) error {
 		"jobid": jobIDInt,
 	}
 	_, err = e.client.Call(ctx, "job/stop", params)
-
 	// Clean up stats for this group if we have the tracking ID
 	if exists && jobData.trackID != "" {
 		e.client.Call(ctx, "core/stats-delete", map[string]interface{}{

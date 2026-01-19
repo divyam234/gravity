@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -69,6 +70,10 @@ func (m *mockUploadEngine) Start(ctx context.Context) error { return nil }
 func (m *mockUploadEngine) Stop() error                     { return nil }
 func (m *mockUploadEngine) Upload(ctx context.Context, src, dst string, opts engine.UploadOptions) (string, error) {
 	m.lastTrackingID = opts.TrackingID // Store tracking ID for test callbacks
+	// Return the provided job ID if given, otherwise generate one
+	if opts.JobID != 0 {
+		return fmt.Sprintf("%d", opts.JobID), nil
+	}
 	return "job_" + uuid.New().String()[:8], nil
 }
 func (m *mockUploadEngine) Cancel(ctx context.Context, jobID string) error { return nil }

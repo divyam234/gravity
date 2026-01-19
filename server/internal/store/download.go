@@ -24,12 +24,15 @@ func (r *DownloadRepo) Create(ctx context.Context, d *model.Download) error {
 	query := `
 		INSERT INTO downloads (
 			id, url, resolved_url, provider, status, error, filename, local_path, size, 
-			downloaded, speed, eta, destination, category, tags, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			downloaded, speed, eta, destination, category, tags,
+			is_magnet, magnet_hash, magnet_source, magnet_id, total_files, files_complete,
+			created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 	_, err := r.db.ExecContext(ctx, query,
 		d.ID, d.URL, d.ResolvedURL, d.Provider, d.Status, d.Error, d.Filename, d.LocalPath, d.Size,
 		d.Downloaded, d.Speed, d.ETA, d.Destination, d.Category, string(tagsJson),
+		d.IsMagnet, d.MagnetHash, d.MagnetSource, d.MagnetID, d.TotalFiles, d.FilesComplete,
 		d.CreatedAt, d.UpdatedAt,
 	)
 	return err
@@ -99,16 +102,20 @@ func (r *DownloadRepo) Update(ctx context.Context, d *model.Download) error {
 			status = ?, error = ?, filename = ?, local_path = ?, size = ?, downloaded = ?, 
 			speed = ?, eta = ?, destination = ?, upload_status = ?, 
 			upload_progress = ?, upload_speed = ?, category = ?, tags = ?, 
-			engine_id = ?, upload_job_id = ?, started_at = ?, 
-			completed_at = ?, updated_at = ?
+			engine_id = ?, upload_job_id = ?,
+			is_magnet = ?, magnet_hash = ?, magnet_source = ?, magnet_id = ?,
+			total_files = ?, files_complete = ?,
+			started_at = ?, completed_at = ?, updated_at = ?
 		WHERE id = ?
 	`
 	_, err := r.db.ExecContext(ctx, query,
 		d.Status, d.Error, d.Filename, d.LocalPath, d.Size, d.Downloaded,
 		d.Speed, d.ETA, d.Destination, d.UploadStatus,
 		d.UploadProgress, d.UploadSpeed, d.Category, string(tagsJson),
-		d.EngineID, d.UploadJobID, d.StartedAt,
-		d.CompletedAt, d.UpdatedAt,
+		d.EngineID, d.UploadJobID,
+		d.IsMagnet, d.MagnetHash, d.MagnetSource, d.MagnetID,
+		d.TotalFiles, d.FilesComplete,
+		d.StartedAt, d.CompletedAt, d.UpdatedAt,
 		d.ID,
 	)
 	return err
@@ -125,6 +132,7 @@ func (r *DownloadRepo) scanDownload(scanner interface {
 	d := &model.Download{}
 	var tags string
 	var resolvedURL, provider, errStr, filename, localPath, destination, uploadStatus, category, engineID, uploadJobID sql.NullString
+	var magnetHash, magnetSource, magnetID sql.NullString
 	var startedAt, completedAt sql.NullTime
 
 	err := scanner.Scan(
@@ -132,6 +140,8 @@ func (r *DownloadRepo) scanDownload(scanner interface {
 		&filename, &localPath, &d.Size, &d.Downloaded, &d.Speed, &d.ETA,
 		&destination, &uploadStatus, &d.UploadProgress, &d.UploadSpeed,
 		&category, &tags, &engineID, &uploadJobID,
+		&d.IsMagnet, &magnetHash, &magnetSource, &magnetID,
+		&d.TotalFiles, &d.FilesComplete,
 		&d.CreatedAt, &startedAt, &completedAt, &d.UpdatedAt,
 	)
 	if err != nil {
@@ -148,6 +158,9 @@ func (r *DownloadRepo) scanDownload(scanner interface {
 	d.Category = category.String
 	d.EngineID = engineID.String
 	d.UploadJobID = uploadJobID.String
+	d.MagnetHash = magnetHash.String
+	d.MagnetSource = magnetSource.String
+	d.MagnetID = magnetID.String
 
 	if startedAt.Valid {
 		d.StartedAt = &startedAt.Time
@@ -159,4 +172,141 @@ func (r *DownloadRepo) scanDownload(scanner interface {
 	json.Unmarshal([]byte(tags), &d.Tags)
 
 	return d, nil
+}
+
+// CreateWithFiles creates a download with its associated files
+func (r *DownloadRepo) CreateWithFiles(ctx context.Context, d *model.Download) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// Create download
+	tagsJson, _ := json.Marshal(d.Tags)
+	query := `
+		INSERT INTO downloads (
+			id, url, resolved_url, provider, status, error, filename, local_path, size, 
+			downloaded, speed, eta, destination, category, tags,
+			is_magnet, magnet_hash, magnet_source, magnet_id, total_files, files_complete,
+			created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`
+	_, err = tx.ExecContext(ctx, query,
+		d.ID, d.URL, d.ResolvedURL, d.Provider, d.Status, d.Error, d.Filename, d.LocalPath, d.Size,
+		d.Downloaded, d.Speed, d.ETA, d.Destination, d.Category, string(tagsJson),
+		d.IsMagnet, d.MagnetHash, d.MagnetSource, d.MagnetID, d.TotalFiles, d.FilesComplete,
+		d.CreatedAt, d.UpdatedAt,
+	)
+	if err != nil {
+		return err
+	}
+
+	// Create files
+	for _, f := range d.Files {
+		fileQuery := `
+			INSERT INTO download_files (
+				id, download_id, name, path, size, downloaded, progress, status, error, engine_id, url, file_index, created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`
+		_, err = tx.ExecContext(ctx, fileQuery,
+			f.ID, d.ID, f.Name, f.Path, f.Size, f.Downloaded, f.Progress, f.Status, f.Error, f.EngineID, f.URL, f.Index,
+			time.Now(), time.Now(),
+		)
+		if err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
+}
+
+// GetFiles returns all files for a download
+func (r *DownloadRepo) GetFiles(ctx context.Context, downloadID string) ([]model.DownloadFile, error) {
+	query := `SELECT id, download_id, name, path, size, downloaded, progress, status, error, engine_id, url, file_index FROM download_files WHERE download_id = ?`
+	rows, err := r.db.QueryContext(ctx, query, downloadID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var files []model.DownloadFile
+	for rows.Next() {
+		var f model.DownloadFile
+		var errStr, engineID, url sql.NullString
+		var fileIndex sql.NullInt64
+		err := rows.Scan(&f.ID, &f.DownloadID, &f.Name, &f.Path, &f.Size, &f.Downloaded, &f.Progress, &f.Status, &errStr, &engineID, &url, &fileIndex)
+		if err != nil {
+			return nil, err
+		}
+		f.Error = errStr.String
+		f.EngineID = engineID.String
+		f.URL = url.String
+		if fileIndex.Valid {
+			f.Index = int(fileIndex.Int64)
+		}
+		files = append(files, f)
+	}
+	return files, nil
+}
+
+// UpdateFile updates a single download file
+func (r *DownloadRepo) UpdateFile(ctx context.Context, f *model.DownloadFile) error {
+	query := `
+		UPDATE download_files SET
+			downloaded = ?, progress = ?, status = ?, error = ?, engine_id = ?, updated_at = ?
+		WHERE id = ?
+	`
+	_, err := r.db.ExecContext(ctx, query, f.Downloaded, f.Progress, f.Status, f.Error, f.EngineID, time.Now(), f.ID)
+	return err
+}
+
+// UpdateFiles updates all files for a download
+func (r *DownloadRepo) UpdateFiles(ctx context.Context, downloadID string, files []model.DownloadFile) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	for _, f := range files {
+		query := `
+			UPDATE download_files SET
+				downloaded = ?, progress = ?, status = ?, error = ?, engine_id = ?, updated_at = ?
+			WHERE id = ? AND download_id = ?
+		`
+		_, err = tx.ExecContext(ctx, query, f.Downloaded, f.Progress, f.Status, f.Error, f.EngineID, time.Now(), f.ID, downloadID)
+		if err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
+}
+
+// GetFileByEngineID finds a download file by its aria2c GID
+func (r *DownloadRepo) GetFileByEngineID(ctx context.Context, engineID string) (*model.DownloadFile, error) {
+	query := `SELECT id, download_id, name, path, size, downloaded, progress, status, error, engine_id, url, file_index FROM download_files WHERE engine_id = ?`
+	row := r.db.QueryRowContext(ctx, query, engineID)
+
+	var f model.DownloadFile
+	var errStr, engID, url sql.NullString
+	var fileIndex sql.NullInt64
+	err := row.Scan(&f.ID, &f.DownloadID, &f.Name, &f.Path, &f.Size, &f.Downloaded, &f.Progress, &f.Status, &errStr, &engID, &url, &fileIndex)
+	if err != nil {
+		return nil, err
+	}
+	f.Error = errStr.String
+	f.EngineID = engID.String
+	f.URL = url.String
+	if fileIndex.Valid {
+		f.Index = int(fileIndex.Int64)
+	}
+	return &f, nil
+}
+
+// DeleteFiles deletes all files for a download
+func (r *DownloadRepo) DeleteFiles(ctx context.Context, downloadID string) error {
+	_, err := r.db.ExecContext(ctx, `DELETE FROM download_files WHERE download_id = ?`, downloadID)
+	return err
 }

@@ -3,7 +3,6 @@ package rclone
 import (
 	"fmt"
 	"log"
-	"os"
 	"os/exec"
 	"syscall"
 	"time"
@@ -28,8 +27,9 @@ func (r *Runner) Start() error {
 	}
 
 	r.cmd = exec.Command("rclone", args...)
-	r.cmd.Stdout = os.Stdout
-	r.cmd.Stderr = os.Stderr
+	// Suppress rclone console output
+	r.cmd.Stdout = nil
+	r.cmd.Stderr = nil
 
 	if err := r.cmd.Start(); err != nil {
 		return fmt.Errorf("failed to start rclone rcd: %w", err)

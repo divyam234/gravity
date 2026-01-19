@@ -46,3 +46,15 @@ type DebridProvider interface {
 	Provider
 	GetHosts(ctx context.Context) ([]string, error)
 }
+
+// MagnetProvider is implemented by providers that support magnet links with file selection
+type MagnetProvider interface {
+	Provider
+
+	// CheckMagnet checks if a magnet is available/cached and returns file list
+	// Returns nil, nil if magnet is not cached (for debrid providers)
+	CheckMagnet(ctx context.Context, magnet string) (*model.MagnetInfo, error)
+
+	// DeleteMagnet removes a magnet from user's account (debrid only)
+	DeleteMagnet(ctx context.Context, magnetID string) error
+}

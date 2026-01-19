@@ -45,7 +45,11 @@ function TasksPage() {
 
   return (
     <div className="space-y-6 px-1">
-      <TaskPageHeader title={titles[status]} titleColor={colors[status]} status={status} />
+      <TaskPageHeader
+        title={titles[status]}
+        titleColor={colors[status]}
+        status={status}
+      />
       <TaskList status={status} />
     </div>
   );
