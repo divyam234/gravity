@@ -31,6 +31,11 @@ type Remote struct {
 	Connected bool   `json:"connected"`
 }
 
+type GlobalStats struct {
+	Speed           int64 `json:"speed"`
+	ActiveTransfers int   `json:"activeTransfers"`
+}
+
 type UploadEngine interface {
 	// Lifecycle
 	Start(ctx context.Context) error
@@ -42,6 +47,7 @@ type UploadEngine interface {
 
 	// Status
 	Status(ctx context.Context, jobID string) (*UploadStatus, error)
+	GetGlobalStats(ctx context.Context) (*GlobalStats, error)
 
 	// Events
 	OnProgress(handler func(jobID string, progress UploadProgress))
@@ -54,3 +60,5 @@ type UploadEngine interface {
 	DeleteRemote(ctx context.Context, name string) error
 	TestRemote(ctx context.Context, name string) error
 }
+
+

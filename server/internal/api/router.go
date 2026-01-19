@@ -59,6 +59,10 @@ func (rt *Router) Handler() http.Handler {
 	return rt.chi
 }
 
-func (rt *Router) MountV1(handler http.Handler) {
-	rt.chi.Mount("/api/v1", handler)
+func (rt *Router) Mount(pattern string, handler http.Handler) {
+	rt.chi.Mount(pattern, handler)
+}
+
+func (rt *Router) Handle(pattern string, handler http.Handler) {
+	rt.chi.Handle(pattern, handler)
 }

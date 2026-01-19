@@ -19,7 +19,7 @@ export const Route = createFileRoute("/add")({
 
 function AddDownloadPage() {
   const navigate = useNavigate();
-  const { rcloneTargetRemote, setRcloneTargetRemote } = useSettingsStore();
+  const { defaultRemote, setDefaultRemote } = useSettingsStore();
 
   const [uris, setUris] = useState("");
   const [filename, setFilename] = useState("");
@@ -53,7 +53,7 @@ function AddDownloadPage() {
       {
         url: uriList[0], // For now, single URL
         filename: filename || undefined,
-        destination: rcloneTargetRemote || undefined,
+        destination: defaultRemote || undefined,
       },
       {
         onSuccess: () => navigate(tasksLinkOptions("active")),
@@ -146,12 +146,12 @@ function AddDownloadPage() {
               </Label>
               <Input
                 placeholder="e.g. gdrive:/downloads"
-                value={rcloneTargetRemote}
-                onChange={(e) => setRcloneTargetRemote(e.target.value)}
+                value={defaultRemote}
+                onChange={(e) => setDefaultRemote(e.target.value)}
                 className="w-full h-12 px-4 bg-default/10 rounded-2xl text-sm border-none focus:bg-default/15 transition-all outline-none"
               />
               <p className="text-[10px] text-muted font-medium px-1">
-                Enter an rclone remote path to automatically offload files to the cloud.
+                Enter an remote path to automatically offload files to the cloud.
               </p>
             </div>
           </div>

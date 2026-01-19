@@ -1,10 +1,10 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
-import { useAria2Actions } from "./useAria2";
+import { useEngineActions } from "./useEngine";
 
 export function useShortcuts() {
 	const navigate = useNavigate();
-	const { purgeDownloadResult } = useAria2Actions();
+	const { purgeDownloadResult } = useEngineActions();
 
 	useEffect(() => {
 		const handleKeyDown = (e: KeyboardEvent) => {

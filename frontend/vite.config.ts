@@ -26,6 +26,10 @@ export default defineConfig({
       jsx: 'react',
     }),
   ],
+  build: {
+    outDir: '../server/dist',
+    emptyOutDir: true,
+  },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),

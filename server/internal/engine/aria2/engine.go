@@ -147,6 +147,13 @@ func (e *Engine) List(ctx context.Context) ([]*engine.DownloadStatus, error) {
 		results = append(results, e.mapStatus(&t))
 	}
 
+	waiting, _ := e.client.Call(ctx, "aria2.tellWaiting", 0, 100)
+	var waitingTasks []Aria2Task
+	json.Unmarshal(waiting, &waitingTasks)
+	for _, t := range waitingTasks {
+		results = append(results, e.mapStatus(&t))
+	}
+
 	stopped, _ := e.client.Call(ctx, "aria2.tellStopped", 0, 100)
 	var stoppedTasks []Aria2Task
 	json.Unmarshal(stopped, &stoppedTasks)
@@ -155,6 +162,46 @@ func (e *Engine) List(ctx context.Context) ([]*engine.DownloadStatus, error) {
 	}
 
 	return results, nil
+}
+
+func (e *Engine) Configure(ctx context.Context, options map[string]string) error {
+	// Map generic keys to Aria2 keys
+	keyMap := map[string]string{
+		"downloadDir":              "dir",
+		"maxConcurrentDownloads":   "max-concurrent-downloads",
+		"globalDownloadSpeedLimit": "max-overall-download-limit",
+		"globalUploadSpeedLimit":   "max-overall-upload-limit",
+		"maxConnectionsPerServer":  "max-connection-per-server",
+		"concurrency":              "split",
+		"userAgent":                "user-agent",
+		"proxyUrl":                 "all-proxy",
+		"proxyUser":                "all-proxy-user",
+		"proxyPassword":            "all-proxy-passwd",
+		"seedRatio":                "seed-ratio",
+		"seedTimeLimit":            "seed-time",
+		"connectTimeout":           "connect-timeout",
+		"maxRetries":               "max-tries",
+		"checkIntegrity":           "check-integrity",
+		"continueDownloads":        "continue",
+		"checkCertificate":         "check-certificate",
+	}
+
+	ariaOpts := make(map[string]interface{})
+	for k, v := range options {
+		if ariaKey, ok := keyMap[k]; ok {
+			ariaOpts[ariaKey] = v
+		} else {
+			// If key not in map, assume it might be a direct key or ignored?
+			// For safety and abstraction, we should probably ignore unknown keys or pass them through if we trust the source.
+			// Let's pass through for now to support legacy/direct usage if needed, or strict.
+			// Given "nice abstraction" goal, strict mapping is better, but passing through allows fallback.
+			// I'll pass through with logging (if I had logger).
+			// I'll pass through for flexibility.
+			ariaOpts[k] = v
+		}
+	}
+	_, err := e.client.Call(ctx, "aria2.changeGlobalOption", ariaOpts)
+	return err
 }
 
 func (e *Engine) OnProgress(h func(string, engine.Progress)) {
@@ -187,7 +234,7 @@ func (e *Engine) handleNotification(method string, gid string) {
 			if status != nil {
 				errMsg = status.Error
 			}
-			h(gid, fmt.Errorf(errMsg))
+			h(gid, fmt.Errorf("%s", errMsg))
 		}
 	}
 }

@@ -2,7 +2,7 @@ import { Button, Checkbox, Tooltip } from "@heroui/react";
 import React from "react";
 import IconLayoutCellsLarge from "~icons/gravity-ui/layout-cells-large";
 import IconListUl from "~icons/gravity-ui/list-ul";
-import { useAllTasks, useAria2Actions } from "../../hooks/useAria2";
+import { useAllTasks, useEngineActions } from "../../hooks/useEngine";
 import { cn } from "../../lib/utils";
 import { useSettingsStore } from "../../store/useSettingsStore";
 
@@ -24,7 +24,7 @@ export const TaskPageHeader: React.FC<TaskPageHeaderProps> = ({
 		setSelectedGids,
 	} = useSettingsStore();
 	const { active, waiting, stopped } = useAllTasks();
-	const { pause, unpause } = useAria2Actions();
+	const { pause, unpause } = useEngineActions();
 
 	const allTasks = React.useMemo(
 		() => [...active, ...waiting, ...stopped],
@@ -59,7 +59,7 @@ export const TaskPageHeader: React.FC<TaskPageHeaderProps> = ({
 								isIndeterminate={isIndeterminate}
 								onChange={(selected) => {
 									if (selected)
-										setSelectedGids(new Set(allTasks.map((t) => t.gid)));
+										setSelectedGids(new Set(allTasks.map((t) => t.id)));
 									else setSelectedGids(new Set());
 								}}
 							/>

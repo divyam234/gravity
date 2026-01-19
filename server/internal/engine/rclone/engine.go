@@ -138,6 +138,27 @@ func (e *Engine) Status(ctx context.Context, jobID string) (*engine.UploadStatus
 	return result, nil
 }
 
+func (e *Engine) GetGlobalStats(ctx context.Context) (*engine.GlobalStats, error) {
+	res, err := e.client.Call(ctx, "core/stats", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var stats struct {
+		Speed        float64 `json:"speed"` // Rclone returns float bytes/sec? Check docs. Usually float or int.
+		Transferring []interface{} `json:"transferring"`
+	}
+    // Rclone speed is float64 in JSON
+	if err := json.Unmarshal(res, &stats); err != nil {
+		return nil, err
+	}
+
+	return &engine.GlobalStats{
+		Speed:           int64(stats.Speed),
+		ActiveTransfers: len(stats.Transferring),
+	}, nil
+}
+
 func (e *Engine) ListRemotes(ctx context.Context) ([]engine.Remote, error) {
 	res, err := e.client.Call(ctx, "config/listremotes", nil)
 	if err != nil {
@@ -223,7 +244,7 @@ func (e *Engine) pollProgress() {
 				e.mu.Unlock()
 			} else if status.Status == "error" {
 				if h := e.onError; h != nil {
-					h(id, fmt.Errorf(status.Error))
+					h(id, fmt.Errorf("%s", status.Error))
 				}
 				e.mu.Lock()
 				delete(e.activeJobs, id)

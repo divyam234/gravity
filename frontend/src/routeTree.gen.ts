@@ -14,8 +14,11 @@ import { Route as AddRouteImport } from './routes/add'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SettingsIndexRouteImport } from './routes/settings.index'
 import { Route as TaskGidRouteImport } from './routes/task.$gid'
+import { Route as SettingsRemotesRouteImport } from './routes/settings.remotes'
 import { Route as SettingsProvidersRouteImport } from './routes/settings.providers'
-import { Route as SettingsCategoryRouteImport } from './routes/settings.$category'
+import { Route as SettingsEngineRouteImport } from './routes/settings.engine'
+import { Route as SettingsConnectionRouteImport } from './routes/settings.connection'
+import { Route as SettingsAppRouteImport } from './routes/settings.app'
 
 const TasksRoute = TasksRouteImport.update({
   id: '/tasks',
@@ -42,14 +45,29 @@ const TaskGidRoute = TaskGidRouteImport.update({
   path: '/task/$gid',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SettingsRemotesRoute = SettingsRemotesRouteImport.update({
+  id: '/settings/remotes',
+  path: '/settings/remotes',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsProvidersRoute = SettingsProvidersRouteImport.update({
   id: '/settings/providers',
   path: '/settings/providers',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SettingsCategoryRoute = SettingsCategoryRouteImport.update({
-  id: '/settings/$category',
-  path: '/settings/$category',
+const SettingsEngineRoute = SettingsEngineRouteImport.update({
+  id: '/settings/engine',
+  path: '/settings/engine',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsConnectionRoute = SettingsConnectionRouteImport.update({
+  id: '/settings/connection',
+  path: '/settings/connection',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsAppRoute = SettingsAppRouteImport.update({
+  id: '/settings/app',
+  path: '/settings/app',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -57,8 +75,11 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/add': typeof AddRoute
   '/tasks': typeof TasksRoute
-  '/settings/$category': typeof SettingsCategoryRoute
+  '/settings/app': typeof SettingsAppRoute
+  '/settings/connection': typeof SettingsConnectionRoute
+  '/settings/engine': typeof SettingsEngineRoute
   '/settings/providers': typeof SettingsProvidersRoute
+  '/settings/remotes': typeof SettingsRemotesRoute
   '/task/$gid': typeof TaskGidRoute
   '/settings': typeof SettingsIndexRoute
 }
@@ -66,8 +87,11 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/add': typeof AddRoute
   '/tasks': typeof TasksRoute
-  '/settings/$category': typeof SettingsCategoryRoute
+  '/settings/app': typeof SettingsAppRoute
+  '/settings/connection': typeof SettingsConnectionRoute
+  '/settings/engine': typeof SettingsEngineRoute
   '/settings/providers': typeof SettingsProvidersRoute
+  '/settings/remotes': typeof SettingsRemotesRoute
   '/task/$gid': typeof TaskGidRoute
   '/settings': typeof SettingsIndexRoute
 }
@@ -76,8 +100,11 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/add': typeof AddRoute
   '/tasks': typeof TasksRoute
-  '/settings/$category': typeof SettingsCategoryRoute
+  '/settings/app': typeof SettingsAppRoute
+  '/settings/connection': typeof SettingsConnectionRoute
+  '/settings/engine': typeof SettingsEngineRoute
   '/settings/providers': typeof SettingsProvidersRoute
+  '/settings/remotes': typeof SettingsRemotesRoute
   '/task/$gid': typeof TaskGidRoute
   '/settings/': typeof SettingsIndexRoute
 }
@@ -87,8 +114,11 @@ export interface FileRouteTypes {
     | '/'
     | '/add'
     | '/tasks'
-    | '/settings/$category'
+    | '/settings/app'
+    | '/settings/connection'
+    | '/settings/engine'
     | '/settings/providers'
+    | '/settings/remotes'
     | '/task/$gid'
     | '/settings'
   fileRoutesByTo: FileRoutesByTo
@@ -96,8 +126,11 @@ export interface FileRouteTypes {
     | '/'
     | '/add'
     | '/tasks'
-    | '/settings/$category'
+    | '/settings/app'
+    | '/settings/connection'
+    | '/settings/engine'
     | '/settings/providers'
+    | '/settings/remotes'
     | '/task/$gid'
     | '/settings'
   id:
@@ -105,8 +138,11 @@ export interface FileRouteTypes {
     | '/'
     | '/add'
     | '/tasks'
-    | '/settings/$category'
+    | '/settings/app'
+    | '/settings/connection'
+    | '/settings/engine'
     | '/settings/providers'
+    | '/settings/remotes'
     | '/task/$gid'
     | '/settings/'
   fileRoutesById: FileRoutesById
@@ -115,8 +151,11 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AddRoute: typeof AddRoute
   TasksRoute: typeof TasksRoute
-  SettingsCategoryRoute: typeof SettingsCategoryRoute
+  SettingsAppRoute: typeof SettingsAppRoute
+  SettingsConnectionRoute: typeof SettingsConnectionRoute
+  SettingsEngineRoute: typeof SettingsEngineRoute
   SettingsProvidersRoute: typeof SettingsProvidersRoute
+  SettingsRemotesRoute: typeof SettingsRemotesRoute
   TaskGidRoute: typeof TaskGidRoute
   SettingsIndexRoute: typeof SettingsIndexRoute
 }
@@ -158,6 +197,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TaskGidRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings/remotes': {
+      id: '/settings/remotes'
+      path: '/settings/remotes'
+      fullPath: '/settings/remotes'
+      preLoaderRoute: typeof SettingsRemotesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings/providers': {
       id: '/settings/providers'
       path: '/settings/providers'
@@ -165,11 +211,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsProvidersRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/settings/$category': {
-      id: '/settings/$category'
-      path: '/settings/$category'
-      fullPath: '/settings/$category'
-      preLoaderRoute: typeof SettingsCategoryRouteImport
+    '/settings/engine': {
+      id: '/settings/engine'
+      path: '/settings/engine'
+      fullPath: '/settings/engine'
+      preLoaderRoute: typeof SettingsEngineRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings/connection': {
+      id: '/settings/connection'
+      path: '/settings/connection'
+      fullPath: '/settings/connection'
+      preLoaderRoute: typeof SettingsConnectionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings/app': {
+      id: '/settings/app'
+      path: '/settings/app'
+      fullPath: '/settings/app'
+      preLoaderRoute: typeof SettingsAppRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -179,8 +239,11 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AddRoute: AddRoute,
   TasksRoute: TasksRoute,
-  SettingsCategoryRoute: SettingsCategoryRoute,
+  SettingsAppRoute: SettingsAppRoute,
+  SettingsConnectionRoute: SettingsConnectionRoute,
+  SettingsEngineRoute: SettingsEngineRoute,
   SettingsProvidersRoute: SettingsProvidersRoute,
+  SettingsRemotesRoute: SettingsRemotesRoute,
   TaskGidRoute: TaskGidRoute,
   SettingsIndexRoute: SettingsIndexRoute,
 }

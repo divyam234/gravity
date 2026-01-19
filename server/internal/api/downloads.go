@@ -27,6 +27,7 @@ func (h *DownloadHandler) Routes() chi.Router {
 	r.Delete("/{id}", h.Delete)
 	r.Post("/{id}/pause", h.Pause)
 	r.Post("/{id}/resume", h.Resume)
+	r.Post("/{id}/retry", h.Retry)
 	return r
 }
 
@@ -81,8 +82,13 @@ func (h *DownloadHandler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *DownloadHandler) Get(w http.ResponseWriter, r *http.Request) {
-	// Not implemented in service yet, but let's leave placeholder
-	http.Error(w, "not implemented", http.StatusNotImplemented)
+	id := chi.URLParam(r, "id")
+	d, err := h.service.Get(r.Context(), id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	json.NewEncoder(w).Encode(d)
 }
 
 func (h *DownloadHandler) Delete(w http.ResponseWriter, r *http.Request) {
@@ -114,3 +120,23 @@ func (h *DownloadHandler) Resume(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusOK)
 }
+
+func (h *DownloadHandler) Retry(w http.ResponseWriter, r *http.Request) {
+
+	id := chi.URLParam(r, "id")
+
+	if err := h.service.Retry(r.Context(), id); err != nil {
+
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+
+		return
+
+	}
+
+	w.WriteHeader(http.StatusOK)
+
+}
+
+
+
+

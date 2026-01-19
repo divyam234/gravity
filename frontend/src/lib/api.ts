@@ -1,22 +1,20 @@
-const BASE_URL = '/api/v1';
+import type { ApiResponse, Download, Provider, Remote, Stats } from './types';
 
-export interface ApiResponse<T> {
-  data: T;
-  meta?: {
-    total: number;
-    limit: number;
-    offset: number;
-  };
-}
+export type { ApiResponse };
 
 class ApiClient {
   private apiKey: string = '';
+  private baseUrl: string = '/api/v1';
 
   setApiKey(key: string) {
     this.apiKey = key;
   }
 
-  private async request<T>(method: string, path: string, body?: any): Promise<T> {
+  setBaseUrl(url: string) {
+    this.baseUrl = url.replace(/\/+$/, "");
+  }
+
+  public async request<T>(method: string, path: string, body?: any): Promise<T> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
@@ -24,7 +22,7 @@ class ApiClient {
       headers['X-API-Key'] = this.apiKey;
     }
 
-    const response = await fetch(`${BASE_URL}${path}`, {
+    const response = await fetch(`${this.baseUrl}${path}`, {
       method,
       headers,
       body: body ? JSON.stringify(body) : undefined,
@@ -52,32 +50,36 @@ class ApiClient {
       if (params.offset) q.append('offset', params.offset.toString());
       query = `?${q.toString()}`;
     }
-    return this.request<ApiResponse<any[]>>('GET', `/downloads${query}`);
+    return this.request<ApiResponse<Download[]>>('GET', `/downloads${query}`);
+  }
+
+  getDownload(id: string) {
+    return this.request<Download>('GET', `/downloads/${id}`);
   }
 
   createDownload(url: string, destination?: string, filename?: string) {
-    return this.request<any>('POST', '/downloads', { url, destination, filename });
+    return this.request<Download>('POST', '/downloads', { url, destination, filename });
   }
 
   pauseDownload(id: string) {
-    return this.request('POST', `/downloads/${id}/pause`);
+    return this.request<void>('POST', `/downloads/${id}/pause`);
   }
 
   resumeDownload(id: string) {
-    return this.request('POST', `/downloads/${id}/resume`);
+    return this.request<void>('POST', `/downloads/${id}/resume`);
   }
 
   deleteDownload(id: string, deleteFiles = false) {
-    return this.request('DELETE', `/downloads/${id}?deleteFiles=${deleteFiles}`);
+    return this.request<void>('DELETE', `/downloads/${id}?deleteFiles=${deleteFiles}`);
   }
 
   // Providers
   getProviders() {
-    return this.request<ApiResponse<any[]>>('GET', '/providers');
+    return this.request<ApiResponse<Provider[]>>('GET', '/providers');
   }
 
   configureProvider(name: string, config: Record<string, string>, enabled: boolean) {
-    return this.request('PUT', `/providers/${name}`, { config, enabled });
+    return this.request<void>('PUT', `/providers/${name}`, { config, enabled });
   }
 
   resolveUrl(url: string) {
@@ -86,12 +88,12 @@ class ApiClient {
 
   // Remotes
   getRemotes() {
-    return this.request<ApiResponse<any[]>>('GET', '/remotes');
+    return this.request<ApiResponse<Remote[]>>('GET', '/remotes');
   }
 
   // Stats
   getStats() {
-    return this.request<any>('GET', '/stats');
+    return this.request<Stats>('GET', '/stats');
   }
 
   // Settings
@@ -100,7 +102,7 @@ class ApiClient {
   }
 
   updateSettings(settings: Record<string, string>) {
-    return this.request('PATCH', '/settings', settings);
+    return this.request<void>('PATCH', '/settings', settings);
   }
 }
 

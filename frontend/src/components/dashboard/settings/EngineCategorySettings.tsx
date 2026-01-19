@@ -1,26 +1,26 @@
 import type React from "react";
-import { useAria2Actions } from "../../../hooks/useAria2";
+import { useEngineActions } from "../../../hooks/useEngine";
 import {
-	aria2AllOptions,
-	aria2GlobalAvailableOptions,
-} from "../../../lib/aria2-options";
+	engineAllOptions,
+	engineGlobalAvailableOptions,
+} from "../../../lib/engine-options";
 import { SettingField } from "./SettingField";
 
-export const Aria2CategorySettings: React.FC<{
+export const EngineCategorySettings: React.FC<{
 	category: string;
 	options: Record<string, string>;
 }> = ({ category, options }) => {
-	const { changeGlobalOption } = useAria2Actions();
+	const { changeGlobalOption } = useEngineActions();
 
 	// Find the internal category key (e.g. "basicOptions" for "Basic Options")
 	const categoryKey =
-		Object.keys(aria2GlobalAvailableOptions).find(
+		Object.keys(engineGlobalAvailableOptions).find(
 			(key) => key.toLowerCase() === category.replace(/\s+/g, "").toLowerCase(),
 		) || category;
 
-	const optionNames = aria2GlobalAvailableOptions[categoryKey] || [];
+	const optionNames = engineGlobalAvailableOptions[categoryKey] || [];
 	const metadata = optionNames
-		.map((name) => ({ ...aria2AllOptions[name], name }))
+		.map((name) => ({ ...engineAllOptions[name], name }))
 		.filter((opt) => !!opt.type);
 
 	const handleUpdate = (name: string, value: string) => {
@@ -30,7 +30,7 @@ export const Aria2CategorySettings: React.FC<{
 	// Some specific options are read-only at runtime
 	const isReadOnly = (name: string) => {
 		return (
-			aria2AllOptions[name]?.readonly ||
+			engineAllOptions[name]?.readonly ||
 			["file-allocation", "disk-cache"].includes(name)
 		);
 	};

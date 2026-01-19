@@ -1,6 +1,6 @@
-import { Accordion, Button, ListBox, ScrollShadow } from "@heroui/react";
+import { Button, Header, ListBox, ScrollShadow } from "@heroui/react";
 import { useLocation, useNavigate } from "@tanstack/react-router";
-import React, { useId } from "react";
+import React from "react";
 import IconArrowDown from "~icons/gravity-ui/arrow-down";
 import IconCheck from "~icons/gravity-ui/check";
 import IconCircleXmark from "~icons/gravity-ui/circle-xmark";
@@ -8,9 +8,9 @@ import IconClock from "~icons/gravity-ui/clock";
 import IconCloudArrowUpIn from "~icons/gravity-ui/cloud-arrow-up-in";
 import IconDisplay from "~icons/gravity-ui/display";
 import IconGear from "~icons/gravity-ui/gear";
-import IconGlobe from "~icons/gravity-ui/globe";
 import IconLayoutHeaderCellsLarge from "~icons/gravity-ui/layout-header-cells-large";
 import IconNodesDown from "~icons/gravity-ui/nodes-down";
+import IconServer from "~icons/gravity-ui/server";
 import IconXmark from "~icons/gravity-ui/xmark";
 import { useStats } from "../hooks/useStats";
 import { cn, formatBytes } from "../lib/utils";
@@ -23,7 +23,6 @@ interface SidebarContentProps {
 export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const settingsAccordionId = useId();
   const { data: stats } = useStats();
 
   const activeCount = stats?.active?.downloads ?? 0;
@@ -87,10 +86,10 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
 
   const settingsNavItems = [
     {
-      key: "connection",
-      label: "Connection",
-      icon: <IconGlobe className="w-4 h-4" />,
-      to: "/settings/connection",
+      key: "engine",
+      label: "Engine Options",
+      icon: <IconGear className="w-4 h-4" />,
+      to: "/settings/engine",
     },
     {
       key: "providers",
@@ -99,10 +98,16 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
       to: "/settings/providers",
     },
     {
-      key: "rclone",
-      label: "Rclone",
+      key: "remotes",
+      label: "Cloud Remotes",
       icon: <IconCloudArrowUpIn className="w-4 h-4" />,
-      to: "/settings/rclone",
+      to: "/settings/remotes",
+    },
+    {
+      key: "connection",
+      label: "Server",
+      icon: <IconServer className="w-4 h-4" />,
+      to: "/settings/connection",
     },
     {
       key: "app",
@@ -123,14 +128,9 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
     const foundSetting = settingsNavItems.find((item) => item.to === path);
     if (foundSetting) return foundSetting.key;
 
-    const foundMain = mainNavItems.find((item) => item.to === path);
-    if (foundMain) return foundMain.key;
-
     if (path === "/") return "dashboard";
     return null;
-  }, [location.pathname, location.search, mainNavItems]);
-
-  const isSettingsActive = location.pathname.startsWith("/settings");
+  }, [location.pathname, location.search]);
 
   return (
     <div className="flex flex-col h-full w-full">
@@ -212,61 +212,32 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
               </div>
             </ListBox.Item>
           ))}
-        </ListBox>
-
-        <Accordion
-          defaultExpandedKeys={isSettingsActive ? ["settings"] : []}
-          className="px-0"
-        >
-          <Accordion.Item
-            key="settings"
-            id={settingsAccordionId}
-            aria-label="Settings"
-            className="px-0"
-          >
-            <Accordion.Heading>
-              <Accordion.Trigger className="px-4 py-3 rounded-2xl data-[hovered=true]:bg-accent/10 outline-none">
-                <div className="flex items-center gap-3">
-                  <IconGear className="w-5 h-5 text-muted" />
-                  <span className="text-sm font-bold tracking-tight">
-                    Settings
-                  </span>
-                </div>
-                <Accordion.Indicator className="text-muted" />
-              </Accordion.Trigger>
-            </Accordion.Heading>
-            <Accordion.Panel className="pb-2">
-              <ListBox
-                aria-label="Settings Navigation"
-                selectionMode="single"
-                selectedKeys={selectedKey ? [selectedKey] : []}
-                className="p-0 gap-1 pl-4"
-              >
-                {settingsNavItems.map((item) => (
-                  <ListBox.Item
+          
+          <ListBox.Section className="mt-4">
+            <Header className="px-4 py-2 text-xs font-black uppercase tracking-widest text-muted">Settings</Header>
+            {settingsNavItems.map((item) => (
+                <ListBox.Item
                     key={item.key}
                     id={item.key}
                     textValue={item.label}
                     onPress={() => {
-                      navigate({ to: item.to });
-                      if (onClose) onClose();
+                        navigate({ to: item.to });
+                        if (onClose) onClose();
                     }}
                     className={cn(
-                      "px-4 py-2 rounded-xl data-[hover=true]:bg-default/10 transition-colors cursor-pointer outline-none",
-                      selectedKey === item.key &&
-                        "bg-default/30 text-foreground font-bold"
+                        "px-4 py-2.5 rounded-2xl data-[hover=true]:bg-default/10 transition-colors cursor-pointer outline-none",
+                        selectedKey === item.key &&
+                        "bg-default/20 font-bold"
                     )}
-                  >
+                >
                     <div className="flex items-center gap-3">
-                      <span className="text-muted">{item.icon}</span>
-                      <span className="text-sm font-medium">{item.label}</span>
+                        <span className="text-muted">{item.icon}</span>
+                        <span className="text-sm font-medium">{item.label}</span>
                     </div>
-                  </ListBox.Item>
-                ))}
-              </ListBox>
-            </Accordion.Panel>
-          </Accordion.Item>
-        </Accordion>
+                </ListBox.Item>
+            ))}
+          </ListBox.Section>
+        </ListBox>
       </ScrollShadow>
 
       <div className="p-6 mt-auto shrink-0">

@@ -1,23 +1,15 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { aria2 } from "../lib/aria2-rpc";
+import { api } from "../lib/api";
 
 export interface ServerConfig {
 	id: string;
 	name: string;
-	rpcUrl: string;
-	rpcSecret: string;
+	serverUrl: string;
+	apiKey: string;
 }
 
 interface SettingsState {
-	// Legacy/Active properties for compatibility
-	rpcUrl: string;
-	rpcSecret: string;
-
-	// Multi-server state
-	servers: ServerConfig[];
-	activeServerId: string | null;
-
 	pollingInterval: number;
 	theme: "light" | "dark" | "system";
 	viewMode: "list" | "grid";
@@ -25,24 +17,24 @@ interface SettingsState {
 	enableNotifications: boolean;
 	isSelectionMode: boolean;
 	selectedGids: Set<string>;
-	rcloneTargetRemote: string;
+	defaultRemote: string;
 
-	// Actions
-	setRpcUrl: (url: string) => void;
-	setRpcSecret: (secret: string) => void;
+    // Multi-server state
+    servers: ServerConfig[];
+    activeServerId: string | null;
 
 	setSearchQuery: (query: string) => void;
 	setEnableNotifications: (enable: boolean) => void;
-	setRcloneTargetRemote: (remote: string) => void;
+	setDefaultRemote: (remote: string) => void;
 	setViewMode: (mode: "list" | "grid") => void;
 	setIsSelectionMode: (isSelectionMode: boolean) => void;
 	setSelectedGids: (gids: Set<string>) => void;
 	toggleGidSelection: (gid: string) => void;
 
-	addServer: (server: Omit<ServerConfig, "id">) => void;
-	updateServer: (id: string, updates: Partial<ServerConfig>) => void;
-	removeServer: (id: string) => void;
-	setActiveServer: (id: string) => void;
+    addServer: (server: Omit<ServerConfig, "id">) => void;
+    updateServer: (id: string, updates: Partial<ServerConfig>) => void;
+    removeServer: (id: string) => void;
+    setActiveServer: (id: string) => void;
 
 	setPollingInterval: (ms: number) => void;
 	setTheme: (theme: "light" | "dark" | "system") => void;
@@ -51,10 +43,6 @@ interface SettingsState {
 export const useSettingsStore = create<SettingsState>()(
 	persist(
 		(set) => ({
-			rpcUrl: "",
-			rpcSecret: "",
-			servers: [],
-			activeServerId: null,
 			pollingInterval: 1000,
 			theme: "dark",
 			viewMode: "list",
@@ -62,31 +50,15 @@ export const useSettingsStore = create<SettingsState>()(
 			enableNotifications: false,
 			isSelectionMode: false,
 			selectedGids: new Set(),
-			rcloneTargetRemote: "",
-
-			setRpcUrl: (rpcUrl) => {
-				set((state) => {
-					// If we have an active server, update it too
-					const servers = state.servers.map((s) =>
-						s.id === state.activeServerId ? { ...s, rpcUrl } : s,
-					);
-					return { rpcUrl, servers };
-				});
-			},
-
-			setRpcSecret: (rpcSecret) => {
-				set((state) => {
-					const servers = state.servers.map((s) =>
-						s.id === state.activeServerId ? { ...s, rpcSecret } : s,
-					);
-					return { rpcSecret, servers };
-				});
-			},
+			defaultRemote: "",
+            
+            servers: [],
+            activeServerId: null,
 
 			setSearchQuery: (searchQuery) => set({ searchQuery }),
 			setEnableNotifications: (enableNotifications) =>
 				set({ enableNotifications }),
-			setRcloneTargetRemote: (rcloneTargetRemote) => set({ rcloneTargetRemote }),
+			setDefaultRemote: (defaultRemote) => set({ defaultRemote }),
 			setViewMode: (viewMode) => set({ viewMode }),
 			setIsSelectionMode: (isSelectionMode) =>
 				set({ isSelectionMode, selectedGids: new Set() }),
@@ -100,138 +72,82 @@ export const useSettingsStore = create<SettingsState>()(
 				});
 			},
 
-			addServer: (serverData) => {
-				const id = crypto.randomUUID();
-				const newServer = { ...serverData, id };
-				set((state) => {
-					const servers = [...state.servers, newServer];
-					// If this is the first server, make it active
-					if (servers.length === 1) {
-						return {
-							servers,
-							activeServerId: id,
-							rpcUrl: newServer.rpcUrl,
-							rpcSecret: newServer.rpcSecret,
-						};
-					}
-					return { servers };
-				});
-			},
+            addServer: (serverData) => {
+                const id = crypto.randomUUID();
+                const newServer = { ...serverData, id };
+                set((state) => {
+                    const servers = [...state.servers, newServer];
+                    // If first server, activate it
+                    if (servers.length === 1) {
+                        return { servers, activeServerId: id };
+                    }
+                    return { servers };
+                });
+            },
 
-			updateServer: (id, updates) => {
-				set((state) => {
-					const servers = state.servers.map((s) =>
-						s.id === id ? { ...s, ...updates } : s,
-					);
+            updateServer: (id, updates) => {
+                set((state) => ({
+                    servers: state.servers.map((s) => s.id === id ? { ...s, ...updates } : s)
+                }));
+            },
 
-					// If updating active server, sync global state
-					if (id === state.activeServerId) {
-						const activeServer = servers.find((s) => s.id === id);
-						if (activeServer) {
-							return {
-								servers,
-								rpcUrl: activeServer.rpcUrl,
-								rpcSecret: activeServer.rpcSecret,
-							};
-						}
-					}
-					return { servers };
-				});
-			},
+            removeServer: (id) => {
+                set((state) => {
+                    const servers = state.servers.filter((s) => s.id !== id);
+                    let activeServerId = state.activeServerId;
+                    if (id === activeServerId) {
+                        activeServerId = servers.length > 0 ? servers[0].id : null;
+                    }
+                    return { servers, activeServerId };
+                });
+            },
 
-			removeServer: (id) => {
-				set((state) => {
-					const servers = state.servers.filter((s) => s.id !== id);
-					let activeServerId = state.activeServerId;
-					let rpcUrl = state.rpcUrl;
-					let rpcSecret = state.rpcSecret;
-
-					if (id === activeServerId) {
-						// If we removed the active server, pick the first one available or clear
-						if (servers.length > 0) {
-							activeServerId = servers[0].id;
-							rpcUrl = servers[0].rpcUrl;
-							rpcSecret = servers[0].rpcSecret;
-						} else {
-							activeServerId = null;
-							rpcUrl = "";
-							rpcSecret = "";
-						}
-					}
-
-					return { servers, activeServerId, rpcUrl, rpcSecret };
-				});
-			},
-
-			setActiveServer: (id) => {
-				set((state) => {
-					const server = state.servers.find((s) => s.id === id);
-					if (server) {
-						return {
-							activeServerId: id,
-							rpcUrl: server.rpcUrl,
-							rpcSecret: server.rpcSecret,
-						};
-					}
-					return {};
-				});
-			},
+            setActiveServer: (id) => set({ activeServerId: id }),
 
 			setPollingInterval: (pollingInterval) => set({ pollingInterval }),
 			setTheme: (theme) => set({ theme }),
 		}),
 		{
-			name: "aria2-settings",
+			name: "gravity-settings",
 			partialize: (state) => ({
 				theme: state.theme,
 				viewMode: state.viewMode,
 				enableNotifications: state.enableNotifications,
-				rcloneTargetRemote: state.rcloneTargetRemote,
-				servers: state.servers,
-				activeServerId: state.activeServerId,
+				defaultRemote: state.defaultRemote,
 				pollingInterval: state.pollingInterval,
-				// Include these for migration and instant rehydration
-				rpcUrl: state.rpcUrl,
-				rpcSecret: state.rpcSecret,
+                servers: state.servers,
+                activeServerId: state.activeServerId,
 			}),
-			onRehydrateStorage: () => (state) => {
-				if (!state) return;
-
-				// Migration: If rpcUrl exists but no servers, create default
-				if (state.rpcUrl && (!state.servers || state.servers.length === 0)) {
-					const defaultId = "default-1";
-					const defaultServer: ServerConfig = {
-						id: defaultId,
-						name: "Default Server",
-						rpcUrl: state.rpcUrl,
-						rpcSecret: state.rpcSecret || "",
-					};
-					state.servers = [defaultServer];
-					state.activeServerId = defaultId;
-				}
-
-				// Ensure rpcUrl/rpcSecret are synced with the active server if they are empty
-				if (state.activeServerId && state.servers.length > 0 && !state.rpcUrl) {
-					const active = state.servers.find(
-						(s) => s.id === state.activeServerId,
-					);
-					if (active) {
-						state.rpcUrl = active.rpcUrl;
-						state.rpcSecret = active.rpcSecret;
-					}
-				}
-			},
+            onRehydrateStorage: () => (state) => {
+                // Ensure default server if empty
+                if (state && state.servers.length === 0) {
+                    const defaultId = "default-local";
+                    state.servers = [{
+                        id: defaultId,
+                        name: "Local Gravity",
+                        serverUrl: "/api/v1",
+                        apiKey: ""
+                    }];
+                    state.activeServerId = defaultId;
+                }
+            }
 		},
 	),
 );
 
-// Synchronously initialize the aria2 client with persisted settings
-const initSettings = useSettingsStore.getState();
-if (initSettings.rpcUrl) {
-	aria2.updateConfig(initSettings.rpcUrl, initSettings.rpcSecret);
-}
+// Sync API client
+const syncApi = (state: SettingsState) => {
+    const active = state.servers.find(s => s.id === state.activeServerId);
+    if (active) {
+        api.setBaseUrl(active.serverUrl);
+        api.setApiKey(active.apiKey);
+    }
+};
 
-// Subscribe to store changes to keep the aria2 client in sync
-useSettingsStore.subscribe((state) => {
-	aria2.updateConfig(state.rpcUrl, state.rpcSecret);
-});
+useSettingsStore.subscribe(syncApi);
+
+// Initial sync
+// We need to wait for rehydration? persist middleware handles it.
+// But we can try to sync initially if state exists.
+const initialState = useSettingsStore.getState();
+syncApi(initialState);

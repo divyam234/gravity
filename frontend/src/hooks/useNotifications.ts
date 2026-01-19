@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
-import { aria2 } from "../lib/aria2-rpc";
+import { api } from "../lib/api";
 import { useSettingsStore } from "../store/useSettingsStore";
-import { useActiveTasks, useGlobalStat } from "./useAria2";
+import { useActiveTasks, useGlobalStat } from "./useEngine";
 
 export function useNotifications() {
 	const { enableNotifications } = useSettingsStore();
@@ -28,7 +28,7 @@ export function useNotifications() {
 		// If we have no active tasks and no history, nothing to do
 		if (!activeTasks && previousActiveGids.current.size === 0) return;
 
-		const currentActiveGids = new Set(activeTasks?.map((t) => t.gid) || []);
+		const currentActiveGids = new Set(activeTasks?.map((t: any) => t.id) || []); // Changed .gid to .id
 
 		// Check for tasks that were active and are now missing
 		const checkFinishedTasks = async () => {
@@ -36,19 +36,18 @@ export function useNotifications() {
 				if (!currentActiveGids.has(gid)) {
 					try {
 						// Fetch status of the missing task
-						const task = await aria2.tellStatus(gid);
+						const task = await api.getDownload(gid);
 						if (task) {
 							if (task.status === "complete") {
 								new Notification("Download Complete", {
 									body:
-										task.bittorrent?.info?.name ||
-										task.files[0]?.path?.split("/").pop() ||
+										task.filename ||
 										"File downloaded",
 									icon: "/logo.svg",
 								});
 							} else if (task.status === "error") {
 								new Notification("Download Error", {
-									body: `Error downloading ${task.files[0]?.path?.split("/").pop() || gid}`,
+									body: `Error downloading ${task.filename || gid}`,
 									icon: "/logo.svg",
 								});
 							}

@@ -70,7 +70,7 @@ func New() (*App, error) {
 	ps := service.NewProviderService(pr, registry)
 	ds := service.NewDownloadService(dr, de, bus, ps)
 	us := service.NewUploadService(dr, ue, bus)
-	ss := service.NewStatsService(sr, de, ue)
+	ss := service.NewStatsService(sr, de, ue, bus)
 
 	// API
 	router := api.NewRouter(cfg.APIKey)
@@ -79,31 +79,29 @@ func New() (*App, error) {
 	ph := api.NewProviderHandler(ps)
 	rh := api.NewRemoteHandler(ue)
 	sh := api.NewStatsHandler(ss)
-	seth := api.NewSettingsHandler(store.NewSettingsRepo(s.GetDB()))
+	seth := api.NewSettingsHandler(store.NewSettingsRepo(s.GetDB()), de)
 	wsh := api.NewWSHandler(bus)
 
-	v1 := router.Handler()
-	router.MountV1(v1) // This is slightly redundant with chi, but matches our structure
+	// V1 Router
+	v1 := chi.NewRouter()
+	v1.Use(router.Auth)
+	v1.Mount("/downloads", dh.Routes())
+	v1.Mount("/providers", ph.Routes())
+	v1.Mount("/remotes", rh.Routes())
+	v1.Mount("/stats", sh.Routes())
+	v1.Mount("/settings", seth.Routes())
 
-	// Handlers
-	apiRouter := router.Handler().(chi.Router).(*chi.Mux)
-	apiRouter.Route("/api/v1", func(r chi.Router) {
-		r.Use(router.Auth)
-		r.Mount("/downloads", dh.Routes())
-		r.Mount("/providers", ph.Routes())
-		r.Mount("/remotes", rh.Routes())
-		r.Mount("/stats", sh.Routes())
-		r.Mount("/settings", seth.Routes())
-	})
-	apiRouter.Handle("/ws", wsh)
+	// Mount V1 to root
+	router.Mount("/api/v1", v1)
+	router.Handle("/ws", wsh)
 
 	// Frontend
 	fs := http.FileServer(http.Dir("./dist"))
-	apiRouter.Handle("/*", fs)
+	router.Handle("/*", fs)
 
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.Port),
-		Handler: apiRouter,
+		Handler: router.Handler(),
 	}
 
 	return &App{
@@ -136,6 +134,7 @@ func (a *App) Run() error {
 
 	// Start background services
 	a.uploadService.Start()
+	a.statsService.Start()
 
 	// Start HTTP server
 	go func() {

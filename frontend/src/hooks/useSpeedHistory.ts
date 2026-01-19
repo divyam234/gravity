@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useGlobalStat } from "./useAria2";
+import { useGlobalStat } from "./useEngine";
 
 const MAX_HISTORY = 60; // 60 seconds
 

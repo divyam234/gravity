@@ -2,7 +2,6 @@ import { Card } from "@heroui/react";
 import type React from "react";
 import IconArrowDown from "~icons/gravity-ui/arrow-down";
 import IconArrowUp from "~icons/gravity-ui/arrow-up";
-import IconCloud from "~icons/gravity-ui/cloud-arrow-up-in";
 import IconPulse from "~icons/gravity-ui/pulse";
 import { useStats } from "../../hooks/useStats";
 import { useSpeedHistory } from "../../hooks/useSpeedHistory";
@@ -13,11 +12,15 @@ export const StatsOverview: React.FC = () => {
   const { data: stats } = useStats();
   const { downloadHistory, uploadHistory } = useSpeedHistory();
 
-  const numUploading = stats?.active?.uploads ?? 0;
-  const cloudUploadSpeed = stats?.active?.uploadSpeed ?? 0;
+  const uploadSpeed = stats?.active?.uploadSpeed ?? 0;
+
+  const downloadsCompleted = stats?.totals?.downloads_completed ?? 0;
+  const downloadsFailed = stats?.totals?.downloads_failed ?? 0;
+  const uploadsCompleted = stats?.totals?.uploads_completed ?? 0;
+  const uploadsFailed = stats?.totals?.uploads_failed ?? 0;
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
       <Card className="overflow-hidden shadow-sm border-border">
         <Card.Content className="p-4 flex flex-col gap-2">
           <div className="flex items-center gap-4">
@@ -31,33 +34,15 @@ export const StatsOverview: React.FC = () => {
               </h4>
             </div>
           </div>
+          <div className="mt-2 flex items-center justify-between text-xs text-muted font-medium">
+            <span>{downloadsCompleted} finished</span>
+            {downloadsFailed > 0 && <span className="text-danger">{downloadsFailed} failed</span>}
+          </div>
           <SpeedGraph
             data={downloadHistory}
             color="var(--success)"
             height={40}
-            className="mt-2"
-          />
-        </Card.Content>
-      </Card>
-
-      <Card className="overflow-hidden shadow-sm border-border">
-        <Card.Content className="p-4 flex flex-col gap-2">
-          <div className="flex items-center gap-4">
-            <div className="p-3 rounded-full bg-accent/10 text-accent">
-              <IconArrowUp className="w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-sm text-muted font-medium">Local Upload</p>
-              <h4 className="text-2xl font-bold">
-                {formatBytes(0)}/s
-              </h4>
-            </div>
-          </div>
-          <SpeedGraph
-            data={uploadHistory}
-            color="var(--accent)"
-            height={40}
-            className="mt-2"
+            className="mt-1"
           />
         </Card.Content>
       </Card>
@@ -66,21 +51,25 @@ export const StatsOverview: React.FC = () => {
         <Card.Content className="p-4 flex flex-col gap-2">
           <div className="flex items-center gap-4">
             <div className="p-3 rounded-full bg-cyan-500/10 text-cyan-500">
-              <IconCloud className="w-6 h-6" />
+              <IconArrowUp className="w-6 h-6" />
             </div>
             <div>
-              <p className="text-sm text-muted font-medium">Cloud Upload</p>
+              <p className="text-sm text-muted font-medium">Upload Speed</p>
               <h4 className="text-2xl font-bold">
-                {formatBytes(cloudUploadSpeed)}/s
+                {formatBytes(uploadSpeed)}/s
               </h4>
             </div>
           </div>
-          <div className="mt-2 flex items-center justify-between text-xs text-muted">
-            <span>{numUploading} uploading</span>
-            <span>
-              {formatBytes(stats?.totals?.total_uploaded ?? 0)} total
-            </span>
+          <div className="mt-2 flex items-center justify-between text-xs text-muted font-medium">
+            <span>{uploadsCompleted} uploaded</span>
+            {uploadsFailed > 0 && <span className="text-danger">{uploadsFailed} failed</span>}
           </div>
+          <SpeedGraph
+            data={uploadHistory}
+            color="var(--cyan-500)"
+            height={40}
+            className="mt-1"
+          />
         </Card.Content>
       </Card>
 
@@ -97,8 +86,8 @@ export const StatsOverview: React.FC = () => {
                 ({stats?.queue?.pending ?? 0} queued)
               </span>
             </div>
-            <div className="text-xs text-muted mt-1">
-              {formatBytes(stats?.totals?.total_downloaded ?? 0)} downloaded
+            <div className="text-xs text-muted mt-1 font-medium">
+              Total Data: {formatBytes(stats?.totals?.total_downloaded ?? 0)}
             </div>
           </div>
         </Card.Content>

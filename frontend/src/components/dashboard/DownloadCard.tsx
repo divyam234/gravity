@@ -9,9 +9,10 @@ import { useDownloadActions } from "../../hooks/useDownloads";
 import { formatBytes, formatTime } from "../../lib/utils";
 import { ProgressBar } from "../ui/ProgressBar";
 import { StatusChip } from "../ui/StatusChip";
+import type { Download } from "../../lib/types";
 
 interface DownloadCardProps {
-  task: any; // Using any for now to avoid large type rewrite
+  task: Download;
   variant?: "list" | "grid";
 }
 

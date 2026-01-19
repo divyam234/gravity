@@ -2,13 +2,13 @@ import { Button, Card, Input, Label, Spinner } from "@heroui/react";
 import React, { useState } from "react";
 import IconTrashBin from "~icons/gravity-ui/trash-bin";
 import IconPlus from "~icons/gravity-ui/plus";
-import { useRcloneActions, useRcloneRemotes } from "../../../hooks/useRclone";
+import { useRemoteActions, useRemotes } from "../../../hooks/useRemotes";
 import { useSettingsStore } from "../../../store/useSettingsStore";
 
-export const RcloneSettings: React.FC = () => {
-	const { rcloneTargetRemote, setRcloneTargetRemote } = useSettingsStore();
-	const { data: remotes, isLoading } = useRcloneRemotes();
-	const { deleteRemote, createRemote } = useRcloneActions();
+export const RemoteSettings: React.FC = () => {
+	const { defaultRemote, setDefaultRemote } = useSettingsStore();
+	const { data: remotes, isLoading } = useRemotes();
+	const { deleteRemote, createRemote } = useRemoteActions();
 
 	const [isAdding, setIsAdding] = useState(false);
 	const [newName, setNewName] = useState("");
@@ -49,8 +49,8 @@ export const RcloneSettings: React.FC = () => {
 						Target Remote & Path
 					</Label>
 					<Input
-						value={rcloneTargetRemote}
-						onChange={(e) => setRcloneTargetRemote(e.target.value)}
+						value={defaultRemote}
+						onChange={(e) => setDefaultRemote(e.target.value)}
 						placeholder="e.g. gdrive:downloads or s3:bucket/folder"
 						className="w-full bg-default/10 rounded-xl"
 					/>
@@ -63,7 +63,7 @@ export const RcloneSettings: React.FC = () => {
 			<section className="space-y-6">
 				<div className="flex items-center justify-between border-b border-border pb-2">
 					<div>
-						<h3 className="text-lg font-bold">Rclone Remotes</h3>
+						<h3 className="text-lg font-bold">Cloud Remotes</h3>
 						<p className="text-sm text-muted">
 							Manage your cloud storage connections.
 						</p>
@@ -139,19 +139,19 @@ export const RcloneSettings: React.FC = () => {
 					) : (
 						remotes?.map((remote) => (
 							<Card
-								key={remote}
+								key={remote.name}
 								className="flex flex-row items-center justify-between p-3 px-4 bg-default/5 border-border shadow-none rounded-xl group"
 							>
 								<div className="flex items-center gap-3">
 									<div className="w-2 h-2 rounded-full bg-success" />
-									<span className="font-bold tracking-tight">{remote}</span>
+									<span className="font-bold tracking-tight">{remote.name}</span>
 								</div>
 								<div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
 									<Button
 										isIconOnly
 										size="sm"
 										variant="ghost"
-										onPress={() => setRcloneTargetRemote(`${remote}:`)}
+										onPress={() => setDefaultRemote(`${remote.name}:`)}
 										className="h-8 w-8 min-w-0"
 									>
 										<span className="text-[10px] font-black">DEF</span>
@@ -161,7 +161,7 @@ export const RcloneSettings: React.FC = () => {
 										size="sm"
 										variant="ghost"
 										className="text-danger h-8 w-8 min-w-0"
-										onPress={() => deleteRemote.mutate(remote)}
+										onPress={() => deleteRemote.mutate(remote.name)}
 										isPending={deleteRemote.isPending}
 									>
 										<IconTrashBin className="w-4 h-4" />

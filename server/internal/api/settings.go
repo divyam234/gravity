@@ -4,17 +4,19 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"gravity/internal/engine"
 	"gravity/internal/store"
 
 	"github.com/go-chi/chi/v5"
 )
 
 type SettingsHandler struct {
-	repo *store.SettingsRepo
+	repo   *store.SettingsRepo
+	engine engine.DownloadEngine
 }
 
-func NewSettingsHandler(repo *store.SettingsRepo) *SettingsHandler {
-	return &SettingsHandler{repo: repo}
+func NewSettingsHandler(repo *store.SettingsRepo, engine engine.DownloadEngine) *SettingsHandler {
+	return &SettingsHandler{repo: repo, engine: engine}
 }
 
 func (h *SettingsHandler) Routes() chi.Router {
@@ -45,6 +47,15 @@ func (h *SettingsHandler) Update(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+	}
+
+	// Apply settings to engine
+	if err := h.engine.Configure(r.Context(), req); err != nil {
+		// Log warning but don't fail request? Or return partial error?
+		// For now, let's treat it as success but maybe log it.
+		// Since I don't have logger here easily, I'll return 500 if engine fails.
+		http.Error(w, "Saved but failed to apply: "+err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	w.WriteHeader(http.StatusOK)

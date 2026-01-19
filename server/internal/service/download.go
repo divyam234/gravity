@@ -91,6 +91,10 @@ func (s *DownloadService) Create(ctx context.Context, url string, filename strin
 	return d, nil
 }
 
+func (s *DownloadService) Get(ctx context.Context, id string) (*model.Download, error) {
+	return s.repo.Get(ctx, id)
+}
+
 func (s *DownloadService) Pause(ctx context.Context, id string) error {
 	d, err := s.repo.Get(ctx, id)
 	if err != nil {
@@ -134,6 +138,48 @@ func (s *DownloadService) Resume(ctx context.Context, id string) error {
 		Type:      event.DownloadResumed,
 		Timestamp: time.Now(),
 		Data:      map[string]string{"id": id},
+	})
+
+	return nil
+}
+
+func (s *DownloadService) Retry(ctx context.Context, id string) error {
+	d, err := s.repo.Get(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	// Only retry failed or completed tasks
+	if d.Status != model.StatusError && d.Status != model.StatusComplete {
+		return fmt.Errorf("cannot retry download in status %s", d.Status)
+	}
+
+	// Re-add to engine
+	// Note: We might be missing headers if they were required and not stored.
+	// Assuming public URL or auth in URL for now.
+	engineID, err := s.engine.Add(ctx, d.ResolvedURL, engine.DownloadOptions{
+		Filename: d.Filename,
+		Dir:      d.Destination,
+	})
+	if err != nil {
+		return err
+	}
+
+	d.EngineID = engineID
+	d.Status = model.StatusDownloading
+	d.Error = ""
+	d.Downloaded = 0 // Reset progress?
+	// d.Size = 0 // Keep size if known
+	d.UpdatedAt = time.Now()
+
+	if err := s.repo.Update(ctx, d); err != nil {
+		return err
+	}
+
+	s.bus.Publish(event.Event{
+		Type:      event.DownloadStarted, // Or similar
+		Timestamp: time.Now(),
+		Data:      d,
 	})
 
 	return nil

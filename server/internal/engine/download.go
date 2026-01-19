@@ -49,6 +49,9 @@ type DownloadEngine interface {
 	Status(ctx context.Context, id string) (*DownloadStatus, error)
 	List(ctx context.Context) ([]*DownloadStatus, error)
 
+	// Configuration
+	Configure(ctx context.Context, options map[string]string) error
+
 	// Events
 	OnProgress(handler func(id string, progress Progress))
 	OnComplete(handler func(id string, filePath string))
