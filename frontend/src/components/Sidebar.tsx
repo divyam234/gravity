@@ -210,10 +210,10 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
     return null;
   }, [location.pathname, location.search, settingsNavItems]);
 
-  const isDownloadsActive = location.pathname === "/tasks";
-  const isSettingsActive =
-    location.pathname.startsWith("/settings") &&
-    location.pathname !== "/settings/";
+  const isDownloadsHeaderActive =
+    location.pathname === "/tasks" && !location.search.status;
+  const isSettingsHeaderActive =
+    location.pathname === "/settings" || location.pathname === "/settings/";
 
   return (
     <div className="flex flex-col h-full w-full">
@@ -295,7 +295,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
                 className={cn(
                   "px-4 py-2.5 rounded-2xl transition-all cursor-pointer outline-none group flex items-center justify-between w-full text-left relative overflow-hidden",
                   "hover:bg-default/10 focus-visible:bg-default/10 focus-visible:ring-2 focus-visible:ring-accent/50",
-                  isDownloadsActive
+                  isDownloadsHeaderActive
                     ? "bg-accent/10 text-accent font-bold"
                     : "text-foreground",
                 )}
@@ -303,12 +303,12 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
                 <div className="flex items-center gap-3 relative z-10">
                   <span
                     className={cn(
-                      isDownloadsActive ? "text-inherit" : "text-muted",
+                      isDownloadsHeaderActive ? "text-inherit" : "text-muted",
                     )}
                   >
                     <IconRocket className="w-5 h-5" />
                   </span>
-                  <Label className="text-sm tracking-tight text-inherit cursor-pointer">
+                  <Label className="text-sm font-bold tracking-tight text-inherit cursor-pointer">
                     Downloads
                   </Label>
                 </div>
@@ -322,7 +322,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
                 <div
                   className={cn(
                     "absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-accent rounded-r-full transform transition-transform duration-200",
-                    isDownloadsActive ? "translate-x-0" : "-translate-x-full",
+                    isDownloadsHeaderActive ? "translate-x-0" : "-translate-x-full",
                   )}
                 />
               </Accordion.Trigger>
@@ -393,7 +393,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
                 className={cn(
                   "px-4 py-2.5 rounded-2xl transition-all cursor-pointer outline-none group flex items-center justify-between w-full text-left relative overflow-hidden",
                   "hover:bg-default/10 focus-visible:bg-default/10 focus-visible:ring-2 focus-visible:ring-accent/50",
-                  isSettingsActive
+                  isSettingsHeaderActive
                     ? "bg-accent/10 text-accent font-bold"
                     : "text-foreground",
                 )}
@@ -401,12 +401,12 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
                 <div className="flex items-center gap-3 relative z-10">
                   <span
                     className={cn(
-                      isSettingsActive ? "text-inherit" : "text-muted",
+                      isSettingsHeaderActive ? "text-inherit" : "text-muted",
                     )}
                   >
                     <IconGear className="w-5 h-5" />
                   </span>
-                  <Label className="text-sm tracking-tight text-inherit cursor-pointer">
+                  <Label className="text-sm font-bold tracking-tight text-inherit cursor-pointer">
                     Settings
                   </Label>
                 </div>
@@ -420,7 +420,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
                 <div
                   className={cn(
                     "absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-accent rounded-r-full transform transition-transform duration-200",
-                    isSettingsActive ? "translate-x-0" : "-translate-x-full",
+                    isSettingsHeaderActive ? "translate-x-0" : "-translate-x-full",
                   )}
                 />
               </Accordion.Trigger>

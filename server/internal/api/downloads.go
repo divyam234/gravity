@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"gravity/internal/service"
+	"gravity/internal/utils"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -32,17 +33,17 @@ func (h *DownloadHandler) Routes() chi.Router {
 }
 
 func (h *DownloadHandler) List(w http.ResponseWriter, r *http.Request) {
-	statusStr := r.URL.Query().Get("status")
+	statusStr := r.URL.Query().Get(ParamStatus)
 	var status []string
 	if statusStr != "" {
 		status = strings.Split(statusStr, ",")
 	}
 
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	limit, _ := strconv.Atoi(r.URL.Query().Get(ParamLimit))
 	if limit == 0 {
-		limit = 50
+		limit = DefaultLimit
 	}
-	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
+	offset, _ := strconv.Atoi(r.URL.Query().Get(ParamOffset))
 
 	downloads, total, err := h.service.List(r.Context(), status, limit, offset)
 	if err != nil {
@@ -50,28 +51,53 @@ func (h *DownloadHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"data": downloads,
-		"meta": map[string]interface{}{
-			"total":  total,
-			"limit":  limit,
-			"offset": offset,
+	json.NewEncoder(w).Encode(ListResponse{
+		Data: downloads,
+		Meta: Meta{
+			Total:  total,
+			Limit:  limit,
+			Offset: offset,
 		},
 	})
 }
 
 func (h *DownloadHandler) Create(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		URL         string `json:"url"`
-		Filename    string `json:"filename"`
-		Destination string `json:"destination"`
-	}
+	var req CreateDownloadRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request", http.StatusBadRequest)
 		return
 	}
 
-	d, err := h.service.Create(r.Context(), req.URL, req.Filename, req.Destination)
+	// Initialize cleanFilename as empty
+	// If req.Filename is empty, we leave it empty so Aria2 uses the URL's filename.
+	cleanFilename := ""
+	if req.Filename != "" {
+		if !utils.IsSafeFilename(req.Filename) {
+			http.Error(w, "invalid filename", http.StatusBadRequest)
+			return
+		}
+		// If provided, use it directly (IsSafeFilename checks for traversal)
+		cleanFilename = req.Filename
+	}
+
+	// Smart Destination Logic:
+	// We allow the user to specify:
+	// 1. A local absolute path (e.g. /mnt/data) -> Direct Download
+	// 2. A remote path (e.g. gdrive:) -> Download to default -> Upload
+	// 3. A relative path (e.g. movies) -> Download to default/movies (Direct Download)
+
+	// Therefore, we do NOT strictly sanitize req.Destination against the default data directory here.
+	// We trust the service layer to handle the logic and the underlying engine/OS to handle permission errors.
+	// This allows power users to download to external drives.
+
+	cleanDest := ""
+	if req.Destination != "" {
+		// Just clean the path string to remove redundancies like // or /./
+		// We do NOT use SanitizePath because that enforces baseDir containment.
+		cleanDest = req.Destination
+	}
+
+	d, err := h.service.Create(r.Context(), req.URL, cleanFilename, cleanDest)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -82,7 +108,7 @@ func (h *DownloadHandler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *DownloadHandler) Get(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
+	id := chi.URLParam(r, ParamID)
 	d, err := h.service.Get(r.Context(), id)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
@@ -92,8 +118,8 @@ func (h *DownloadHandler) Get(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *DownloadHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-	deleteFiles := r.URL.Query().Get("deleteFiles") == "true"
+	id := chi.URLParam(r, ParamID)
+	deleteFiles := r.URL.Query().Get(ParamDeleteFiles) == "true"
 
 	if err := h.service.Delete(r.Context(), id, deleteFiles); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -104,7 +130,7 @@ func (h *DownloadHandler) Delete(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *DownloadHandler) Pause(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
+	id := chi.URLParam(r, ParamID)
 	if err := h.service.Pause(r.Context(), id); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -113,7 +139,7 @@ func (h *DownloadHandler) Pause(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *DownloadHandler) Resume(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
+	id := chi.URLParam(r, ParamID)
 	if err := h.service.Resume(r.Context(), id); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -122,7 +148,7 @@ func (h *DownloadHandler) Resume(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *DownloadHandler) Retry(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
+	id := chi.URLParam(r, ParamID)
 	if err := h.service.Retry(r.Context(), id); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

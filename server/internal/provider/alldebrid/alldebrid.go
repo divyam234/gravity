@@ -103,18 +103,7 @@ func (p *AllDebridProvider) Resolve(ctx context.Context, rawURL string) (*provid
 	}
 	defer resp.Body.Close()
 
-	var result struct {
-		Status string `json:"status"`
-		Data   struct {
-			Link     string `json:"link"`
-			Filename string `json:"filename"`
-			Filesize int64  `json:"filesize"`
-		} `json:"data"`
-		Error struct {
-			Message string `json:"message"`
-		} `json:"error"`
-	}
-
+	var result LinkUnlockResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, err
 	}
@@ -144,17 +133,7 @@ func (p *AllDebridProvider) Test(ctx context.Context) (*model.AccountInfo, error
 	}
 	defer resp.Body.Close()
 
-	var result struct {
-		Status string `json:"status"`
-		Data   struct {
-			User struct {
-				Username     string `json:"username"`
-				IsPremium    bool   `json:"isPremium"`
-				PremiumUntil int64  `json:"premiumUntil"`
-			} `json:"user"`
-		} `json:"data"`
-	}
-
+	var result UserResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, err
 	}
@@ -185,14 +164,7 @@ func (p *AllDebridProvider) fetchHosts(ctx context.Context) ([]string, error) {
 	}
 	defer resp.Body.Close()
 
-	var result struct {
-		Data struct {
-			Hosts map[string]struct {
-				Domain string `json:"domain"`
-			} `json:"hosts"`
-		} `json:"data"`
-	}
-
+	var result HostsResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, err
 	}

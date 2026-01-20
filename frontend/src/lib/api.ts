@@ -21,6 +21,10 @@ class ApiClient {
     this.baseUrl = url.replace(/\/+$/, "");
   }
 
+  getEventSourceUrl() {
+    return `${this.baseUrl}/events`;
+  }
+
   public async request<T>(method: string, path: string, body?: any): Promise<T> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',

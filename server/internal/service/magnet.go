@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -111,9 +112,28 @@ type MagnetDownloadRequest struct {
 func (s *MagnetService) DownloadMagnet(ctx context.Context, req MagnetDownloadRequest) (*model.Download, error) {
 	// Get download directory from settings
 	settings, _ := s.settingsRepo.Get(ctx)
-	downloadDir := settings["download_dir"]
-	if downloadDir == "" {
-		downloadDir = "/downloads"
+	defaultDir := settings["download_dir"]
+	if defaultDir == "" {
+		defaultDir = "/downloads"
+	}
+
+	var localPath, uploadDest string
+
+	// Smart Destination Logic (Same as DownloadService)
+	isRemote := strings.Contains(req.Destination, ":") && !filepath.IsAbs(req.Destination)
+
+	if isRemote {
+		localPath = defaultDir
+		uploadDest = req.Destination
+	} else {
+		if req.Destination == "" {
+			localPath = defaultDir
+		} else if filepath.IsAbs(req.Destination) {
+			localPath = req.Destination
+		} else {
+			localPath = filepath.Join(defaultDir, req.Destination)
+		}
+		uploadDest = ""
 	}
 
 	// Create download record
@@ -121,8 +141,8 @@ func (s *MagnetService) DownloadMagnet(ctx context.Context, req MagnetDownloadRe
 		ID:           "d_" + uuid.New().String()[:8],
 		URL:          req.Magnet,
 		Status:       model.StatusWaiting,
-		Destination:  req.Destination,
-		LocalPath:    downloadDir,
+		Destination:  uploadDest,
+		LocalPath:    localPath,
 		IsMagnet:     true,
 		MagnetSource: req.Source,
 		MagnetID:     req.MagnetID,

@@ -80,13 +80,7 @@ func (p *RealDebridProvider) Resolve(ctx context.Context, rawURL string) (*provi
 	}
 	defer resp.Body.Close()
 
-	var result struct {
-		Link     string `json:"link"`
-		Filename string `json:"filename"`
-		Filesize int64  `json:"filesize"`
-		Error    string `json:"error"`
-	}
-
+	var result UnrestrictLinkResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, err
 	}
@@ -115,12 +109,7 @@ func (p *RealDebridProvider) Test(ctx context.Context) (*model.AccountInfo, erro
 	}
 	defer resp.Body.Close()
 
-	var result struct {
-		Username   string `json:"username"`
-		Type       string `json:"type"` // "premium"
-		Expiration string `json:"expiration"`
-	}
-
+	var result UserResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, err
 	}

@@ -6,7 +6,6 @@ import {
 } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api } from "../lib/api";
-import { useSettingsStore } from "../store/useSettingsStore";
 import type { TaskStatus } from "../routes/tasks";
 
 // --- Query Options Helpers ---
@@ -45,10 +44,9 @@ export function useGravityVersion() {
 }
 
 export function useGlobalStat() {
-	const { pollingInterval } = useSettingsStore();
 	return useQuery({
 		...globalStatOptions(),
-		refetchInterval: (query) => (query.state.status === 'error' ? false : pollingInterval),
+		refetchInterval: (query) => (query.state.status === 'error' ? false : 30000), // Heartbeat only
 	});
 }
 
@@ -59,14 +57,13 @@ const fetchDownloads = async (status: string[], limit?: number, offset?: number)
 };
 
 export function useTasksByStatus(status: TaskStatus, options?: { enabled?: boolean, limit?: number, offset?: number }) {
-    const { pollingInterval } = useSettingsStore();
     const limit = options?.limit ?? 50;
     const offset = options?.offset ?? 0;
     
     return useQuery({
         queryKey: ["gravity", "downloads", status, limit, offset],
         queryFn: () => fetchDownloads([status], limit, offset),
-        refetchInterval: (query) => (query.state.status === 'error' ? false : pollingInterval),
+        refetchInterval: (query) => (query.state.status === 'error' ? false : 30000), // Heartbeat only
         enabled: options?.enabled ?? true,
     });
 }

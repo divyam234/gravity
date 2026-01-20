@@ -5,10 +5,11 @@ import {
 } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { api } from '../lib/api';
-import { useSettingsStore } from '../store/useSettingsStore';
 
 export function useDownloads(params?: { status?: string[]; limit?: number; offset?: number }) {
-  const { pollingInterval } = useSettingsStore();
+  // We use SSE for real-time updates now, so standard polling is largely unnecessary
+  // We can keep a slow heartbeat (e.g., 30s) just for eventual consistency
+  const pollingInterval = 30000;
 
   return useQuery({
     queryKey: ['downloads', params],

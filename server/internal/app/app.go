@@ -91,6 +91,7 @@ func New() (*App, error) {
 	mh := api.NewMagnetHandler(ms)
 	fh := api.NewFileHandler(ue)
 	searchHandler := api.NewSearchHandler(searchService)
+	eh := api.NewEventHandler(bus, de, ss)
 
 	// V1 Router
 	v1 := chi.NewRouter()
@@ -104,6 +105,7 @@ func New() (*App, error) {
 	v1.Mount("/magnets", mh.Routes())
 	v1.Mount("/files", fh.Routes())
 	v1.Mount("/search", searchHandler.Routes())
+	v1.Mount("/events", eh.Routes())
 
 	// Mount V1 to root
 	router.Mount("/api/v1", v1)
@@ -172,6 +174,10 @@ func (a *App) Run() error {
 	<-quit
 
 	log.Println("Shutting down Gravity...")
+
+	// Signal services to stop background routines
+	a.downloadService.StopGracefully()
+	a.statsService.Stop()
 
 	a.downloadEngine.Stop()
 	a.uploadEngine.Stop()

@@ -30,19 +30,19 @@ func (h *SearchHandler) Routes() chi.Router {
 }
 
 func (h *SearchHandler) Search(w http.ResponseWriter, r *http.Request) {
-	q := r.URL.Query().Get("q")
+	q := r.URL.Query().Get(ParamQuery)
 	if q == "" {
 		http.Error(w, "missing query", http.StatusBadRequest)
 		return
 	}
 
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	limit, _ := strconv.Atoi(r.URL.Query().Get(ParamLimit))
 	if limit <= 0 {
-		limit = 50
+		limit = DefaultLimit
 	}
-	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
+	offset, _ := strconv.Atoi(r.URL.Query().Get(ParamOffset))
 	if offset < 0 {
-		offset = 0
+		offset = DefaultOffset
 	}
 
 	results, total, err := h.service.Search(r.Context(), q, limit, offset)
@@ -55,12 +55,12 @@ func (h *SearchHandler) Search(w http.ResponseWriter, r *http.Request) {
 		results = make([]store.IndexedFile, 0)
 	}
 
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"data": results,
-		"meta": map[string]interface{}{
-			"total":  total,
-			"limit":  limit,
-			"offset": offset,
+	json.NewEncoder(w).Encode(ListResponse{
+		Data: results,
+		Meta: Meta{
+			Total:  total,
+			Limit:  limit,
+			Offset: offset,
 		},
 	})
 }
@@ -75,10 +75,8 @@ func (h *SearchHandler) GetConfigs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *SearchHandler) UpdateConfig(w http.ResponseWriter, r *http.Request) {
-	remote := chi.URLParam(r, "remote")
-	var req struct {
-		Interval int `json:"interval"`
-	}
+	remote := chi.URLParam(r, ParamRemote)
+	var req UpdateConfigRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request", http.StatusBadRequest)
 		return
@@ -92,7 +90,7 @@ func (h *SearchHandler) UpdateConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *SearchHandler) IndexRemote(w http.ResponseWriter, r *http.Request) {
-	remote := chi.URLParam(r, "remote")
+	remote := chi.URLParam(r, ParamRemote)
 	go h.service.IndexRemote(context.Background(), remote)
 	w.WriteHeader(http.StatusAccepted)
 }

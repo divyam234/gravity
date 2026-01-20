@@ -2,6 +2,9 @@ package service
 
 import (
 	"context"
+	"log"
+	"sync"
+	"time"
 
 	"gravity/internal/engine"
 	"gravity/internal/event"
@@ -15,19 +18,29 @@ type StatsService struct {
 	downloadEngine engine.DownloadEngine
 	uploadEngine   engine.UploadEngine
 	bus            *event.Bus
+
+	mu            sync.Mutex
+	pollingPaused bool
+	pollingCond   *sync.Cond
+	done          chan struct{}
 }
 
 func NewStatsService(repo *store.StatsRepo, dr *store.DownloadRepo, de engine.DownloadEngine, ue engine.UploadEngine, bus *event.Bus) *StatsService {
-	return &StatsService{
+	s := &StatsService{
 		repo:           repo,
 		downloadRepo:   dr,
 		downloadEngine: de,
 		uploadEngine:   ue,
 		bus:            bus,
+		pollingPaused:  true,
+		done:           make(chan struct{}),
 	}
+	s.pollingCond = sync.NewCond(&s.mu)
+	return s
 }
 
 func (s *StatsService) Start() {
+	// 1. Listen for completion events to update totals
 	ch := s.bus.Subscribe()
 	go func() {
 		for ev := range ch {
@@ -50,6 +63,72 @@ func (s *StatsService) Start() {
 			}
 		}
 	}()
+
+	// 2. Start broadcast loop
+	go s.broadcastLoop()
+}
+
+func (s *StatsService) Stop() {
+	close(s.done)
+	s.mu.Lock()
+	s.pollingCond.Broadcast()
+	s.mu.Unlock()
+}
+
+func (s *StatsService) PausePolling() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.pollingPaused {
+		s.pollingPaused = true
+		log.Println("Stats: Polling paused")
+	}
+}
+
+func (s *StatsService) ResumePolling() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.pollingPaused {
+		s.pollingPaused = false
+		s.pollingCond.Broadcast()
+		log.Println("Stats: Polling resumed")
+	}
+}
+
+func (s *StatsService) broadcastLoop() {
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		s.mu.Lock()
+		for s.pollingPaused {
+			select {
+			case <-s.done:
+				s.mu.Unlock()
+				return
+			default:
+				s.pollingCond.Wait()
+			}
+		}
+		s.mu.Unlock()
+
+		select {
+		case <-s.done:
+			return
+		case <-ticker.C:
+			// Fetch and broadcast
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			stats, err := s.GetCurrent(ctx)
+			cancel()
+
+			if err == nil {
+				s.bus.Publish(event.Event{
+					Type:      event.StatsUpdate,
+					Timestamp: time.Now(),
+					Data:      stats,
+				})
+			}
+		}
+	}
 }
 
 func (s *StatsService) GetCurrent(ctx context.Context) (*model.Stats, error) {

@@ -27,9 +27,7 @@ func (h *MagnetHandler) Routes() chi.Router {
 }
 
 func (h *MagnetHandler) Check(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Magnet string `json:"magnet"`
-	}
+	var req CheckMagnetRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request", http.StatusBadRequest)
 		return
@@ -51,9 +49,7 @@ func (h *MagnetHandler) Check(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *MagnetHandler) CheckTorrent(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		TorrentBase64 string `json:"torrentBase64"`
-	}
+	var req CheckTorrentRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request", http.StatusBadRequest)
 		return
@@ -75,24 +71,7 @@ func (h *MagnetHandler) CheckTorrent(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *MagnetHandler) Download(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Magnet        string   `json:"magnet"`
-		TorrentBase64 string   `json:"torrentBase64"`
-		Source        string   `json:"source"`
-		MagnetID      string   `json:"magnetId"`
-		Name          string   `json:"name"`
-		SelectedFiles []string `json:"selectedFiles"`
-		Destination   string   `json:"destination"`
-		Files         []struct {
-			ID    string `json:"id"`
-			Name  string `json:"name"`
-			Path  string `json:"path"`
-			Size  int64  `json:"size"`
-			Link  string `json:"link"`
-			Index int    `json:"index"`
-		} `json:"files"`
-	}
-
+	var req DownloadMagnetRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request", http.StatusBadRequest)
 		return

@@ -29,6 +29,7 @@ type DownloadService struct {
 	// Throttling for database writes
 	lastPersistMap map[string]time.Time
 	mu             sync.RWMutex
+	stop           chan struct{}
 }
 
 func NewDownloadService(repo *store.DownloadRepo, settingsRepo *store.SettingsRepo, eng engine.DownloadEngine, ue engine.UploadEngine, bus *event.Bus, provider *ProviderService) *DownloadService {
@@ -40,6 +41,7 @@ func NewDownloadService(repo *store.DownloadRepo, settingsRepo *store.SettingsRe
 		bus:            bus,
 		provider:       provider,
 		lastPersistMap: make(map[string]time.Time),
+		stop:           make(chan struct{}),
 	}
 
 	// Wire up engine events
@@ -61,6 +63,38 @@ func (s *DownloadService) Create(ctx context.Context, url string, filename strin
 		filename = res.Filename
 	}
 
+	// 2. Determine paths (Smart Destination Logic)
+	settings, _ := s.settingsRepo.Get(ctx)
+	defaultDir := settings["download_dir"]
+	if defaultDir == "" {
+		defaultDir = "/downloads"
+	}
+
+	var localPath, uploadDest string
+
+	// Heuristic: If it has a colon and NOT an absolute path (on Linux), assume Remote.
+	// E.g. "gdrive:backup" -> Remote.
+	// E.g. "/mnt/data" -> Local.
+	// E.g. "movies" -> Local (Relative).
+	isRemote := strings.Contains(destination, ":") && !filepath.IsAbs(destination)
+
+	if isRemote {
+		// Behavior A: Download to default, then Upload to Remote
+		localPath = defaultDir
+		uploadDest = destination
+	} else {
+		// Behavior B: Direct Download to target
+		if destination == "" {
+			localPath = defaultDir
+		} else if filepath.IsAbs(destination) {
+			localPath = destination
+		} else {
+			// Relative path: Join with default
+			localPath = filepath.Join(defaultDir, destination)
+		}
+		uploadDest = "" // No post-download upload needed
+	}
+
 	d := &model.Download{
 		ID:          "d_" + uuid.New().String()[:8],
 		URL:         url,
@@ -69,7 +103,8 @@ func (s *DownloadService) Create(ctx context.Context, url string, filename strin
 		Provider:    providerName,
 		Filename:    filename,
 		Size:        res.Size,
-		Destination: destination,
+		Destination: uploadDest, // Only set if uploading
+		LocalPath:   localPath,  // Actual download directory
 		Status:      model.StatusWaiting,
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
@@ -86,7 +121,11 @@ func (s *DownloadService) Create(ctx context.Context, url string, filename strin
 	})
 
 	// Trigger queue processing
-	go s.ProcessQueue(context.Background())
+	go func() {
+		// Unlock immediately? No, ProcessQueue handles its own locking.
+		// But we should detach context.
+		s.ProcessQueue(context.Background())
+	}()
 
 	return d, nil
 }
@@ -193,7 +232,9 @@ func (s *DownloadService) Pause(ctx context.Context, id string) error {
 	})
 
 	// Trigger queue to fill the slot
-	go s.ProcessQueue(context.Background())
+	go func() {
+		s.ProcessQueue(context.Background())
+	}()
 
 	return nil
 }
@@ -216,7 +257,9 @@ func (s *DownloadService) Resume(ctx context.Context, id string) error {
 	})
 
 	// Trigger queue
-	go s.ProcessQueue(context.Background())
+	go func() {
+		s.ProcessQueue(context.Background())
+	}()
 
 	return nil
 }
@@ -233,9 +276,10 @@ func (s *DownloadService) Retry(ctx context.Context, id string) error {
 	}
 
 	// Re-add to engine
+	// Bug Fix: Use LocalPath as the directory, NOT Destination (which might be a remote string)
 	engineID, err := s.engine.Add(ctx, d.ResolvedURL, engine.DownloadOptions{
 		Filename: d.Filename,
-		Dir:      d.Destination,
+		Dir:      d.LocalPath,
 	})
 	if err != nil {
 		return err
@@ -359,8 +403,13 @@ func (s *DownloadService) Start() {
 	go func() {
 		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
-		for range ticker.C {
-			s.ProcessQueue(context.Background())
+		for {
+			select {
+			case <-ticker.C:
+				s.ProcessQueue(context.Background())
+			case <-s.stop:
+				return
+			}
 		}
 	}()
 
@@ -369,9 +418,12 @@ func (s *DownloadService) Start() {
 }
 
 func (s *DownloadService) ProcessQueue(ctx context.Context) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	// We need to fetch settings and list from repo, which might need locking if repo isn't thread-safe?
+	// Store repos are usually thread-safe (sql.DB).
+	// However, we want to ensure we don't run multiple ProcessQueue concurrent logic that races on "active count".
+	// But holding the lock during s.engine.Add (network I/O) is bad.
 
+	s.mu.Lock()
 	// Get max concurrent settings
 	settings, _ := s.settingsRepo.Get(ctx)
 	maxConcurrent := 3 // default
@@ -381,11 +433,12 @@ func (s *DownloadService) ProcessQueue(ctx context.Context) {
 		}
 	}
 
-	// 1. Count active tasks in DB (instead of engine to be more robust)
+	// 1. Count active tasks in DB
 	dbActive, _, _ := s.repo.List(ctx, []string{string(model.StatusActive)}, 100, 0, false)
 	activeCount := len(dbActive)
 
 	if activeCount >= maxConcurrent {
+		s.mu.Unlock()
 		return
 	}
 
@@ -393,11 +446,19 @@ func (s *DownloadService) ProcessQueue(ctx context.Context) {
 	limit := maxConcurrent - activeCount
 	waiting, _, err := s.repo.List(ctx, []string{string(model.StatusWaiting)}, limit, 0, true)
 	if err != nil || len(waiting) == 0 {
+		s.mu.Unlock()
 		return
 	}
 
+	// We have candidates. We can unlock now because:
+	// - s.repo operations are atomic DB calls.
+	// - Even if another ProcessQueue runs, it will likely pick up different items or see the status change if we update fast enough.
+	// - OR, better: mark them as "PendingStart" immediately?
+	// For now, let's unlock to allow other reads/writes while we submit to engine.
+	s.mu.Unlock()
+
 	for _, d := range waiting {
-		// Calculate total size from selected files only if multi-file
+		// Calculate total size...
 		var totalSize int64
 		files, _, _ := s.repo.GetFiles(ctx, d.ID, 1000, 0)
 		if len(files) > 0 {
@@ -407,7 +468,7 @@ func (s *DownloadService) ProcessQueue(ctx context.Context) {
 			d.Size = totalSize
 		}
 
-		// Submit to engine
+		// Submit to engine - This is the slow part!
 		opts := engine.DownloadOptions{
 			Filename:      d.Filename,
 			Dir:           d.LocalPath,
@@ -416,9 +477,12 @@ func (s *DownloadService) ProcessQueue(ctx context.Context) {
 			SelectedFiles: d.SelectedFiles,
 		}
 
-		// If it's a magnet, we need special handling if it's already got metadata
-		// but for now, simple Add is enough for normal URLs and magnets.
 		engineID, err := s.engine.Add(ctx, d.ResolvedURL, opts)
+
+		// Re-acquire lock briefly if we need to update internal maps (none here)
+		// But s.repo.Update is fine without s.mu unless we protect something else.
+		// s.mu protects lastPersistMap.
+
 		if err != nil {
 			d.Status = model.StatusError
 			d.Error = "Queue submission failed: " + err.Error()
@@ -480,7 +544,9 @@ func (s *DownloadService) Sync(ctx context.Context) error {
 	}
 
 	// Trigger queue processing
-	go s.ProcessQueue(context.Background())
+	go func() {
+		s.ProcessQueue(context.Background())
+	}()
 
 	return nil
 }
@@ -531,6 +597,11 @@ func (s *DownloadService) handleProgress(engineID string, p engine.Progress) {
 	// 2. Try single-file download
 	d, err := s.repo.GetByEngineID(ctx, engineID)
 	if err == nil {
+		// Prevent overwriting terminal states
+		if d.Status == model.StatusComplete || d.Status == model.StatusError {
+			return
+		}
+
 		d.Downloaded = p.Downloaded
 		d.Size = p.Size
 		d.Speed = p.Speed
@@ -553,6 +624,11 @@ func (s *DownloadService) handleProgress(engineID string, p engine.Progress) {
 	// 3. Try file within magnet (AllDebrid)
 	file, err := s.repo.GetFileByEngineID(ctx, engineID)
 	if err == nil {
+		// Prevent overwriting terminal states
+		if file.Status == model.StatusComplete || file.Status == model.StatusError {
+			return
+		}
+
 		file.Downloaded = p.Downloaded
 		file.Progress = 0
 		if file.Size > 0 {

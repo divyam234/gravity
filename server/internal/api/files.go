@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"gravity/internal/engine"
+	"gravity/internal/utils"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -31,7 +32,19 @@ func (h *FileHandler) List(w http.ResponseWriter, r *http.Request) {
 	if path == "" {
 		path = "/"
 	}
-	files, err := h.engine.List(r.Context(), path)
+
+	cleanPath, err := utils.SanitizePath(path, "/")
+	// Special handling for remote paths like "remote:" which SanitizePath might mess up if treated as local
+	// But rclone handles remotes. Here we seem to be listing files via rclone engine.
+	// If the path is intended to be a remote path (e.g. "gdrive:folder"), filepath.Clean might not be appropriate if it thinks ':' is a volume separator on Windows, but on Linux it's fine.
+	// However, if the engine expects a remote path, we should probably allow ':' but sanitize traversal.
+	// Let's assume standard path sanitization is what we want for safety to prevent "../" traversal.
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	files, err := h.engine.List(r.Context(), cleanPath)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -48,7 +61,13 @@ func (h *FileHandler) Mkdir(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.engine.Mkdir(r.Context(), req.Path); err != nil {
+	cleanPath, err := utils.SanitizePath(req.Path, "/")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if err := h.engine.Mkdir(r.Context(), cleanPath); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -64,7 +83,13 @@ func (h *FileHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.engine.Delete(r.Context(), req.Path); err != nil {
+	cleanPath, err := utils.SanitizePath(req.Path, "/")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if err := h.engine.Delete(r.Context(), cleanPath); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -82,16 +107,26 @@ func (h *FileHandler) Operate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var err error
+	cleanSrc, err := utils.SanitizePath(req.Src, "/")
+	if err != nil {
+		http.Error(w, "invalid src path: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	cleanDst, err := utils.SanitizePath(req.Dst, "/")
+	if err != nil {
+		http.Error(w, "invalid dst path: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	var jobID string
 
 	switch req.Op {
 	case "rename":
-		err = h.engine.Rename(r.Context(), req.Src, req.Dst)
+		err = h.engine.Rename(r.Context(), cleanSrc, cleanDst)
 	case "copy":
-		jobID, err = h.engine.Copy(r.Context(), req.Src, req.Dst)
+		jobID, err = h.engine.Copy(r.Context(), cleanSrc, cleanDst)
 	case "move":
-		jobID, err = h.engine.Move(r.Context(), req.Src, req.Dst)
+		jobID, err = h.engine.Move(r.Context(), cleanSrc, cleanDst)
 	default:
 		http.Error(w, "unknown operation", http.StatusBadRequest)
 		return
