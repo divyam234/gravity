@@ -55,7 +55,8 @@ func TestRealFlow(t *testing.T) {
 	}
 	bus := event.NewBus()
 	de := aria2.NewEngine(16800, tempDir)
-	ue := rclone.NewEngine(15572)
+	cr := store.NewCacheRepo(s.GetDB())
+	ue := rclone.NewEngine(15572, cr)
 
 	ctx := context.Background()
 	if err := de.Start(ctx); err != nil {
@@ -75,7 +76,7 @@ func TestRealFlow(t *testing.T) {
 	dr := store.NewDownloadRepo(s.GetDB())
 	setr := store.NewSettingsRepo(s.GetDB())
 	ds := service.NewDownloadService(dr, setr, de, ue, bus, ps)
-	us := service.NewUploadService(dr, ue, bus)
+	us := service.NewUploadService(dr, setr, ue, bus)
 	us.Start()
 	ds.Start()
 
@@ -133,7 +134,8 @@ func TestRealFolderFlow(t *testing.T) {
 		t.Fatalf("failed to init store: %v", err)
 	}
 	bus := event.NewBus()
-	ue := rclone.NewEngine(15573)
+	cr := store.NewCacheRepo(s.GetDB())
+	ue := rclone.NewEngine(15573, cr)
 	ctx := context.Background()
 	ue.Start(ctx)
 	defer ue.Stop()
@@ -141,7 +143,8 @@ func TestRealFolderFlow(t *testing.T) {
 	ue.CreateRemote(ctx, "test-folder-local", "alias", map[string]string{"remote": uploadDir})
 
 	dr := store.NewDownloadRepo(s.GetDB())
-	us := service.NewUploadService(dr, ue, bus)
+	setr := store.NewSettingsRepo(s.GetDB())
+	us := service.NewUploadService(dr, setr, ue, bus)
 	us.Start()
 
 	d := &model.Download{
@@ -191,12 +194,14 @@ func TestRealRecovery(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	bus := event.NewBus()
-	de := aria2.NewEngine(16801, tempDir)
-	ue := rclone.NewEngine(15574)
 	s, err := store.New(tempDir)
 	if err != nil {
 		t.Fatalf("failed to init store: %v", err)
 	}
+
+	de := aria2.NewEngine(16801, tempDir)
+	cr := store.NewCacheRepo(s.GetDB())
+	ue := rclone.NewEngine(15574, cr)
 
 	ctx := context.Background()
 	de.Start(ctx)

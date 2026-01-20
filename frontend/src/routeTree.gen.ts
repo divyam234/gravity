@@ -16,6 +16,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as SettingsIndexRouteImport } from './routes/settings.index'
 import { Route as TaskGidRouteImport } from './routes/task.$gid'
 import { Route as SettingsTorrentsRouteImport } from './routes/settings.torrents'
+import { Route as SettingsServerRouteImport } from './routes/settings.server'
 import { Route as SettingsPremiumRouteImport } from './routes/settings.premium'
 import { Route as SettingsPreferencesRouteImport } from './routes/settings.preferences'
 import { Route as SettingsNetworkRouteImport } from './routes/settings.network'
@@ -56,6 +57,11 @@ const TaskGidRoute = TaskGidRouteImport.update({
 const SettingsTorrentsRoute = SettingsTorrentsRouteImport.update({
   id: '/settings/torrents',
   path: '/settings/torrents',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsServerRoute = SettingsServerRouteImport.update({
+  id: '/settings/server',
+  path: '/settings/server',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsPremiumRoute = SettingsPremiumRouteImport.update({
@@ -100,6 +106,7 @@ export interface FileRoutesByFullPath {
   '/settings/network': typeof SettingsNetworkRoute
   '/settings/preferences': typeof SettingsPreferencesRoute
   '/settings/premium': typeof SettingsPremiumRoute
+  '/settings/server': typeof SettingsServerRoute
   '/settings/torrents': typeof SettingsTorrentsRoute
   '/task/$gid': typeof TaskGidRoute
   '/settings': typeof SettingsIndexRoute
@@ -115,6 +122,7 @@ export interface FileRoutesByTo {
   '/settings/network': typeof SettingsNetworkRoute
   '/settings/preferences': typeof SettingsPreferencesRoute
   '/settings/premium': typeof SettingsPremiumRoute
+  '/settings/server': typeof SettingsServerRoute
   '/settings/torrents': typeof SettingsTorrentsRoute
   '/task/$gid': typeof TaskGidRoute
   '/settings': typeof SettingsIndexRoute
@@ -131,6 +139,7 @@ export interface FileRoutesById {
   '/settings/network': typeof SettingsNetworkRoute
   '/settings/preferences': typeof SettingsPreferencesRoute
   '/settings/premium': typeof SettingsPremiumRoute
+  '/settings/server': typeof SettingsServerRoute
   '/settings/torrents': typeof SettingsTorrentsRoute
   '/task/$gid': typeof TaskGidRoute
   '/settings/': typeof SettingsIndexRoute
@@ -148,6 +157,7 @@ export interface FileRouteTypes {
     | '/settings/network'
     | '/settings/preferences'
     | '/settings/premium'
+    | '/settings/server'
     | '/settings/torrents'
     | '/task/$gid'
     | '/settings'
@@ -163,6 +173,7 @@ export interface FileRouteTypes {
     | '/settings/network'
     | '/settings/preferences'
     | '/settings/premium'
+    | '/settings/server'
     | '/settings/torrents'
     | '/task/$gid'
     | '/settings'
@@ -178,6 +189,7 @@ export interface FileRouteTypes {
     | '/settings/network'
     | '/settings/preferences'
     | '/settings/premium'
+    | '/settings/server'
     | '/settings/torrents'
     | '/task/$gid'
     | '/settings/'
@@ -194,6 +206,7 @@ export interface RootRouteChildren {
   SettingsNetworkRoute: typeof SettingsNetworkRoute
   SettingsPreferencesRoute: typeof SettingsPreferencesRoute
   SettingsPremiumRoute: typeof SettingsPremiumRoute
+  SettingsServerRoute: typeof SettingsServerRoute
   SettingsTorrentsRoute: typeof SettingsTorrentsRoute
   TaskGidRoute: typeof TaskGidRoute
   SettingsIndexRoute: typeof SettingsIndexRoute
@@ -248,6 +261,13 @@ declare module '@tanstack/react-router' {
       path: '/settings/torrents'
       fullPath: '/settings/torrents'
       preLoaderRoute: typeof SettingsTorrentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings/server': {
+      id: '/settings/server'
+      path: '/settings/server'
+      fullPath: '/settings/server'
+      preLoaderRoute: typeof SettingsServerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings/premium': {
@@ -306,6 +326,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsNetworkRoute: SettingsNetworkRoute,
   SettingsPreferencesRoute: SettingsPreferencesRoute,
   SettingsPremiumRoute: SettingsPremiumRoute,
+  SettingsServerRoute: SettingsServerRoute,
   SettingsTorrentsRoute: SettingsTorrentsRoute,
   TaskGidRoute: TaskGidRoute,
   SettingsIndexRoute: SettingsIndexRoute,

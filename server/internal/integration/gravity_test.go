@@ -100,6 +100,9 @@ func (m *mockUploadEngine) TestRemote(ctx context.Context, name string) error   
 func (m *mockUploadEngine) OnProgress(h func(string, engine.UploadProgress))    {}
 func (m *mockUploadEngine) OnComplete(h func(string))                           { m.onComplete = h }
 func (m *mockUploadEngine) OnError(h func(string, error))                       {}
+func (m *mockUploadEngine) Configure(ctx context.Context, options map[string]string) error {
+	return nil
+}
 
 // --- Helper ---
 
@@ -123,7 +126,7 @@ func setupTest(t *testing.T) (*store.Store, *event.Bus, *service.DownloadService
 	dr := store.NewDownloadRepo(s.GetDB())
 	setr := store.NewSettingsRepo(s.GetDB())
 	ds := service.NewDownloadService(dr, setr, me, mue, bus, ps)
-	us := service.NewUploadService(dr, mue, bus)
+	us := service.NewUploadService(dr, setr, mue, bus)
 	ss := service.NewStatsService(store.NewStatsRepo(s.GetDB()), dr, me, mue, bus)
 
 	us.Start()
@@ -274,9 +277,10 @@ func TestStats(t *testing.T) {
 }
 
 func TestSettings(t *testing.T) {
-	s, _, _, _, _, me, _ := setupTest(t)
+	s, _, _, _, _, me, mue := setupTest(t)
 	repo := store.NewSettingsRepo(s.GetDB())
-	handler := api.NewSettingsHandler(repo, me)
+	pr := store.NewProviderRepo(s.GetDB())
+	handler := api.NewSettingsHandler(repo, pr, me, mue)
 
 	body := `{"max-concurrent-downloads": "10"}`
 	req := httptest.NewRequest("PATCH", "/api/v1/settings", bytes.NewBufferString(body))

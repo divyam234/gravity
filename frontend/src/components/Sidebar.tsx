@@ -16,6 +16,7 @@ import IconLayoutHeaderCellsLarge from "~icons/gravity-ui/layout-header-cells-la
 import IconMagnet from "~icons/gravity-ui/magnet";
 import IconRocket from "~icons/gravity-ui/rocket";
 import IconGear from "~icons/gravity-ui/gear";
+import IconServer from "~icons/gravity-ui/server";
 import IconXmark from "~icons/gravity-ui/xmark";
 import { useQueryClient } from "@tanstack/react-query";
 import { useGlobalStat } from "../hooks/useEngine";
@@ -185,6 +186,13 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
         label: "Preferences",
         icon: <IconDisplay className="w-4 h-4" />,
         to: "/settings/preferences",
+        count: null,
+      },
+      {
+        key: "server",
+        label: "Server",
+        icon: <IconServer className="w-4 h-4" />,
+        to: "/settings/server",
         count: null,
       },
     ],

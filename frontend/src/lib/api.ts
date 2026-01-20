@@ -133,6 +133,18 @@ class ApiClient {
     return this.request<{ version: string; aria2: string; rclone: string }>('GET', '/system/version');
   }
 
+  restartAria2() {
+    return this.request<void>('POST', '/system/restart/aria2');
+  }
+
+  restartRclone() {
+    return this.request<void>('POST', '/system/restart/rclone');
+  }
+
+  restartServer() {
+    return this.request<void>('POST', '/system/restart/server');
+  }
+
   // Magnets
   checkMagnet(magnet: string) {
     return this.request<MagnetInfo>('POST', '/magnets/check', { magnet });

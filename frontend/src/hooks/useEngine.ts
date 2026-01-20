@@ -40,6 +40,7 @@ export function useGravityVersion() {
 	return useQuery({
 		queryKey: ["gravity", "version"],
 		queryFn: () => api.getVersion(),
+		staleTime: 0,
 	});
 }
 
@@ -277,6 +278,32 @@ export function useEngineActions() {
 		mutationFn: () => Promise.resolve(),
 	});
 
+	const restartAria2 = useMutation({
+		mutationFn: () => api.restartAria2(),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["gravity", "version"] });
+			toast.success("Aria2 engine restarted");
+		},
+		onError: (err: Error) => toast.error(`Failed to restart Aria2: ${err.message}`),
+	});
+
+	const restartRclone = useMutation({
+		mutationFn: () => api.restartRclone(),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["gravity", "version"] });
+			toast.success("Rclone engine restarted");
+		},
+		onError: (err: Error) => toast.error(`Failed to restart Rclone: ${err.message}`),
+	});
+
+	const restartServer = useMutation({
+		mutationFn: () => api.restartServer(),
+		onSuccess: () => {
+			toast.success("Server restart triggered. Gravity will be back in a few seconds.");
+		},
+		onError: (err: Error) => toast.error(`Failed to restart server: ${err.message}`),
+	});
+
 	return {
 		addUri,
 		addTorrent,
@@ -291,5 +318,8 @@ export function useEngineActions() {
 		retryTask,
 		changeGlobalOption,
 		changeOption,
+		restartAria2,
+		restartRclone,
+		restartServer,
 	};
 }

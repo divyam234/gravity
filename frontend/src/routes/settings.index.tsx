@@ -295,6 +295,13 @@ function SettingsOverview() {
 									icon={<IconFolder className="w-4 h-4" />}
 									to="/settings/browser"
 								/>
+								<div className="h-px bg-border mx-4" />
+								<SettingsLink
+									title="Server"
+									description="Engine versions, system status, and maintenance"
+									icon={<IconGear className="w-4 h-4" />}
+									to="/settings/server"
+								/>
 							</Card>
 						</section>
 					</div>

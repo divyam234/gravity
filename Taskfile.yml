@@ -24,7 +24,7 @@ tasks:
 
   dev:backend:
     dir: server
-    cmd: go run cmd/gravity/main.go
+    cmd: air
 
   build:
     desc: Build for production
