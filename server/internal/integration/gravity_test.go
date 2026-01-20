@@ -44,6 +44,9 @@ func (m *mockDownloadEngine) Remove(ctx context.Context, id string) error { retu
 func (m *mockDownloadEngine) Status(ctx context.Context, id string) (*engine.DownloadStatus, error) {
 	return &engine.DownloadStatus{ID: id, Status: "active"}, nil
 }
+func (m *mockDownloadEngine) GetPeers(ctx context.Context, id string) ([]engine.DownloadPeer, error) {
+	return []engine.DownloadPeer{}, nil
+}
 func (m *mockDownloadEngine) List(ctx context.Context) ([]*engine.DownloadStatus, error) {
 	return []*engine.DownloadStatus{}, nil
 }

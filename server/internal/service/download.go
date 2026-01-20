@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"gravity/internal/engine"
@@ -24,6 +25,7 @@ type DownloadService struct {
 
 	// Throttling for database writes
 	lastPersistMap map[string]time.Time
+	mu             sync.RWMutex
 }
 
 func NewDownloadService(repo *store.DownloadRepo, eng engine.DownloadEngine, ue engine.UploadEngine, bus *event.Bus, provider *ProviderService) *DownloadService {
@@ -111,24 +113,70 @@ func (s *DownloadService) Get(ctx context.Context, id string) (*model.Download, 
 		d.Files = files
 	}
 
-	// Attach peers if it's an active aria2 download
-	if d.Status == model.StatusActive && d.EngineID != "" && (d.MagnetSource == "aria2" || !d.IsMagnet) {
-		peers, err := s.engine.GetPeers(ctx, d.EngineID)
+	// Merge live stats from engine if active
+	if d.Status == model.StatusActive && d.EngineID != "" {
+		status, err := s.engine.Status(ctx, d.EngineID)
 		if err == nil {
-			d.PeerDetails = make([]model.Peer, 0, len(peers))
-			for _, p := range peers {
-				d.PeerDetails = append(d.PeerDetails, model.Peer{
-					IP:            p.IP,
-					Port:          p.Port,
-					DownloadSpeed: p.DownloadSpeed,
-					UploadSpeed:   p.UploadSpeed,
-					IsSeeder:      p.IsSeeder,
-				})
+			d.Downloaded = status.Downloaded
+			d.Size = status.Size
+			d.Speed = status.Speed
+			d.ETA = status.Eta
+			d.Seeders = status.Seeders
+			d.Peers = status.Peers
+
+			// Also fetch detailed peers for active aria2 downloads
+			if d.MagnetSource == "aria2" || !d.IsMagnet {
+				peers, err := s.engine.GetPeers(ctx, d.EngineID)
+				if err == nil {
+					d.PeerDetails = make([]model.Peer, 0, len(peers))
+					for _, p := range peers {
+						d.PeerDetails = append(d.PeerDetails, model.Peer{
+							IP:            p.IP,
+							Port:          p.Port,
+							DownloadSpeed: p.DownloadSpeed,
+							UploadSpeed:   p.UploadSpeed,
+							IsSeeder:      p.IsSeeder,
+						})
+					}
+				}
 			}
 		}
 	}
 
 	return d, nil
+}
+
+func (s *DownloadService) List(ctx context.Context, status []string, limit, offset int) ([]*model.Download, int, error) {
+	downloads, total, err := s.repo.List(ctx, status, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// Fetch all engine tasks to merge stats
+	engineTasks, err := s.engine.List(ctx)
+	if err == nil {
+		// Map by ID for quick lookup
+		liveMap := make(map[string]*engine.DownloadStatus)
+		for _, t := range engineTasks {
+			liveMap[t.ID] = t
+		}
+
+		// Merge live data into results
+		for _, d := range downloads {
+			if d.EngineID != "" {
+				if live, ok := liveMap[d.EngineID]; ok {
+					d.Downloaded = live.Downloaded
+					d.Size = live.Size
+					d.Speed = live.Speed
+					d.ETA = live.Eta
+					d.Seeders = live.Seeders
+					d.Peers = live.Peers
+				}
+			}
+		}
+	}
+
+	return downloads, total, nil
 }
 
 func (s *DownloadService) Pause(ctx context.Context, id string) error {
@@ -209,8 +257,6 @@ func (s *DownloadService) Retry(ctx context.Context, id string) error {
 	}
 
 	// Re-add to engine
-	// Note: We might be missing headers if they were required and not stored.
-	// Assuming public URL or auth in URL for now.
 	engineID, err := s.engine.Add(ctx, d.ResolvedURL, engine.DownloadOptions{
 		Filename: d.Filename,
 		Dir:      d.Destination,
@@ -222,8 +268,7 @@ func (s *DownloadService) Retry(ctx context.Context, id string) error {
 	d.EngineID = engineID
 	d.Status = model.StatusActive
 	d.Error = ""
-	d.Downloaded = 0 // Reset progress?
-	// d.Size = 0 // Keep size if known
+	d.Downloaded = 0
 	d.UpdatedAt = time.Now()
 
 	if err := s.repo.Update(ctx, d); err != nil {
@@ -231,7 +276,7 @@ func (s *DownloadService) Retry(ctx context.Context, id string) error {
 	}
 
 	s.bus.Publish(event.Event{
-		Type:      event.DownloadStarted, // Or similar
+		Type:      event.DownloadStarted,
 		Timestamp: time.Now(),
 		Data:      d,
 	})
@@ -247,7 +292,6 @@ func (s *DownloadService) Delete(ctx context.Context, id string, deleteFiles boo
 
 	// 1. Stop in engine
 	if d.IsMagnet && d.MagnetSource == "alldebrid" {
-		// Cancel all individual files for AllDebrid
 		files, _ := s.repo.GetFiles(ctx, d.ID)
 		for _, f := range files {
 			if f.EngineID != "" {
@@ -258,7 +302,6 @@ func (s *DownloadService) Delete(ctx context.Context, id string, deleteFiles boo
 			}
 		}
 	} else if d.EngineID != "" {
-		// Stop parent task for raw magnets or single files
 		s.engine.Cancel(ctx, d.EngineID)
 		if deleteFiles {
 			s.engine.Remove(ctx, d.EngineID)
@@ -275,12 +318,7 @@ func (s *DownloadService) Delete(ctx context.Context, id string, deleteFiles boo
 		return err
 	}
 
-	// Files will be deleted by CASCADE in DB
 	return nil
-}
-
-func (s *DownloadService) List(ctx context.Context, status []string, limit, offset int) ([]*model.Download, int, error) {
-	return s.repo.List(ctx, status, limit, offset)
 }
 
 func (s *DownloadService) GetFiles(ctx context.Context, id string) ([]model.DownloadFile, error) {
@@ -288,13 +326,11 @@ func (s *DownloadService) GetFiles(ctx context.Context, id string) ([]model.Down
 }
 
 func (s *DownloadService) Sync(ctx context.Context) error {
-	// 1. Get all downloads from engine
 	engineTasks, err := s.engine.List(ctx)
 	if err != nil {
 		return err
 	}
 
-	// 2. Create maps for quick lookup
 	gidMap := make(map[string]*engine.DownloadStatus)
 	nameMap := make(map[string]*engine.DownloadStatus)
 	for _, t := range engineTasks {
@@ -304,7 +340,6 @@ func (s *DownloadService) Sync(ctx context.Context) error {
 		}
 	}
 
-	// 3. Get all non-complete downloads from repo
 	dbDownloads, _, err := s.repo.List(ctx, []string{
 		string(model.StatusActive),
 		string(model.StatusPaused),
@@ -314,16 +349,11 @@ func (s *DownloadService) Sync(ctx context.Context) error {
 		return err
 	}
 
-	// 4. Match and update
 	for _, d := range dbDownloads {
 		var matched *engine.DownloadStatus
-
-		// Try match by EngineID (GID)
 		if d.EngineID != "" {
 			matched = gidMap[d.EngineID]
 		}
-
-		// Fallback to name match if GID didn't work
 		if matched == nil && d.Filename != "" {
 			matched = nameMap[d.Filename]
 		}
@@ -333,9 +363,6 @@ func (s *DownloadService) Sync(ctx context.Context) error {
 			d.Status = model.DownloadStatus(matched.Status)
 			s.repo.Update(ctx, d)
 		} else if d.Status == model.StatusActive {
-			// Only mark as lost if it was active and we really can't find it.
-			// But let's be less aggressive: maybe it's just slow to load.
-			// We'll mark it as waiting instead of error, so it can be resumed or re-found later.
 			d.Status = model.StatusWaiting
 			d.Error = "Engine task not found, waiting for recovery"
 			s.repo.Update(ctx, d)
@@ -348,17 +375,15 @@ func (s *DownloadService) Sync(ctx context.Context) error {
 func (s *DownloadService) handleProgress(engineID string, p engine.Progress) {
 	ctx := context.Background()
 
-	// 1. Check if this is a per-file progress update from aria2 (format "gid:index")
+	// 1. Check for per-file progress update (gid:index)
 	if strings.Contains(engineID, ":") {
 		parts := strings.Split(engineID, ":")
 		if len(parts) == 2 {
 			parentGID := parts[0]
 			fileIndex, _ := strconv.Atoi(parts[1])
 
-			// Find parent download
 			parent, err := s.repo.GetByEngineID(ctx, parentGID)
 			if err == nil {
-				// Find specific file by parent ID and index
 				file, err := s.repo.GetFileByDownloadIDAndIndex(ctx, parent.ID, fileIndex)
 				if err == nil {
 					file.Downloaded = p.Downloaded
@@ -374,24 +399,22 @@ func (s *DownloadService) handleProgress(engineID string, p engine.Progress) {
 						file.Status = model.StatusActive
 					}
 
-					// Only persist to DB if status changed or 10 seconds passed
+					s.mu.Lock()
 					lastPersist := s.lastPersistMap[file.ID]
 					if file.Status != oldStatus || time.Since(lastPersist) > 10*time.Second {
 						s.repo.UpdateFile(ctx, file)
 						s.lastPersistMap[file.ID] = time.Now()
 					}
-
-					// Parent aggregate progress is updated via the aggregate event from aria2
+					s.mu.Unlock()
 					return
 				}
 			}
 		}
 	}
 
-	// 2. Try to find if this is a single-file download
+	// 2. Try single-file download
 	d, err := s.repo.GetByEngineID(ctx, engineID)
 	if err == nil {
-		// Update in-memory values for event broadcasting
 		d.Downloaded = p.Downloaded
 		d.Size = p.Size
 		d.Speed = p.Speed
@@ -399,19 +422,19 @@ func (s *DownloadService) handleProgress(engineID string, p engine.Progress) {
 		d.Seeders = p.Seeders
 		d.Peers = p.Peers
 
-		// Only persist to DB every 10 seconds to reduce load,
-		// but always broadcast progress events to UI.
+		s.mu.Lock()
 		lastPersist := s.lastPersistMap[d.ID]
 		if time.Since(lastPersist) > 10*time.Second {
 			s.repo.Update(ctx, d)
 			s.lastPersistMap[d.ID] = time.Now()
 		}
+		s.mu.Unlock()
 
 		s.publishProgress(d)
 		return
 	}
 
-	// 3. Try to find if this is an individual file within a magnet (AllDebrid style)
+	// 3. Try file within magnet (AllDebrid)
 	file, err := s.repo.GetFileByEngineID(ctx, engineID)
 	if err == nil {
 		file.Downloaded = p.Downloaded
@@ -423,14 +446,14 @@ func (s *DownloadService) handleProgress(engineID string, p engine.Progress) {
 		oldStatus := file.Status
 		file.Status = model.StatusActive
 
-		// Only persist to DB if status changed or 10 seconds passed
+		s.mu.Lock()
 		lastPersist := s.lastPersistMap[file.ID]
 		if file.Status != oldStatus || time.Since(lastPersist) > 10*time.Second {
 			s.repo.UpdateFile(ctx, file)
 			s.lastPersistMap[file.ID] = time.Now()
 		}
+		s.mu.Unlock()
 
-		// Update parent download aggregate progress
 		parent, err := s.repo.Get(ctx, file.DownloadID)
 		if err == nil {
 			s.updateAggregateProgress(ctx, parent)
@@ -448,28 +471,19 @@ func (s *DownloadService) updateAggregateProgress(ctx context.Context, d *model.
 	var totalDownloaded int64
 	var totalSize int64
 	filesComplete := 0
-	activeFiles := 0
 
 	for _, f := range files {
 		totalDownloaded += f.Downloaded
 		totalSize += f.Size
 		if f.Status == model.StatusComplete {
 			filesComplete++
-		} else if f.Status == model.StatusActive {
-			activeFiles++
-			// We don't have per-file speed in the file record yet,
-			// but we could get it from the engine if needed.
-			// For now, we'll let handleProgress trigger aggregate updates.
 		}
 	}
 
-	// If we don't have aggregate speed yet, we might need to store it.
-	// For simplicity, let's just update the totals for now.
 	d.Downloaded = totalDownloaded
 	d.Size = totalSize
 	d.FilesComplete = filesComplete
 
-	// If all files complete, mark download as complete or uploading
 	if filesComplete == len(files) && len(files) > 0 && d.Status != model.StatusComplete && d.Status != model.StatusUploading {
 		if d.Destination != "" {
 			d.Status = model.StatusUploading
@@ -480,13 +494,13 @@ func (s *DownloadService) updateAggregateProgress(ctx context.Context, d *model.
 		d.CompletedAt = &now
 	}
 
-	// Only persist to DB every 10 seconds to reduce load,
-	// but always broadcast progress events to UI.
+	s.mu.Lock()
 	lastPersist := s.lastPersistMap[d.ID]
-	if time.Since(lastPersist) > 10*time.Second {
+	if d.Status == model.StatusComplete || time.Since(lastPersist) > 10*time.Second {
 		s.repo.Update(ctx, d)
 		s.lastPersistMap[d.ID] = time.Now()
 	}
+	s.mu.Unlock()
 
 	s.publishProgress(d)
 }
@@ -510,7 +524,6 @@ func (s *DownloadService) publishProgress(d *model.Download) {
 func (s *DownloadService) handleComplete(engineID string, filePath string) {
 	ctx := context.Background()
 
-	// 1. Try single-file
 	d, err := s.repo.GetByEngineID(ctx, engineID)
 	if err == nil {
 		if d.Destination != "" {
@@ -523,8 +536,6 @@ func (s *DownloadService) handleComplete(engineID string, filePath string) {
 		now := time.Now()
 		d.CompletedAt = &now
 		s.repo.Update(ctx, d)
-
-		// Also mark all associated files as complete in one batch
 		s.repo.MarkAllFilesComplete(ctx, d.ID)
 
 		s.bus.Publish(event.Event{
@@ -535,7 +546,6 @@ func (s *DownloadService) handleComplete(engineID string, filePath string) {
 		return
 	}
 
-	// 2. Try file within magnet
 	file, err := s.repo.GetFileByEngineID(ctx, engineID)
 	if err == nil {
 		file.Status = model.StatusComplete
@@ -554,7 +564,6 @@ func (s *DownloadService) handleComplete(engineID string, filePath string) {
 func (s *DownloadService) handleError(engineID string, err error) {
 	ctx := context.Background()
 
-	// 1. Try single-file
 	d, repoErr := s.repo.GetByEngineID(ctx, engineID)
 	if repoErr == nil {
 		d.Status = model.StatusError
@@ -569,7 +578,6 @@ func (s *DownloadService) handleError(engineID string, err error) {
 		return
 	}
 
-	// 2. Try file within magnet
 	file, repoErr := s.repo.GetFileByEngineID(ctx, engineID)
 	if repoErr == nil {
 		file.Status = model.StatusError
@@ -578,8 +586,6 @@ func (s *DownloadService) handleError(engineID string, err error) {
 
 		parent, err := s.repo.Get(ctx, file.DownloadID)
 		if err == nil {
-			// Even if a file fails, we might want to continue others
-			// For now, just update aggregate
 			s.updateAggregateProgress(ctx, parent)
 		}
 		return
