@@ -10,6 +10,8 @@ export interface Download {
   downloaded: number;
   speed: number;
   eta: number;
+  seeders?: number;
+  peers?: number;
   destination?: string;
   uploadStatus?: string;
   uploadProgress: number;
@@ -26,8 +28,17 @@ export interface Download {
   magnetHash?: string;
   magnetSource?: 'alldebrid' | 'aria2';
   files?: DownloadFile[];
+  peerDetails?: Peer[];
   totalFiles?: number;
   filesComplete?: number;
+}
+
+export interface Peer {
+  ip: string;
+  port: string;
+  downloadSpeed: number;
+  uploadSpeed: number;
+  isSeeder: boolean;
 }
 
 export interface Provider {

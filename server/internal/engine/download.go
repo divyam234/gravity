@@ -51,6 +51,7 @@ type DownloadEngine interface {
 
 	// Status
 	Status(ctx context.Context, id string) (*DownloadStatus, error)
+	GetPeers(ctx context.Context, id string) ([]DownloadPeer, error)
 	List(ctx context.Context) ([]*DownloadStatus, error)
 	Sync(ctx context.Context) error
 
@@ -64,4 +65,12 @@ type DownloadEngine interface {
 	OnProgress(handler func(id string, progress Progress))
 	OnComplete(handler func(id string, filePath string))
 	OnError(handler func(id string, err error))
+}
+
+type DownloadPeer struct {
+	IP            string `json:"ip"`
+	Port          string `json:"port"`
+	DownloadSpeed int64  `json:"downloadSpeed"`
+	UploadSpeed   int64  `json:"uploadSpeed"`
+	IsSeeder      bool   `json:"isSeeder"`
 }

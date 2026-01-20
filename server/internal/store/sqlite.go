@@ -25,9 +25,21 @@ func New(dataDir string) (*Store, error) {
 	}
 
 	dbPath := filepath.Join(dataDir, "gravity.db")
-	db, err := sql.Open("sqlite", dbPath)
+	// Add SQLite connection parameters for better concurrency and reliability
+	// _busy_timeout=5000: Wait up to 5s if DB is locked instead of failing immediately
+	// _journal_mode=WAL: Enable Write-Ahead Logging for concurrent read/write
+	dsn := fmt.Sprintf("file:%s?_busy_timeout=5000&_journal_mode=WAL", dbPath)
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
+	}
+
+	// Set performance and safety PRAGMAs
+	if _, err := db.Exec("PRAGMA synchronous = NORMAL;"); err != nil {
+		return nil, fmt.Errorf("failed to set synchronous pragma: %w", err)
+	}
+	if _, err := db.Exec("PRAGMA foreign_keys = ON;"); err != nil {
+		return nil, fmt.Errorf("failed to set foreign_keys pragma: %w", err)
 	}
 
 	if err := db.Ping(); err != nil {

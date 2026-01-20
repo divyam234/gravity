@@ -2,6 +2,7 @@ import {
   Button,
   Card,
   Chip,
+  ScrollShadow,
 } from "@heroui/react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import IconChevronLeft from "~icons/gravity-ui/chevron-left";
@@ -9,6 +10,8 @@ import IconCheck from "~icons/gravity-ui/check";
 import IconCircleXmark from "~icons/gravity-ui/circle-xmark";
 import IconClock from "~icons/gravity-ui/clock";
 import IconMagnet from "~icons/gravity-ui/magnet";
+import IconArrowDown from "~icons/gravity-ui/arrow-down";
+import IconArrowUp from "~icons/gravity-ui/arrow-up";
 import {
   useTaskStatus,
 } from "../hooks/useEngine";
@@ -28,6 +31,7 @@ function TaskDetailsPage() {
   if (!task) return <div>Loading...</div>;
 
   const files = task.files || [];
+  const peers = task.peerDetails || [];
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-20 mt-6 px-4 md:px-0">
@@ -78,7 +82,7 @@ function TaskDetailsPage() {
                     </div>
                   </section>
 
-                  {task.isMagnet && files.length > 0 && (
+                    {task.isMagnet && files.length > 0 && (
                     <section>
                       <h3 className="text-[10px] font-black uppercase tracking-widest text-muted mb-6 flex items-center gap-3">
                         <div className="w-2 h-2 rounded-full bg-accent" />
@@ -119,6 +123,52 @@ function TaskDetailsPage() {
                             />
                           </div>
                         ))}
+                      </div>
+                    </section>
+                  )}
+
+                  {peers.length > 0 && (
+                    <section>
+                      <h3 className="text-[10px] font-black uppercase tracking-widest text-muted mb-6 flex items-center gap-3">
+                        <div className="w-2 h-2 rounded-full bg-accent" />
+                        Connected Peers ({peers.length})
+                      </h3>
+                      <div className="bg-default/5 p-6 rounded-[32px] border border-border/50 shadow-sm overflow-hidden">
+                        <ScrollShadow className="max-h-[400px]" hideScrollBar>
+                          <div className="space-y-3">
+                            {peers.map((peer) => (
+                              <div key={`${peer.ip}-${peer.port}`} className="bg-background/80 p-4 rounded-2xl border border-border/50 flex items-center justify-between gap-4">
+                                <div className="flex items-center gap-4">
+                                  <div className="flex flex-col">
+                                    <span className="text-xs font-mono font-bold tracking-tight">{peer.ip}:{peer.port}</span>
+                                    <div className="mt-1">
+                                      <Chip size="sm" variant="secondary" color={peer.isSeeder ? "success" : "default"} className="text-[8px] font-black uppercase tracking-widest h-4 px-1.5 min-w-0">
+                                        {peer.isSeeder ? "Seeder" : "Leecher"}
+                                      </Chip>
+                                    </div>
+                                  </div>
+                                </div>
+                                
+                                <div className="flex items-center gap-6">
+                                  <div className="flex flex-col items-end">
+                                    <p className="text-[8px] text-muted uppercase font-black tracking-widest leading-none mb-1">Download</p>
+                                    <div className="flex items-center gap-1 text-success/80 font-bold text-xs">
+                                      <IconArrowDown className="w-3 h-3" />
+                                      {formatBytes(peer.downloadSpeed)}/s
+                                    </div>
+                                  </div>
+                                  <div className="flex flex-col items-end">
+                                    <p className="text-[8px] text-muted uppercase font-black tracking-widest leading-none mb-1">Upload</p>
+                                    <div className="flex items-center gap-1 text-accent font-bold text-xs">
+                                      <IconArrowUp className="w-3 h-3" />
+                                      {formatBytes(peer.uploadSpeed)}/s
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </ScrollShadow>
                       </div>
                     </section>
                   )}
@@ -175,6 +225,14 @@ function TaskDetailsPage() {
                                 <div className="flex justify-between items-center">
                                     <span className="text-xs font-medium text-muted-foreground">Files</span>
                                     <span className="text-xs font-black">{task.filesComplete || 0} / {task.totalFiles || 0}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-xs font-medium text-muted-foreground">Seeders / Peers</span>
+                                    <span className="text-xs font-black">
+                                        <span className="text-success">{task.seeders || 0}</span>
+                                        <span className="text-muted mx-1">/</span>
+                                        <span className="text-foreground">{task.peers || 0}</span>
+                                    </span>
                                 </div>
                                 <div className="flex justify-between items-center">
                                     <span className="text-xs font-medium text-muted-foreground">Source</span>

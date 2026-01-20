@@ -108,6 +108,11 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
             >
               {isUploading ? "↑" : "↓"} {formatBytes(effectiveSpeed)}/s
             </span>
+            {isActive && task.isMagnet && (
+              <span className="text-[9px] font-black uppercase tracking-tighter text-muted">
+                S: <span className="text-success">{task.seeders || 0}</span> P: <span className="text-foreground">{task.peers || 0}</span>
+              </span>
+            )}
             {!isUploading && isActive && (
               <span className="text-[10px] text-muted font-bold uppercase tracking-wider">
                 {formatTime(task.eta)}
@@ -273,6 +278,12 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
               />
               {isUploading ? "↑" : "↓"} {formatBytes(effectiveSpeed)}/s
             </span>
+            {isActive && task.isMagnet && (
+              <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-tighter text-muted">
+                S: <span className="text-success">{task.seeders || 0}</span> 
+                P: <span className="text-foreground">{task.peers || 0}</span>
+              </span>
+            )}
           </div>
 
           <div className="flex gap-4 font-medium">

@@ -107,6 +107,23 @@ func (s *DownloadService) Get(ctx context.Context, id string) (*model.Download, 
 		d.Files = files
 	}
 
+	// Attach peers if it's an active aria2 download
+	if d.Status == model.StatusActive && d.EngineID != "" && (d.MagnetSource == "aria2" || !d.IsMagnet) {
+		peers, err := s.engine.GetPeers(ctx, d.EngineID)
+		if err == nil {
+			d.PeerDetails = make([]model.Peer, 0, len(peers))
+			for _, p := range peers {
+				d.PeerDetails = append(d.PeerDetails, model.Peer{
+					IP:            p.IP,
+					Port:          p.Port,
+					DownloadSpeed: p.DownloadSpeed,
+					UploadSpeed:   p.UploadSpeed,
+					IsSeeder:      p.IsSeeder,
+				})
+			}
+		}
+	}
+
 	return d, nil
 }
 
@@ -357,6 +374,8 @@ func (s *DownloadService) handleProgress(engineID string, p engine.Progress) {
 		d.Size = p.Size
 		d.Speed = p.Speed
 		d.ETA = p.ETA
+		d.Seeders = p.Seeders
+		d.Peers = p.Peers
 		s.repo.Update(ctx, d)
 
 		s.publishProgress(d)
@@ -438,6 +457,8 @@ func (s *DownloadService) publishProgress(d *model.Download) {
 			"size":       d.Size,
 			"speed":      d.Speed,
 			"eta":        d.ETA,
+			"seeders":    d.Seeders,
+			"peers":      d.Peers,
 		},
 	})
 }

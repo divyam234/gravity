@@ -28,6 +28,8 @@ type Download struct {
 	Downloaded     int64          `json:"downloaded"`
 	Speed          int64          `json:"speed"`
 	ETA            int            `json:"eta"`
+	Seeders        int            `json:"seeders,omitempty"`
+	Peers          int            `json:"peers,omitempty"`
 	Destination    string         `json:"destination,omitempty"`
 	UploadStatus   string         `json:"uploadStatus,omitempty"`
 	UploadProgress int            `json:"uploadProgress"`
@@ -47,8 +49,18 @@ type Download struct {
 	MagnetSource  string         `json:"magnetSource,omitempty"` // "alldebrid" or "aria2"
 	MagnetID      string         `json:"-"`                      // AllDebrid magnet ID
 	Files         []DownloadFile `json:"files,omitempty"`
+	PeerDetails   []Peer         `json:"peerDetails,omitempty"`
 	TotalFiles    int            `json:"totalFiles,omitempty"`
 	FilesComplete int            `json:"filesComplete,omitempty"`
+}
+
+// Peer represents a network peer in a BitTorrent swarm
+type Peer struct {
+	IP            string `json:"ip"`
+	Port          string `json:"port"`
+	DownloadSpeed int64  `json:"downloadSpeed"`
+	UploadSpeed   int64  `json:"uploadSpeed"`
+	IsSeeder      bool   `json:"isSeeder"`
 }
 
 // DownloadFile represents an individual file within a multi-file download (magnet/torrent)

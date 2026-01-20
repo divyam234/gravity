@@ -1,0 +1,3 @@
+-- 003_add_seeding_stats.sql
+ALTER TABLE downloads ADD COLUMN seeders INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE downloads ADD COLUMN peers INTEGER NOT NULL DEFAULT 0;

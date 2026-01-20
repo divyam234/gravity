@@ -137,6 +137,39 @@ func (e *Engine) Status(ctx context.Context, id string) (*engine.DownloadStatus,
 	return e.mapStatus(&status), nil
 }
 
+func (e *Engine) GetPeers(ctx context.Context, id string) ([]engine.DownloadPeer, error) {
+	res, err := e.client.Call(ctx, "aria2.getPeers", id)
+	if err != nil {
+		return nil, err
+	}
+
+	var ariaPeers []struct {
+		IP            string `json:"ip"`
+		Port          string `json:"port"`
+		DownloadSpeed string `json:"downloadSpeed"`
+		UploadSpeed   string `json:"uploadSpeed"`
+		Seeder        string `json:"seeder"`
+	}
+	if err := json.Unmarshal(res, &ariaPeers); err != nil {
+		return nil, err
+	}
+
+	peers := make([]engine.DownloadPeer, 0, len(ariaPeers))
+	for _, p := range ariaPeers {
+		dSpeed, _ := strconv.ParseInt(p.DownloadSpeed, 10, 64)
+		uSpeed, _ := strconv.ParseInt(p.UploadSpeed, 10, 64)
+		peers = append(peers, engine.DownloadPeer{
+			IP:            p.IP,
+			Port:          p.Port,
+			DownloadSpeed: dSpeed,
+			UploadSpeed:   uSpeed,
+			IsSeeder:      p.Seeder == "true",
+		})
+	}
+
+	return peers, nil
+}
+
 func (e *Engine) List(ctx context.Context) ([]*engine.DownloadStatus, error) {
 	// For simplicity, just get active and stopped tasks
 	var results []*engine.DownloadStatus
@@ -283,6 +316,7 @@ type Aria2Task struct {
 	DownloadSpeed   string      `json:"downloadSpeed"`
 	Eta             string      `json:"eta,omitempty"`
 	Connections     string      `json:"connections"`
+	NumSeeders      string      `json:"numSeeders,omitempty"`
 	ErrorMessage    string      `json:"errorMessage"`
 	Dir             string      `json:"dir"`
 	Files           []Aria2File `json:"files"`
@@ -293,6 +327,7 @@ func (e *Engine) mapStatus(t *Aria2Task) *engine.DownloadStatus {
 	completed, _ := strconv.ParseInt(t.CompletedLength, 10, 64)
 	speed, _ := strconv.ParseInt(t.DownloadSpeed, 10, 64)
 	conn, _ := strconv.Atoi(t.Connections)
+	seeders, _ := strconv.Atoi(t.NumSeeders)
 
 	// Calculate ETA manually if speed > 0
 	eta := 0
@@ -333,6 +368,8 @@ func (e *Engine) mapStatus(t *Aria2Task) *engine.DownloadStatus {
 		Downloaded:  completed,
 		Speed:       speed,
 		Connections: conn,
+		Seeders:     seeders,
+		Peers:       conn - seeders, // Peers = total connections - seeders
 		Eta:         eta,
 		Error:       t.ErrorMessage,
 	}
@@ -372,6 +409,8 @@ func (e *Engine) pollProgress() {
 			total, _ := strconv.ParseInt(t.TotalLength, 10, 64)
 			completed, _ := strconv.ParseInt(t.CompletedLength, 10, 64)
 			speed, _ := strconv.ParseInt(t.DownloadSpeed, 10, 64)
+			conn, _ := strconv.Atoi(t.Connections)
+			seeders, _ := strconv.Atoi(t.NumSeeders)
 
 			eta := 0
 			if speed > 0 && total > 0 {
@@ -386,6 +425,8 @@ func (e *Engine) pollProgress() {
 				Size:       total,
 				Speed:      speed,
 				ETA:        eta,
+				Seeders:    seeders,
+				Peers:      conn - seeders,
 			})
 
 			// 2. If it's a multi-file task (torrent/magnet), emit per-file progress
