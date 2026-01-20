@@ -21,6 +21,7 @@ import { Route as SettingsPreferencesRouteImport } from './routes/settings.prefe
 import { Route as SettingsNetworkRouteImport } from './routes/settings.network'
 import { Route as SettingsDownloadsRouteImport } from './routes/settings.downloads'
 import { Route as SettingsCloudRouteImport } from './routes/settings.cloud'
+import { Route as SettingsBrowserRouteImport } from './routes/settings.browser'
 
 const TasksRoute = TasksRouteImport.update({
   id: '/tasks',
@@ -82,12 +83,18 @@ const SettingsCloudRoute = SettingsCloudRouteImport.update({
   path: '/settings/cloud',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SettingsBrowserRoute = SettingsBrowserRouteImport.update({
+  id: '/settings/browser',
+  path: '/settings/browser',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/add': typeof AddRoute
   '/files': typeof FilesRoute
   '/tasks': typeof TasksRoute
+  '/settings/browser': typeof SettingsBrowserRoute
   '/settings/cloud': typeof SettingsCloudRoute
   '/settings/downloads': typeof SettingsDownloadsRoute
   '/settings/network': typeof SettingsNetworkRoute
@@ -102,6 +109,7 @@ export interface FileRoutesByTo {
   '/add': typeof AddRoute
   '/files': typeof FilesRoute
   '/tasks': typeof TasksRoute
+  '/settings/browser': typeof SettingsBrowserRoute
   '/settings/cloud': typeof SettingsCloudRoute
   '/settings/downloads': typeof SettingsDownloadsRoute
   '/settings/network': typeof SettingsNetworkRoute
@@ -117,6 +125,7 @@ export interface FileRoutesById {
   '/add': typeof AddRoute
   '/files': typeof FilesRoute
   '/tasks': typeof TasksRoute
+  '/settings/browser': typeof SettingsBrowserRoute
   '/settings/cloud': typeof SettingsCloudRoute
   '/settings/downloads': typeof SettingsDownloadsRoute
   '/settings/network': typeof SettingsNetworkRoute
@@ -133,6 +142,7 @@ export interface FileRouteTypes {
     | '/add'
     | '/files'
     | '/tasks'
+    | '/settings/browser'
     | '/settings/cloud'
     | '/settings/downloads'
     | '/settings/network'
@@ -147,6 +157,7 @@ export interface FileRouteTypes {
     | '/add'
     | '/files'
     | '/tasks'
+    | '/settings/browser'
     | '/settings/cloud'
     | '/settings/downloads'
     | '/settings/network'
@@ -161,6 +172,7 @@ export interface FileRouteTypes {
     | '/add'
     | '/files'
     | '/tasks'
+    | '/settings/browser'
     | '/settings/cloud'
     | '/settings/downloads'
     | '/settings/network'
@@ -176,6 +188,7 @@ export interface RootRouteChildren {
   AddRoute: typeof AddRoute
   FilesRoute: typeof FilesRoute
   TasksRoute: typeof TasksRoute
+  SettingsBrowserRoute: typeof SettingsBrowserRoute
   SettingsCloudRoute: typeof SettingsCloudRoute
   SettingsDownloadsRoute: typeof SettingsDownloadsRoute
   SettingsNetworkRoute: typeof SettingsNetworkRoute
@@ -272,6 +285,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsCloudRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings/browser': {
+      id: '/settings/browser'
+      path: '/settings/browser'
+      fullPath: '/settings/browser'
+      preLoaderRoute: typeof SettingsBrowserRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -280,6 +300,7 @@ const rootRouteChildren: RootRouteChildren = {
   AddRoute: AddRoute,
   FilesRoute: FilesRoute,
   TasksRoute: TasksRoute,
+  SettingsBrowserRoute: SettingsBrowserRoute,
   SettingsCloudRoute: SettingsCloudRoute,
   SettingsDownloadsRoute: SettingsDownloadsRoute,
   SettingsNetworkRoute: SettingsNetworkRoute,

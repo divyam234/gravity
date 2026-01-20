@@ -138,7 +138,12 @@ func (h *SettingsHandler) Update(w http.ResponseWriter, r *http.Request) {
 		// Log warning but don't fail request? Or return partial error?
 		// For now, let's treat it as success but maybe log it.
 		// Since I don't have logger here easily, I'll return 500 if engine fails.
-		http.Error(w, "Saved but failed to apply: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Saved but failed to apply to download engine: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if err := h.uploadEngine.Configure(r.Context(), req); err != nil {
+		http.Error(w, "Saved but failed to apply to upload engine: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 

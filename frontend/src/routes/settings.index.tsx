@@ -157,6 +157,13 @@ function SettingsOverview() {
 									status="optional"
 									to="/settings/network"
 								/>
+								<SetupCard
+									title="Browser"
+									description="File browser cache duration and display settings"
+									icon={<IconFolder className="w-5 h-5" />}
+									status="optional"
+									to="/settings/browser"
+								/>
 							</div>
 						</section>
 
@@ -280,6 +287,13 @@ function SettingsOverview() {
 									description="Theme, notifications, keyboard shortcuts"
 									icon={<IconGear className="w-4 h-4" />}
 									to="/settings/preferences"
+								/>
+								<div className="h-px bg-border mx-4" />
+								<SettingsLink
+									title="Browser"
+									description="File browser cache duration and display"
+									icon={<IconFolder className="w-4 h-4" />}
+									to="/settings/browser"
 								/>
 							</Card>
 						</section>

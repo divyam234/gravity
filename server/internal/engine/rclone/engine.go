@@ -37,8 +37,9 @@ type Engine struct {
 		srcPath string
 		dstPath string
 	}
-	cache Cache
-	mu    sync.RWMutex
+	cache    Cache
+	mu       sync.RWMutex
+	cacheTTL time.Duration
 }
 
 func NewEngine(port int, cache Cache) *Engine {
@@ -54,7 +55,8 @@ func NewEngine(port int, cache Cache) *Engine {
 			srcPath string
 			dstPath string
 		}),
-		cache: cache,
+		cache:    cache,
+		cacheTTL: 5 * time.Minute,
 	}
 }
 
@@ -373,6 +375,20 @@ func (e *Engine) pollProgress() {
 	}
 }
 
+func (e *Engine) Configure(ctx context.Context, options map[string]string) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	if ttlStr, ok := options["fileBrowserCacheTTL"]; ok {
+		if ttl, err := time.ParseDuration(ttlStr); err == nil {
+			e.cacheTTL = ttl
+		} else if val, err := strconv.Atoi(ttlStr); err == nil {
+			e.cacheTTL = time.Duration(val) * time.Minute
+		}
+	}
+	return nil
+}
+
 func (e *Engine) parseVirtualPath(path string) (string, string) {
 	path = strings.Trim(path, "/")
 	if path == "" {
@@ -387,21 +403,25 @@ func (e *Engine) parseVirtualPath(path string) (string, string) {
 	return remote, remotePath
 }
 
+func (e *Engine) getCacheKey(path string) string {
+	return "list:" + strings.Trim(path, "/")
+}
+
 func (e *Engine) invalidateListCache(ctx context.Context, virtualPath string) {
 	// Invalidate the directory listing where this item resides
 	parent := filepath.Dir(virtualPath)
 	if parent == "." {
 		parent = "/"
 	}
-	e.cache.Delete(ctx, "list:"+parent)
+	e.cache.Delete(ctx, e.getCacheKey(parent))
 
 	// Also invalidate the item itself if it's a directory
-	e.cache.Delete(ctx, "list:"+virtualPath)
+	e.cache.Delete(ctx, e.getCacheKey(virtualPath))
 }
 
 func (e *Engine) List(ctx context.Context, virtualPath string) ([]engine.FileInfo, error) {
 	// Check cache
-	cacheKey := "list:" + virtualPath
+	cacheKey := e.getCacheKey(virtualPath)
 	if cached, err := e.cache.Get(ctx, cacheKey); err == nil && cached != nil {
 		var files []engine.FileInfo
 		if err := gob.NewDecoder(bytes.NewReader(cached)).Decode(&files); err == nil {
@@ -429,7 +449,10 @@ func (e *Engine) List(ctx context.Context, virtualPath string) ([]engine.FileInf
 	// Save to cache
 	var buf bytes.Buffer
 	if err := gob.NewEncoder(&buf).Encode(files); err == nil {
-		e.cache.Set(ctx, cacheKey, buf.Bytes(), 1*time.Minute)
+		e.mu.RLock()
+		ttl := e.cacheTTL
+		e.mu.RUnlock()
+		e.cache.Set(ctx, cacheKey, buf.Bytes(), ttl)
 	}
 
 	return files, nil

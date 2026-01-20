@@ -64,4 +64,7 @@ type UploadEngine interface {
 	CreateRemote(ctx context.Context, name, rtype string, config map[string]string) error
 	DeleteRemote(ctx context.Context, name string) error
 	TestRemote(ctx context.Context, name string) error
+
+	// Config
+	Configure(ctx context.Context, options map[string]string) error
 }

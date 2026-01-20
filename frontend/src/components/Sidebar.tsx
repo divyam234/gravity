@@ -1,6 +1,7 @@
-import { Button, ListBox, ScrollShadow, Label, Header } from "@heroui/react";
+import { Button, ListBox, ScrollShadow, Label, Accordion } from "@heroui/react";
 import { useLocation } from "@tanstack/react-router";
 import React from "react";
+import IconChevronRight from "~icons/gravity-ui/chevron-right";
 import IconArrowDown from "~icons/gravity-ui/arrow-down";
 import IconThunderbolt from "~icons/gravity-ui/thunderbolt";
 import IconCheck from "~icons/gravity-ui/check";
@@ -14,6 +15,7 @@ import IconGlobe from "~icons/gravity-ui/globe";
 import IconLayoutHeaderCellsLarge from "~icons/gravity-ui/layout-header-cells-large";
 import IconMagnet from "~icons/gravity-ui/magnet";
 import IconRocket from "~icons/gravity-ui/rocket";
+import IconGear from "~icons/gravity-ui/gear";
 import IconXmark from "~icons/gravity-ui/xmark";
 import { useQueryClient } from "@tanstack/react-query";
 import { useGlobalStat } from "../hooks/useEngine";
@@ -46,7 +48,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
   const uploadingCount = stats?.active?.uploads ?? 0;
   const errorCount = stats?.totals?.tasksFailed ?? 0;
 
-  const mainNavItems = React.useMemo<NavItem[]>(
+  const topNavItems = React.useMemo<NavItem[]>(
     () => [
       {
         key: "dashboard",
@@ -57,12 +59,18 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
       },
       {
         key: "files",
-        label: "Files",
+        label: "Browser",
         icon: <IconFolder className="w-5 h-5" />,
         to: "/files",
         linkOptions: { search: { path: "/" } },
         count: null,
       },
+    ],
+    [],
+  );
+
+  const downloadNavItems = React.useMemo<NavItem[]>(
+    () => [
       {
         key: "active",
         label: "Active",
@@ -128,43 +136,56 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
     ],
   );
 
-  const settingsNavItems = React.useMemo(
+  const settingsNavItems = React.useMemo<NavItem[]>(
     () => [
       {
         key: "downloads",
         label: "Downloads",
         icon: <IconRocket className="w-4 h-4" />,
         to: "/settings/downloads",
+        count: null,
       },
       {
         key: "cloud",
         label: "Cloud Storage",
         icon: <IconCloud className="w-4 h-4" />,
         to: "/settings/cloud",
+        count: null,
       },
       {
         key: "premium",
         label: "Premium Services",
         icon: <IconThunderbolt className="w-4 h-4" />,
         to: "/settings/premium",
+        count: null,
       },
       {
         key: "network",
         label: "Network",
         icon: <IconGlobe className="w-4 h-4" />,
         to: "/settings/network",
+        count: null,
       },
       {
         key: "torrents",
         label: "Torrents",
         icon: <IconMagnet className="w-4 h-4" />,
         to: "/settings/torrents",
+        count: null,
+      },
+      {
+        key: "browser",
+        label: "Browser",
+        icon: <IconFolder className="w-4 h-4" />,
+        to: "/settings/browser",
+        count: null,
       },
       {
         key: "preferences",
         label: "Preferences",
         icon: <IconDisplay className="w-4 h-4" />,
         to: "/settings/preferences",
+        count: null,
       },
     ],
     [],
@@ -188,6 +209,11 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
     if (path === "/") return "dashboard";
     return null;
   }, [location.pathname, location.search, settingsNavItems]);
+
+  const isDownloadsActive = location.pathname === "/tasks";
+  const isSettingsActive =
+    location.pathname.startsWith("/settings") &&
+    location.pathname !== "/settings/";
 
   return (
     <div className="flex flex-col h-full w-full">
@@ -217,12 +243,13 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
       </div>
 
       <ScrollShadow className="flex-1 px-3 mt-4 overflow-y-auto">
+        {/* Top Items (Fixed) */}
         <ListBox
-          aria-label="Navigation"
+          aria-label="Top Navigation"
           selectionMode="single"
           selectedKeys={selectedKey ? [selectedKey] : []}
           className="p-0 gap-1 mb-2"
-          items={mainNavItems}
+          items={topNavItems}
         >
           {(item) => (
             <ListBox.Item
@@ -231,79 +258,217 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
               routerOptions={item.linkOptions}
               textValue={item.label}
               onPress={() => {
-                if (item.linkOptions) {
-                  queryClient.refetchQueries({
-                    queryKey: ["gravity", "downloads", item.key],
-                  });
-                }
                 if (onClose) onClose();
               }}
               className={cn(
-                "px-4 py-3 rounded-2xl data-[hover=true]:bg-default/10 transition-colors cursor-pointer outline-none",
-                "data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground",
+                "px-4 py-2.5 rounded-2xl transition-all cursor-pointer outline-none group relative overflow-hidden",
+                "hover:bg-default/10 focus-visible:bg-default/10 focus-visible:ring-2 focus-visible:ring-accent/50",
+                "data-[selected=true]:bg-accent/10 data-[selected=true]:text-accent data-[selected=true]:font-bold",
               )}
             >
-              {({ isSelected }) => (
-                <div className="flex items-center justify-between w-full">
-                  <div className="flex items-center gap-3">
-                    <span
-                      className={cn(
-                        "text-muted",
-                        item.color,
-                        isSelected && "text-inherit",
-                      )}
-                    >
-                      {item.icon}
-                    </span>
-                    <Label className="text-sm font-bold tracking-tight text-inherit">
-                      {item.label}
-                    </Label>
-                  </div>
-                  {item.count !== null && (
-                    <span
-                      className={cn(
-                        "text-[10px] font-black px-2 py-0.5 rounded-full bg-default/30 group-hover:bg-default/50 transition-colors",
-                        isSelected &&
-                          "bg-accent-foreground/20 text-accent-foreground",
-                      )}
-                    >
-                      {item.count}
-                    </span>
+              <div className="flex items-center gap-3 relative z-10">
+                <span
+                  className={cn(
+                    "text-muted transition-colors group-data-[selected=true]:text-inherit",
                   )}
-                </div>
-              )}
+                >
+                  {item.icon}
+                </span>
+                <Label className="text-sm tracking-tight text-inherit cursor-pointer">
+                  {item.label}
+                </Label>
+              </div>
+              <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-accent rounded-r-full transform -translate-x-full transition-transform duration-200 group-data-[selected=true]:translate-x-0" />
             </ListBox.Item>
           )}
         </ListBox>
 
-        <ListBox aria-label="Settings Navigation" className="p-0 gap-1">
-          <ListBox.Section>
-            <Header className="px-4 py-2 text-xs font-black uppercase tracking-widest text-muted">
-              Settings
-            </Header>
-            {settingsNavItems.map((item) => (
-              <ListBox.Item
-                key={item.key}
-                id={item.key}
-                textValue={item.label}
-                href={item.to as any}
-                // routerOptions={item.linkOptions}
-                onPress={() => {
-                  if (onClose) onClose();
-                }}
+        <Accordion
+          allowsMultipleExpanded
+          defaultExpandedKeys={["downloads", "settings"]}
+          hideSeparator
+          className="p-0 flex flex-col gap-1"
+        >
+          <Accordion.Item id="downloads" className="border-none p-0">
+            <Accordion.Heading>
+              <Accordion.Trigger
                 className={cn(
-                  "px-4 py-2.5 rounded-2xl data-[hover=true]:bg-default/10 transition-colors cursor-pointer outline-none",
-                  selectedKey === item.key && "bg-default/20 font-bold",
+                  "px-4 py-2.5 rounded-2xl transition-all cursor-pointer outline-none group flex items-center justify-between w-full text-left relative overflow-hidden",
+                  "hover:bg-default/10 focus-visible:bg-default/10 focus-visible:ring-2 focus-visible:ring-accent/50",
+                  isDownloadsActive
+                    ? "bg-accent/10 text-accent font-bold"
+                    : "text-foreground",
                 )}
               >
-                <div className="flex items-center gap-3">
-                  <span className="text-muted">{item.icon}</span>
-                  <Label className="text-sm font-medium">{item.label}</Label>
+                <div className="flex items-center gap-3 relative z-10">
+                  <span
+                    className={cn(
+                      isDownloadsActive ? "text-inherit" : "text-muted",
+                    )}
+                  >
+                    <IconRocket className="w-5 h-5" />
+                  </span>
+                  <Label className="text-sm tracking-tight text-inherit cursor-pointer">
+                    Downloads
+                  </Label>
                 </div>
-              </ListBox.Item>
-            ))}
-          </ListBox.Section>
-        </ListBox>
+                <Accordion.Indicator>
+                  <IconChevronRight
+                    className={cn(
+                      "w-3.5 h-3.5 transition-transform group-aria-expanded:rotate-90 opacity-50 group-hover:opacity-100",
+                    )}
+                  />
+                </Accordion.Indicator>
+                <div
+                  className={cn(
+                    "absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-accent rounded-r-full transform transition-transform duration-200",
+                    isDownloadsActive ? "translate-x-0" : "-translate-x-full",
+                  )}
+                />
+              </Accordion.Trigger>
+            </Accordion.Heading>
+            <Accordion.Panel>
+              <Accordion.Body className="p-0 pt-1">
+                <ListBox
+                  aria-label="Downloads Navigation"
+                  selectionMode="single"
+                  selectedKeys={selectedKey ? [selectedKey] : []}
+                  className="p-0 gap-1 mb-2"
+                  items={downloadNavItems}
+                >
+                  {(item) => (
+                    <ListBox.Item
+                      id={item.key}
+                      href={item.to as any}
+                      routerOptions={item.linkOptions}
+                      textValue={item.label}
+                      onPress={() => {
+                        queryClient.refetchQueries({
+                          queryKey: ["gravity", "downloads", item.key],
+                        });
+                        if (onClose) onClose();
+                      }}
+                      className={cn(
+                        "pl-11 pr-4 py-2.5 rounded-2xl transition-all cursor-pointer outline-none group relative overflow-hidden",
+                        "hover:bg-default/10 focus-visible:bg-default/10 focus-visible:ring-2 focus-visible:ring-accent/50",
+                        "data-[selected=true]:bg-accent/10 data-[selected=true]:text-accent data-[selected=true]:font-bold",
+                      )}
+                    >
+                      <div className="flex items-center justify-between w-full relative z-10">
+                        <div className="flex items-center gap-3">
+                          <span
+                            className={cn(
+                              "text-muted transition-colors group-data-[selected=true]:text-inherit",
+                              item.color,
+                            )}
+                          >
+                            {item.icon}
+                          </span>
+                          <Label className="text-sm tracking-tight text-inherit cursor-pointer">
+                            {item.label}
+                          </Label>
+                        </div>
+                        {item.count !== null && (
+                          <span
+                            className={cn(
+                              "text-[10px] font-black px-2 py-0.5 rounded-full bg-default/30 group-hover:bg-default/50 transition-colors",
+                              "group-data-[selected=true]:bg-accent/20 group-data-[selected=true]:text-accent",
+                            )}
+                          >
+                            {item.count}
+                          </span>
+                        )}
+                      </div>
+                      <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-accent rounded-r-full transform -translate-x-full transition-transform duration-200 group-data-[selected=true]:translate-x-0" />
+                    </ListBox.Item>
+                  )}
+                </ListBox>
+              </Accordion.Body>
+            </Accordion.Panel>
+          </Accordion.Item>
+
+          <Accordion.Item id="settings" className="border-none p-0">
+            <Accordion.Heading>
+              <Accordion.Trigger
+                className={cn(
+                  "px-4 py-2.5 rounded-2xl transition-all cursor-pointer outline-none group flex items-center justify-between w-full text-left relative overflow-hidden",
+                  "hover:bg-default/10 focus-visible:bg-default/10 focus-visible:ring-2 focus-visible:ring-accent/50",
+                  isSettingsActive
+                    ? "bg-accent/10 text-accent font-bold"
+                    : "text-foreground",
+                )}
+              >
+                <div className="flex items-center gap-3 relative z-10">
+                  <span
+                    className={cn(
+                      isSettingsActive ? "text-inherit" : "text-muted",
+                    )}
+                  >
+                    <IconGear className="w-5 h-5" />
+                  </span>
+                  <Label className="text-sm tracking-tight text-inherit cursor-pointer">
+                    Settings
+                  </Label>
+                </div>
+                <Accordion.Indicator>
+                  <IconChevronRight
+                    className={cn(
+                      "w-3.5 h-3.5 transition-transform group-aria-expanded:rotate-90 opacity-50 group-hover:opacity-100",
+                    )}
+                  />
+                </Accordion.Indicator>
+                <div
+                  className={cn(
+                    "absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-accent rounded-r-full transform transition-transform duration-200",
+                    isSettingsActive ? "translate-x-0" : "-translate-x-full",
+                  )}
+                />
+              </Accordion.Trigger>
+            </Accordion.Heading>
+            <Accordion.Panel>
+              <Accordion.Body className="p-0 pt-1">
+                <ListBox
+                  aria-label="Settings Navigation"
+                  selectionMode="single"
+                  selectedKeys={selectedKey ? [selectedKey] : []}
+                  className="p-0 gap-1"
+                  items={settingsNavItems}
+                >
+                  {(item) => (
+                    <ListBox.Item
+                      id={item.key}
+                      href={item.to as any}
+                      routerOptions={item.linkOptions}
+                      textValue={item.label}
+                      onPress={() => {
+                        if (onClose) onClose();
+                      }}
+                      className={cn(
+                        "pl-11 pr-4 py-2.5 rounded-2xl transition-all cursor-pointer outline-none group relative overflow-hidden",
+                        "hover:bg-default/10 focus-visible:bg-default/10 focus-visible:ring-2 focus-visible:ring-accent/50",
+                        "data-[selected=true]:bg-accent/10 data-[selected=true]:text-accent data-[selected=true]:font-bold",
+                      )}
+                    >
+                      <div className="flex items-center gap-3 relative z-10">
+                        <span
+                          className={cn(
+                            "text-muted transition-colors group-data-[selected=true]:text-inherit",
+                          )}
+                        >
+                          {item.icon}
+                        </span>
+                        <Label className="text-sm tracking-tight text-inherit cursor-pointer">
+                          {item.label}
+                        </Label>
+                      </div>
+                      <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-accent rounded-r-full transform -translate-x-full transition-transform duration-200 group-data-[selected=true]:translate-x-0" />
+                    </ListBox.Item>
+                  )}
+                </ListBox>
+              </Accordion.Body>
+            </Accordion.Panel>
+          </Accordion.Item>
+        </Accordion>
       </ScrollShadow>
 
       <div className="p-6 mt-auto shrink-0">
