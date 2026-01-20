@@ -218,10 +218,10 @@ function AddDownloadPage() {
             className="px-8 h-10 rounded-xl font-black uppercase tracking-widest shadow-lg shadow-accent/20 bg-accent text-accent-foreground"
             onPress={handleSubmit}
             isDisabled={
-              !uris.trim() ||
+              !uris.trim() && !isTorrent ||
               create.isPending ||
               isCheckingMagnet ||
-              (isMagnet && selectedFiles.size === 0)
+              ((isMagnet || isTorrent) && selectedFiles.size === 0)
             }
             isPending={create.isPending || isCheckingMagnet}
           >
@@ -258,7 +258,7 @@ function AddDownloadPage() {
                   />
                   <Button
                     size="sm"
-                    variant="soft"
+                    variant="secondary"
                     className="rounded-xl font-bold text-[10px] uppercase tracking-widest px-3 h-8"
                     onPress={() => document.getElementById(fileInputId)?.click()}
                   >
@@ -292,7 +292,7 @@ function AddDownloadPage() {
               )}
 
               {/* Regular URL resolution */}
-              {!isMagnet && resolution && (
+              {!isMagnet && !isTorrent && resolution && (
                 <div
                   className={`mt-2 p-4 rounded-2xl flex items-center gap-3 border ${resolution.supported ? "bg-success/5 border-success/20 text-success" : "bg-warning/5 border-warning/20 text-warning"}`}
                 >
@@ -316,8 +316,8 @@ function AddDownloadPage() {
             </div>
           </div>
 
-          {/* File Selection (Magnet only) */}
-          {isMagnet && magnetInfo && (
+          {/* File Selection (Magnet or Torrent) */}
+          {(isMagnet || isTorrent) && magnetInfo && (
             <div className="bg-background p-8 rounded-[32px] border border-border shadow-sm">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex-1 min-w-0 mr-4">
@@ -388,8 +388,8 @@ function AddDownloadPage() {
             </div>
           )}
 
-          {/* Loading state for magnet check */}
-          {isMagnet && isCheckingMagnet && (
+          {/* Loading state for magnet/torrent check */}
+          {(isMagnet || isTorrent) && isCheckingMagnet && (
             <div className="bg-background p-8 rounded-[32px] border border-border shadow-sm">
               <div className="flex items-center justify-center gap-3 py-8 flex-col">
                 <div className="animate-spin rounded-full h-8 w-8 border-3 border-accent border-t-transparent" />
@@ -404,8 +404,8 @@ function AddDownloadPage() {
         {/* Right Column - Options */}
         <div className="lg:col-span-5 space-y-6">
           <div className="bg-background p-8 rounded-[32px] border border-border shadow-sm space-y-6">
-            {/* Filename (only for non-magnet) */}
-            {!isMagnet && (
+            {/* Filename (only for non-magnet/torrent) */}
+            {!isMagnet && !isTorrent && (
               <div className="flex flex-col gap-2">
                 <Label className="text-xs font-black uppercase tracking-widest text-muted px-1">
                   Filename (Optional)
@@ -436,8 +436,8 @@ function AddDownloadPage() {
             </div>
           </div>
 
-          {/* Magnet source info */}
-          {isMagnet && magnetInfo && (
+          {/* Magnet/Torrent source info */}
+          {(isMagnet || isTorrent) && magnetInfo && (
             <div className="bg-background p-6 rounded-[32px] border border-border shadow-sm">
               <div className="flex items-center gap-4">
                 <div

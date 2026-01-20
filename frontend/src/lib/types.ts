@@ -76,6 +76,7 @@ export interface MagnetFile {
 
 export interface MagnetDownloadRequest {
   magnet: string;
+  torrentBase64?: string;
   source: string;
   magnetId?: string;
   name: string;

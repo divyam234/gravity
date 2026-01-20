@@ -143,7 +143,7 @@ func (s *MagnetService) DownloadMagnet(ctx context.Context, req MagnetDownloadRe
 		}
 
 		d.Files = append(d.Files, model.DownloadFile{
-			ID:     fileID,
+			ID:     "df_" + uuid.New().String()[:8],
 			Name:   file.Name,
 			Path:   file.Path,
 			Size:   file.Size,

@@ -1,6 +1,9 @@
-import { Label, ListBox, Select, Slider, Switch } from "@heroui/react";
+import { Input, Label, ListBox, Select, Slider, Switch } from "@heroui/react";
 import type React from "react";
+import { useEffect, useState } from "react";
 import IconChevronDown from "~icons/gravity-ui/chevron-down";
+import IconFolder from "~icons/gravity-ui/folder";
+import { useServerSettings, useUpdateServerSettings } from "../../../hooks/useServerSettings";
 import { useSettingsStore } from "../../../store/useSettingsStore";
 
 export const AppSettings: React.FC = () => {
@@ -13,8 +16,52 @@ export const AppSettings: React.FC = () => {
 		setEnableNotifications,
 	} = useSettingsStore();
 
+	const { data: serverSettings } = useServerSettings();
+	const updateSettings = useUpdateServerSettings();
+	const [downloadDir, setDownloadDir] = useState("");
+
+	useEffect(() => {
+		if (serverSettings?.download_dir) {
+			setDownloadDir(serverSettings.download_dir);
+		}
+	}, [serverSettings]);
+
+	const handleDownloadDirBlur = () => {
+		if (downloadDir && downloadDir !== serverSettings?.download_dir) {
+			updateSettings.mutate({ download_dir: downloadDir });
+		}
+	};
+
 	return (
 		<div className="space-y-8">
+			<div className="border-b border-border pb-2">
+				<h3 className="text-lg font-bold">Downloads</h3>
+				<p className="text-sm text-muted">Configure download behavior.</p>
+			</div>
+
+			<div className="space-y-6">
+				<div className="flex flex-col gap-2">
+					<Label className="text-sm font-bold tracking-tight">
+						Download Directory
+					</Label>
+					<div className="relative">
+						<IconFolder className="absolute left-3 top-1/2 -translate-y-1/2 text-muted z-10 w-4 h-4" />
+						<Input
+							value={downloadDir}
+							onChange={(e) => setDownloadDir(e.target.value)}
+							onBlur={handleDownloadDirBlur}
+							onKeyDown={(e) => e.key === "Enter" && handleDownloadDirBlur()}
+							placeholder="/downloads"
+							className="pl-10 h-10 bg-default/10 rounded-xl border-none focus:bg-default/20 transition-all outline-none"
+							fullWidth
+						/>
+					</div>
+					<p className="text-[10px] text-muted uppercase font-black tracking-widest">
+						Default directory for downloaded files on the server.
+					</p>
+				</div>
+			</div>
+
 			<div className="border-b border-border pb-2">
 				<h3 className="text-lg font-bold">UI Preferences</h3>
 				<p className="text-sm text-muted">Customize the dashboard behavior.</p>

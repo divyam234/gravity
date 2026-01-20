@@ -1,8 +1,13 @@
 -- 002_magnet_files.sql
 
--- Add magnet fields to downloads table if they don't exist
--- SQLite doesn't support IF NOT EXISTS in ALTER TABLE, so we handle it gracefully in code or just try
--- The store/sqlite.go runner doesn't handle errors well, so we use a safe approach.
+-- Add magnet fields to downloads table
+-- Note: SQLite only supports adding one column at a time
+ALTER TABLE downloads ADD COLUMN is_magnet INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE downloads ADD COLUMN magnet_hash TEXT;
+ALTER TABLE downloads ADD COLUMN magnet_source TEXT;
+ALTER TABLE downloads ADD COLUMN magnet_id TEXT;
+ALTER TABLE downloads ADD COLUMN total_files INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE downloads ADD COLUMN files_complete INTEGER NOT NULL DEFAULT 0;
 
 -- Create download_files table for individual file tracking
 CREATE TABLE IF NOT EXISTS download_files (

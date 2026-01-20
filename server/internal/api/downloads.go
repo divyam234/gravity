@@ -24,7 +24,6 @@ func (h *DownloadHandler) Routes() chi.Router {
 	r.Get("/", h.List)
 	r.Post("/", h.Create)
 	r.Get("/{id}", h.Get)
-	r.Get("/{id}/files", h.GetFiles)
 	r.Delete("/{id}", h.Delete)
 	r.Post("/{id}/pause", h.Pause)
 	r.Post("/{id}/resume", h.Resume)
@@ -90,19 +89,6 @@ func (h *DownloadHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	json.NewEncoder(w).Encode(d)
-}
-
-func (h *DownloadHandler) GetFiles(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-	files, err := h.service.GetFiles(r.Context(), id)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"files": files,
-	})
 }
 
 func (h *DownloadHandler) Delete(w http.ResponseWriter, r *http.Request) {

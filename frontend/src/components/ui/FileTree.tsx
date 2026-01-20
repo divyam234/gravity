@@ -1,10 +1,10 @@
-import { Checkbox } from "@heroui/react";
 import {
   Tree,
   TreeItem,
   TreeItemContent,
   Collection,
   Button,
+  Checkbox,
 } from "react-aria-components";
 import { useState } from "react";
 import IconChevronRight from "~icons/gravity-ui/chevron-right";
@@ -26,7 +26,6 @@ export function FileTree({
   onSelectionChange,
 }: FileTreeProps) {
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(() => {
-    // Auto-expand first level
     const keys = new Set<string>();
     files.forEach((f) => {
       if (f.isFolder) keys.add(f.id);
@@ -34,39 +33,8 @@ export function FileTree({
     return keys;
   });
 
-  const toggleSelection = (id: string, file: MagnetFile) => {
-    const newSelection = new Set(selectedKeys);
-
-    if (newSelection.has(id)) {
-      // Deselect this and all children
-      newSelection.delete(id);
-      if (file.children) {
-        getAllFileIds(file.children).forEach((childId) =>
-          newSelection.delete(childId),
-        );
-      }
-    } else {
-      // Select this and all children
-      newSelection.add(id);
-      if (file.children) {
-        getAllFileIds(file.children).forEach((childId) =>
-          newSelection.add(childId),
-        );
-      }
-    }
-
-    onSelectionChange(newSelection);
-  };
-
   const renderItem = (file: MagnetFile, level: number = 0) => {
     const isExpanded = expandedKeys.has(file.id);
-    const isSelected = selectedKeys.has(file.id);
-
-    // Check if all children are selected (for folder partial state)
-    const childIds = file.children ? getAllFileIds(file.children) : [];
-    const allChildrenSelected =
-      childIds.length > 0 && childIds.every((id) => selectedKeys.has(id));
-    const someChildrenSelected = childIds.some((id) => selectedKeys.has(id));
 
     return (
       <TreeItem
@@ -77,13 +45,13 @@ export function FileTree({
       >
         <TreeItemContent>
           <div
-            className="flex items-center gap-2 py-2 px-3 rounded-xl hover:bg-default/10 cursor-pointer transition-colors"
+            className="flex items-center gap-2 py-2 px-3 rounded-xl hover:bg-default/10 cursor-pointer transition-colors group"
             style={{ paddingLeft: `${level * 20 + 12}px` }}
           >
             {/* Expand/Collapse button for folders */}
             {file.isFolder ? (
               <Button
-                className="p-1 rounded hover:bg-default/20 outline-none"
+                className="p-1 rounded hover:bg-default/20 outline-none border-none bg-transparent cursor-pointer"
                 onPress={() => {
                   const newExpanded = new Set(expandedKeys);
                   if (isExpanded) {
@@ -101,18 +69,31 @@ export function FileTree({
                 )}
               </Button>
             ) : (
-              <span className="w-6" /> // Spacer for alignment
+              <span className="w-8" /> 
             )}
 
-            {/* Checkbox */}
-            <Checkbox
-              isSelected={file.isFolder ? allChildrenSelected : isSelected}
-              isIndeterminate={
-                file.isFolder && someChildrenSelected && !allChildrenSelected
-              }
-              onChange={() => toggleSelection(file.id, file)}
-              className="mr-2"
-            />
+            {/* Selection Checkbox */}
+            <Checkbox slot="selection">
+              {({ isSelected, isIndeterminate }) => (
+                <div 
+                  className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                    isSelected || isIndeterminate 
+                      ? "bg-accent border-accent text-accent-foreground" 
+                      : "border-default-400 group-hover:border-default-500"
+                  }`}
+                >
+                  {isSelected && (
+                    <svg viewBox="0 0 24 24" className="w-3 h-3 fill-none stroke-current stroke-[4]" aria-hidden="true">
+                      <title>Selected</title>
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  )}
+                  {isIndeterminate && (
+                    <div className="w-2 h-0.5 bg-current rounded-full" />
+                  )}
+                </div>
+              )}
+            </Checkbox>
 
             {/* Icon */}
             {file.isFolder ? (
@@ -144,7 +125,13 @@ export function FileTree({
   };
 
   return (
-    <Tree aria-label="Torrent files" className="w-full">
+    <Tree 
+      aria-label="Torrent files" 
+      className="w-full outline-none"
+      selectionMode="multiple"
+      selectedKeys={selectedKeys}
+      onSelectionChange={(keys) => onSelectionChange(keys as Set<string>)}
+    >
       <Collection items={files}>{(file) => renderItem(file, 0)}</Collection>
     </Tree>
   );

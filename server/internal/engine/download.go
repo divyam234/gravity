@@ -9,6 +9,8 @@ type Progress struct {
 	Size       int64 `json:"size"`
 	Speed      int64 `json:"speed"`
 	ETA        int   `json:"eta"`
+	Seeders    int   `json:"seeders"`
+	Peers      int   `json:"peers"`
 }
 
 type DownloadStatus struct {
@@ -21,6 +23,8 @@ type DownloadStatus struct {
 	Downloaded  int64  `json:"downloaded"`
 	Speed       int64  `json:"speed"`
 	Connections int    `json:"connections"`
+	Seeders     int    `json:"seeders"`
+	Peers       int    `json:"peers"`
 	Eta         int    `json:"eta"`
 	Error       string `json:"error,omitempty"`
 }

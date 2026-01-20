@@ -1,4 +1,4 @@
-import type { ApiResponse, Download, Provider, Remote, Stats, MagnetInfo, MagnetDownloadRequest, DownloadFile } from './types';
+import type { ApiResponse, Download, Provider, Remote, Stats, MagnetInfo, MagnetDownloadRequest } from './types';
 
 export type { ApiResponse };
 
@@ -128,10 +128,6 @@ class ApiClient {
 
   downloadMagnet(req: MagnetDownloadRequest) {
     return this.request<Download>('POST', '/magnets/download', req);
-  }
-
-  getDownloadFiles(id: string) {
-    return this.request<{ files: DownloadFile[] }>('GET', `/downloads/${id}/files`);
   }
 }
 

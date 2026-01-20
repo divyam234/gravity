@@ -11,6 +11,16 @@ import (
 	"gravity/internal/model"
 )
 
+const downloadColumns = `
+	id, url, resolved_url, provider, status, error, 
+	filename, local_path, size, downloaded, speed, eta, 
+	destination, upload_status, upload_progress, upload_speed, 
+	category, tags, engine_id, upload_job_id,
+	is_magnet, magnet_hash, magnet_source, magnet_id, 
+	total_files, files_complete,
+	created_at, started_at, completed_at, updated_at
+`
+
 type DownloadRepo struct {
 	db *sql.DB
 }
@@ -21,37 +31,37 @@ func NewDownloadRepo(db *sql.DB) *DownloadRepo {
 
 func (r *DownloadRepo) Create(ctx context.Context, d *model.Download) error {
 	tagsJson, _ := json.Marshal(d.Tags)
-	query := `
-		INSERT INTO downloads (
-			id, url, resolved_url, provider, status, error, filename, local_path, size, 
-			downloaded, speed, eta, destination, category, tags,
-			is_magnet, magnet_hash, magnet_source, magnet_id, total_files, files_complete,
-			created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`
+	query := fmt.Sprintf(`
+		INSERT INTO downloads (%s) 
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, downloadColumns)
+
 	_, err := r.db.ExecContext(ctx, query,
-		d.ID, d.URL, d.ResolvedURL, d.Provider, d.Status, d.Error, d.Filename, d.LocalPath, d.Size,
-		d.Downloaded, d.Speed, d.ETA, d.Destination, d.Category, string(tagsJson),
-		d.IsMagnet, d.MagnetHash, d.MagnetSource, d.MagnetID, d.TotalFiles, d.FilesComplete,
-		d.CreatedAt, d.UpdatedAt,
+		d.ID, d.URL, d.ResolvedURL, d.Provider, d.Status, d.Error,
+		d.Filename, d.LocalPath, d.Size, d.Downloaded, d.Speed, d.ETA,
+		d.Destination, d.UploadStatus, d.UploadProgress, d.UploadSpeed,
+		d.Category, string(tagsJson), d.EngineID, d.UploadJobID,
+		d.IsMagnet, d.MagnetHash, d.MagnetSource, d.MagnetID,
+		d.TotalFiles, d.FilesComplete,
+		d.CreatedAt, d.StartedAt, d.CompletedAt, d.UpdatedAt,
 	)
 	return err
 }
 
 func (r *DownloadRepo) Get(ctx context.Context, id string) (*model.Download, error) {
-	query := `SELECT * FROM downloads WHERE id = ?`
+	query := fmt.Sprintf("SELECT %s FROM downloads WHERE id = ?", downloadColumns)
 	row := r.db.QueryRowContext(ctx, query, id)
 	return r.scanDownload(row)
 }
 
 func (r *DownloadRepo) GetByEngineID(ctx context.Context, engineID string) (*model.Download, error) {
-	query := `SELECT * FROM downloads WHERE engine_id = ?`
+	query := fmt.Sprintf("SELECT %s FROM downloads WHERE engine_id = ?", downloadColumns)
 	row := r.db.QueryRowContext(ctx, query, engineID)
 	return r.scanDownload(row)
 }
 
 func (r *DownloadRepo) GetByUploadJobID(ctx context.Context, jobID string) (*model.Download, error) {
-	query := `SELECT * FROM downloads WHERE upload_job_id = ?`
+	query := fmt.Sprintf("SELECT %s FROM downloads WHERE upload_job_id = ?", downloadColumns)
 	row := r.db.QueryRowContext(ctx, query, jobID)
 	return r.scanDownload(row)
 }
@@ -72,7 +82,7 @@ func (r *DownloadRepo) List(ctx context.Context, status []string, limit, offset 
 		return nil, 0, err
 	}
 
-	query := fmt.Sprintf("SELECT * FROM downloads %s ORDER BY created_at DESC LIMIT ? OFFSET ?", where)
+	query := fmt.Sprintf("SELECT %s FROM downloads %s ORDER BY created_at DESC LIMIT ? OFFSET ?", downloadColumns, where)
 	args = append(args, limit, offset)
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
@@ -184,19 +194,19 @@ func (r *DownloadRepo) CreateWithFiles(ctx context.Context, d *model.Download) e
 
 	// Create download
 	tagsJson, _ := json.Marshal(d.Tags)
-	query := `
-		INSERT INTO downloads (
-			id, url, resolved_url, provider, status, error, filename, local_path, size, 
-			downloaded, speed, eta, destination, category, tags,
-			is_magnet, magnet_hash, magnet_source, magnet_id, total_files, files_complete,
-			created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`
+	query := fmt.Sprintf(`
+		INSERT INTO downloads (%s) 
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, downloadColumns)
+
 	_, err = tx.ExecContext(ctx, query,
-		d.ID, d.URL, d.ResolvedURL, d.Provider, d.Status, d.Error, d.Filename, d.LocalPath, d.Size,
-		d.Downloaded, d.Speed, d.ETA, d.Destination, d.Category, string(tagsJson),
-		d.IsMagnet, d.MagnetHash, d.MagnetSource, d.MagnetID, d.TotalFiles, d.FilesComplete,
-		d.CreatedAt, d.UpdatedAt,
+		d.ID, d.URL, d.ResolvedURL, d.Provider, d.Status, d.Error,
+		d.Filename, d.LocalPath, d.Size, d.Downloaded, d.Speed, d.ETA,
+		d.Destination, d.UploadStatus, d.UploadProgress, d.UploadSpeed,
+		d.Category, string(tagsJson), d.EngineID, d.UploadJobID,
+		d.IsMagnet, d.MagnetHash, d.MagnetSource, d.MagnetID,
+		d.TotalFiles, d.FilesComplete,
+		d.CreatedAt, d.StartedAt, d.CompletedAt, d.UpdatedAt,
 	)
 	if err != nil {
 		return err
@@ -288,6 +298,38 @@ func (r *DownloadRepo) UpdateFiles(ctx context.Context, downloadID string, files
 func (r *DownloadRepo) GetFileByEngineID(ctx context.Context, engineID string) (*model.DownloadFile, error) {
 	query := `SELECT id, download_id, name, path, size, downloaded, progress, status, error, engine_id, url, file_index FROM download_files WHERE engine_id = ?`
 	row := r.db.QueryRowContext(ctx, query, engineID)
+
+	var f model.DownloadFile
+	var errStr, engID, url sql.NullString
+	var fileIndex sql.NullInt64
+	err := row.Scan(&f.ID, &f.DownloadID, &f.Name, &f.Path, &f.Size, &f.Downloaded, &f.Progress, &f.Status, &errStr, &engID, &url, &fileIndex)
+	if err != nil {
+		return nil, err
+	}
+	f.Error = errStr.String
+	f.EngineID = engID.String
+	f.URL = url.String
+	if fileIndex.Valid {
+		f.Index = int(fileIndex.Int64)
+	}
+	return &f, nil
+}
+
+// MarkAllFilesComplete marks all files for a download as complete
+func (r *DownloadRepo) MarkAllFilesComplete(ctx context.Context, downloadID string) error {
+	query := `
+		UPDATE download_files SET
+			status = ?, progress = 100, downloaded = size, updated_at = ?
+		WHERE download_id = ?
+	`
+	_, err := r.db.ExecContext(ctx, query, model.StatusComplete, time.Now(), downloadID)
+	return err
+}
+
+// GetFileByDownloadIDAndIndex finds a download file by its parent ID and index
+func (r *DownloadRepo) GetFileByDownloadIDAndIndex(ctx context.Context, downloadID string, index int) (*model.DownloadFile, error) {
+	query := `SELECT id, download_id, name, path, size, downloaded, progress, status, error, engine_id, url, file_index FROM download_files WHERE download_id = ? AND file_index = ?`
+	row := r.db.QueryRowContext(ctx, query, downloadID, index)
 
 	var f model.DownloadFile
 	var errStr, engID, url sql.NullString

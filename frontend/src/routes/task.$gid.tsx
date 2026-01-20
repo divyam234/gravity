@@ -14,10 +14,7 @@ import {
 } from "../hooks/useEngine";
 import { formatBytes } from "../lib/utils";
 import { tasksLinkOptions } from "./tasks";
-import { useEffect, useState } from "react";
-import { api } from "../lib/api";
 import { ProgressBar } from "../components/ui/ProgressBar";
-import type { DownloadFile } from "../lib/types";
 
 export const Route = createFileRoute("/task/$gid")({
   component: TaskDetailsPage,
@@ -27,20 +24,10 @@ function TaskDetailsPage() {
   const { gid } = Route.useParams();
   const navigate = useNavigate();
   const { data: task } = useTaskStatus(gid);
-  const [files, setFiles] = useState<DownloadFile[]>([]);
-
-  useEffect(() => {
-    if (task?.isMagnet) {
-      api.getDownloadFiles(gid).then(res => setFiles(res.files));
-      
-      const interval = setInterval(() => {
-        api.getDownloadFiles(gid).then(res => setFiles(res.files));
-      }, 5000);
-      return () => clearInterval(interval);
-    }
-  }, [task?.isMagnet, gid]);
 
   if (!task) return <div>Loading...</div>;
+
+  const files = task.files || [];
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-20 mt-6 px-4 md:px-0">

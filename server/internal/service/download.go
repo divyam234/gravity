@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"gravity/internal/engine"
@@ -94,7 +96,18 @@ func (s *DownloadService) Create(ctx context.Context, url string, filename strin
 }
 
 func (s *DownloadService) Get(ctx context.Context, id string) (*model.Download, error) {
-	return s.repo.Get(ctx, id)
+	d, err := s.repo.Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Attach files for multi-file downloads
+	files, err := s.repo.GetFiles(ctx, id)
+	if err == nil && len(files) > 0 {
+		d.Files = files
+	}
+
+	return d, nil
 }
 
 func (s *DownloadService) Pause(ctx context.Context, id string) error {
@@ -302,7 +315,41 @@ func (s *DownloadService) Sync(ctx context.Context) error {
 func (s *DownloadService) handleProgress(engineID string, p engine.Progress) {
 	ctx := context.Background()
 
-	// 1. Try to find if this is a single-file download
+	// 1. Check if this is a per-file progress update from aria2 (format "gid:index")
+	if strings.Contains(engineID, ":") {
+		parts := strings.Split(engineID, ":")
+		if len(parts) == 2 {
+			parentGID := parts[0]
+			fileIndex, _ := strconv.Atoi(parts[1])
+
+			// Find parent download
+			parent, err := s.repo.GetByEngineID(ctx, parentGID)
+			if err == nil {
+				// Find specific file by parent ID and index
+				file, err := s.repo.GetFileByDownloadIDAndIndex(ctx, parent.ID, fileIndex)
+				if err == nil {
+					file.Downloaded = p.Downloaded
+					file.Progress = 0
+					if file.Size > 0 {
+						file.Progress = int((file.Downloaded * 100) / file.Size)
+					}
+
+					if file.Progress == 100 {
+						file.Status = model.StatusComplete
+					} else {
+						file.Status = model.StatusActive
+					}
+
+					s.repo.UpdateFile(ctx, file)
+
+					// Parent aggregate progress is updated via the aggregate event from aria2
+					return
+				}
+			}
+		}
+	}
+
+	// 2. Try to find if this is a single-file download
 	d, err := s.repo.GetByEngineID(ctx, engineID)
 	if err == nil {
 		// Update DB with latest progress
@@ -316,7 +363,7 @@ func (s *DownloadService) handleProgress(engineID string, p engine.Progress) {
 		return
 	}
 
-	// 2. Try to find if this is an individual file within a magnet
+	// 3. Try to find if this is an individual file within a magnet (AllDebrid style)
 	file, err := s.repo.GetFileByEngineID(ctx, engineID)
 	if err == nil {
 		file.Downloaded = p.Downloaded
@@ -411,6 +458,9 @@ func (s *DownloadService) handleComplete(engineID string, filePath string) {
 		now := time.Now()
 		d.CompletedAt = &now
 		s.repo.Update(ctx, d)
+
+		// Also mark all associated files as complete in one batch
+		s.repo.MarkAllFilesComplete(ctx, d.ID)
 
 		s.bus.Publish(event.Event{
 			Type:      event.DownloadCompleted,

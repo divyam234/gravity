@@ -55,8 +55,8 @@ func (r *Runner) Start() error {
 
 	r.cmd = exec.Command("aria2c", args...)
 	// Suppress aria2c console output
-	r.cmd.Stdout = nil
-	r.cmd.Stderr = nil
+	r.cmd.Stdout = os.Stdout
+	r.cmd.Stderr = os.Stderr
 
 	if err := r.cmd.Start(); err != nil {
 		return fmt.Errorf("failed to start aria2c: %w", err)

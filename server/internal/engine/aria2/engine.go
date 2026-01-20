@@ -275,30 +275,6 @@ func (e *Engine) handleNotification(method string, gid string) {
 	}
 }
 
-func (e *Engine) pollProgress() {
-	ticker := time.NewTicker(1 * time.Second)
-	defer ticker.Stop()
-
-	for range ticker.C {
-		h := e.onProgress
-		if h == nil {
-			continue
-		}
-
-		tasks, _ := e.List(context.Background())
-		for _, t := range tasks {
-			if t.Status == "active" || t.Status == "downloading" {
-				h(t.ID, engine.Progress{
-					Downloaded: t.Downloaded,
-					Size:       t.Size,
-					Speed:      t.Speed,
-					ETA:        t.Eta,
-				})
-			}
-		}
-	}
-}
-
 type Aria2Task struct {
 	Gid             string      `json:"gid"`
 	Status          string      `json:"status"`
@@ -363,5 +339,74 @@ func (e *Engine) mapStatus(t *Aria2Task) *engine.DownloadStatus {
 }
 
 type Aria2File struct {
-	Path string `json:"path"`
+	Index           string `json:"index"`
+	Path            string `json:"path"`
+	Length          string `json:"length"`
+	CompletedLength string `json:"completedLength"`
+	Selected        string `json:"selected"`
+}
+
+func (e *Engine) pollProgress() {
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		h := e.onProgress
+		if h == nil {
+			continue
+		}
+
+		// Get all active tasks with full file info
+		res, err := e.client.Call(context.Background(), "aria2.tellActive")
+		if err != nil {
+			continue
+		}
+
+		var tasks []Aria2Task
+		if err := json.Unmarshal(res, &tasks); err != nil {
+			continue
+		}
+
+		for _, t := range tasks {
+			// 1. Emit aggregate progress for the task
+			total, _ := strconv.ParseInt(t.TotalLength, 10, 64)
+			completed, _ := strconv.ParseInt(t.CompletedLength, 10, 64)
+			speed, _ := strconv.ParseInt(t.DownloadSpeed, 10, 64)
+
+			eta := 0
+			if speed > 0 && total > 0 {
+				remaining := total - completed
+				if remaining > 0 {
+					eta = int(remaining / speed)
+				}
+			}
+
+			h(t.Gid, engine.Progress{
+				Downloaded: completed,
+				Size:       total,
+				Speed:      speed,
+				ETA:        eta,
+			})
+
+			// 2. If it's a multi-file task (torrent/magnet), emit per-file progress
+			// We use a special ID format "gid:index" for individual files
+			if len(t.Files) > 1 || (len(t.Files) == 1 && t.Files[0].Index != "") {
+				for _, f := range t.Files {
+					if f.Selected == "false" {
+						continue
+					}
+
+					fTotal, _ := strconv.ParseInt(f.Length, 10, 64)
+					fCompleted, _ := strconv.ParseInt(f.CompletedLength, 10, 64)
+
+					// We don't have per-file speed from aria2 easily without more calls
+					// but we can report downloaded/size.
+					h(fmt.Sprintf("%s:%s", t.Gid, f.Index), engine.Progress{
+						Downloaded: fCompleted,
+						Size:       fTotal,
+					})
+				}
+			}
+		}
+	}
 }

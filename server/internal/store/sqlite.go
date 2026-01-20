@@ -70,8 +70,21 @@ func (s *Store) migrate() error {
 			return fmt.Errorf("failed to read migration %s: %w", f, err)
 		}
 
-		if _, err := s.db.Exec(string(content)); err != nil {
-			return fmt.Errorf("failed to execute migration %s: %w", f, err)
+		// Split by semicolon to run statements individually and handle errors gracefully
+		statements := strings.Split(string(content), ";")
+		for _, stmt := range statements {
+			stmt = strings.TrimSpace(stmt)
+			if stmt == "" {
+				continue
+			}
+			if _, err := s.db.Exec(stmt); err != nil {
+				// Ignore "duplicate column name" or "table already exists" errors
+				if strings.Contains(err.Error(), "duplicate column name") ||
+					strings.Contains(err.Error(), "already exists") {
+					continue
+				}
+				return fmt.Errorf("failed to execute migration %s: %w (statement: %s)", f, err, stmt)
+			}
 		}
 	}
 

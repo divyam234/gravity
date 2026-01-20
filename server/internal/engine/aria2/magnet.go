@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strconv"
 	"strings"
 	"time"
 
@@ -93,12 +94,14 @@ func (e *Engine) GetMagnetFiles(ctx context.Context, magnet string) (*model.Magn
 					relPath = f.Path[idx:]
 				}
 
+				idx, _ := strconv.Atoi(f.Index)
 				magnetFiles = append(magnetFiles, model.MagnetFile{
 					ID:       f.Index, // 1-indexed for --select-file
 					Name:     extractFilename(relPath),
 					Path:     relPath,
 					Size:     size,
 					IsFolder: false,
+					Index:    idx,
 				})
 				totalSize += size
 			}
@@ -213,12 +216,14 @@ func (e *Engine) GetTorrentFiles(ctx context.Context, torrentBase64 string) (*mo
 	for _, f := range files {
 		size := parseSize(f.Length)
 
+		idx, _ := strconv.Atoi(f.Index)
 		magnetFiles = append(magnetFiles, model.MagnetFile{
 			ID:       f.Index,
 			Name:     extractFilename(f.Path),
 			Path:     f.Path,
 			Size:     size,
 			IsFolder: false,
+			Index:    idx,
 		})
 		totalSize += size
 	}
