@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"time"
 
 	"gravity/internal/engine"
@@ -13,16 +14,18 @@ import (
 )
 
 type UploadService struct {
-	repo   *store.DownloadRepo
-	engine engine.UploadEngine
-	bus    *event.Bus
+	repo         *store.DownloadRepo
+	settingsRepo *store.SettingsRepo
+	engine       engine.UploadEngine
+	bus          *event.Bus
 }
 
-func NewUploadService(repo *store.DownloadRepo, eng engine.UploadEngine, bus *event.Bus) *UploadService {
+func NewUploadService(repo *store.DownloadRepo, settingsRepo *store.SettingsRepo, eng engine.UploadEngine, bus *event.Bus) *UploadService {
 	s := &UploadService{
-		repo:   repo,
-		engine: eng,
-		bus:    bus,
+		repo:         repo,
+		settingsRepo: settingsRepo,
+		engine:       eng,
+		bus:          bus,
 	}
 
 	// Wire up engine events
@@ -133,6 +136,24 @@ func (s *UploadService) handleComplete(downloadID string) {
 		Timestamp: time.Now(),
 		Data:      d,
 	})
+
+	// Check if we should delete the local file
+	settings, err := s.settingsRepo.Get(ctx)
+	shouldDelete := true // Default to true
+	if err == nil {
+		if val, ok := settings["delete_after_upload"]; ok && val == "false" {
+			shouldDelete = false
+		}
+	}
+
+	if shouldDelete && d.LocalPath != "" {
+		log.Printf("Upload: Deleting local copy %s", d.LocalPath)
+		if err := os.RemoveAll(d.LocalPath); err != nil {
+			log.Printf("Upload: Failed to delete local file: %v", err)
+		}
+		// Also try removing .aria2 control file just in case
+		os.Remove(d.LocalPath + ".aria2")
+	}
 }
 
 func (s *UploadService) handleError(downloadID string, err error) {

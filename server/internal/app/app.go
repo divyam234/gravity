@@ -74,7 +74,7 @@ func New() (*App, error) {
 	ps := service.NewProviderService(pr, registry)
 	setr := store.NewSettingsRepo(s.GetDB())
 	ds := service.NewDownloadService(dr, setr, de, ue, bus, ps)
-	us := service.NewUploadService(dr, ue, bus)
+	us := service.NewUploadService(dr, setr, ue, bus)
 	ms := service.NewMagnetService(dr, setr, de, ad, ue)
 	ss := service.NewStatsService(sr, dr, de, ue, bus)
 	searchService := service.NewSearchService(store.NewSearchRepo(s.GetDB()), ue)

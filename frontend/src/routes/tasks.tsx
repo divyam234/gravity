@@ -2,7 +2,6 @@ import { createFileRoute, linkOptions } from "@tanstack/react-router";
 import { z } from "zod";
 import { TaskList } from "../components/dashboard/TaskList";
 import { TaskPageHeader } from "../components/dashboard/TaskPageHeader";
-import { useDownloadEvents } from "../hooks/useDownloadEvents";
 
 const taskSearchSchema = z.object({
   status: z
@@ -25,9 +24,6 @@ export const Route = createFileRoute("/tasks")({
 
 function TasksPage() {
   const { status } = Route.useSearch();
-  
-  // Enable real-time updates via SSE
-  useDownloadEvents();
 
   const titles: Record<TaskStatus, string> = {
     active: "Active",

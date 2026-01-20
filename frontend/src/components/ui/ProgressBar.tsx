@@ -7,7 +7,7 @@ interface ProgressBarProps {
   max?: number;
   label?: string;
   showValueLabel?: boolean;
-  color?: "accent" | "success" | "warning" | "danger" | "default";
+  color?: "accent" | "success" | "warning" | "danger" | "default" | "cyan";
   size?: "sm" | "md" | "lg";
   className?: string;
   isIndeterminate?: boolean;

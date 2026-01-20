@@ -71,11 +71,16 @@ function handleEvent(queryClient: any, event: DownloadEvent) {
       queryClient.invalidateQueries({ queryKey: ['gravity', 'downloads'] });
       // And stats
       queryClient.invalidateQueries({ queryKey: ['gravity', 'stats'] });
+      // And the specific task details
+      if (data.id) {
+        queryClient.invalidateQueries({ queryKey: ['gravity', 'status', data.id] });
+      }
       break;
   }
 }
 
 function updateDownloadProgress(queryClient: any, progressData: any) {
+  // Update List
   queryClient.setQueriesData({ queryKey: ['gravity', 'downloads'] }, (oldData: any) => {
     if (!oldData) return oldData;
     // oldData is Download[] because fetchDownloads returns res.data
@@ -95,9 +100,25 @@ function updateDownloadProgress(queryClient: any, progressData: any) {
       return d;
     });
   });
+
+  // Update Detail Page
+  queryClient.setQueryData(['gravity', 'status', progressData.id], (oldData: any) => {
+    if (!oldData) return oldData;
+    
+    return {
+      ...oldData,
+      downloaded: progressData.downloaded,
+      size: progressData.size,
+      speed: progressData.speed,
+      eta: progressData.eta,
+      seeders: progressData.seeders,
+      peers: progressData.peers,
+    };
+  });
 }
 
 function updateUploadProgress(queryClient: any, progressData: any) {
+  // Update List
   queryClient.setQueriesData({ queryKey: ['gravity', 'downloads'] }, (oldData: any) => {
     if (!oldData) return oldData;
 
@@ -114,6 +135,19 @@ function updateUploadProgress(queryClient: any, progressData: any) {
       }
       return d;
     });
+  });
+
+  // Update Detail Page
+  queryClient.setQueryData(['gravity', 'status', progressData.id], (oldData: any) => {
+    if (!oldData) return oldData;
+
+    return {
+      ...oldData,
+      uploadProgress: typeof progressData.uploaded === 'number' && progressData.size > 0
+        ? Math.floor((progressData.uploaded / progressData.size) * 100)
+        : oldData.uploadProgress,
+      uploadSpeed: progressData.speed,
+    };
   });
 }
 
@@ -144,5 +178,11 @@ function updateDownloadInList(queryClient: any, downloadData: any) {
             // For now, let's strictly UPDATE existing. For new items, we rely on invalidation (which happens right after this function in handleEvent).
             return oldData;
         }
+    });
+
+    // Update Detail Page if it exists
+    queryClient.setQueryData(['gravity', 'status', downloadData.id], (oldData: any) => {
+        if (!oldData) return oldData;
+        return { ...oldData, ...downloadData };
     });
 }

@@ -23,6 +23,7 @@ type StatsService struct {
 	pollingPaused bool
 	pollingCond   *sync.Cond
 	done          chan struct{}
+	trigger       chan struct{}
 }
 
 func NewStatsService(repo *store.StatsRepo, dr *store.DownloadRepo, de engine.DownloadEngine, ue engine.UploadEngine, bus *event.Bus) *StatsService {
@@ -34,6 +35,7 @@ func NewStatsService(repo *store.StatsRepo, dr *store.DownloadRepo, de engine.Do
 		bus:            bus,
 		pollingPaused:  true,
 		done:           make(chan struct{}),
+		trigger:        make(chan struct{}, 1),
 	}
 	s.pollingCond = sync.NewCond(&s.mu)
 	return s
@@ -60,6 +62,18 @@ func (s *StatsService) Start() {
 				s.repo.Increment(ctx, "downloads_failed", 1)
 			case event.UploadError:
 				s.repo.Increment(ctx, "uploads_failed", 1)
+			}
+
+			// Trigger broadcast for relevant state changes
+			switch ev.Type {
+			case event.DownloadCreated, event.DownloadStarted, event.DownloadPaused,
+				event.DownloadResumed, event.DownloadCompleted, event.DownloadError,
+				event.UploadStarted, event.UploadCompleted, event.UploadError:
+
+				select {
+				case s.trigger <- struct{}{}:
+				default:
+				}
 			}
 		}
 	}()
@@ -114,20 +128,25 @@ func (s *StatsService) broadcastLoop() {
 		select {
 		case <-s.done:
 			return
+		case <-s.trigger:
+			s.broadcast()
 		case <-ticker.C:
-			// Fetch and broadcast
-			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-			stats, err := s.GetCurrent(ctx)
-			cancel()
-
-			if err == nil {
-				s.bus.Publish(event.Event{
-					Type:      event.StatsUpdate,
-					Timestamp: time.Now(),
-					Data:      stats,
-				})
-			}
+			s.broadcast()
 		}
+	}
+}
+
+func (s *StatsService) broadcast() {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	stats, err := s.GetCurrent(ctx)
+	if err == nil {
+		s.bus.Publish(event.Event{
+			Type:      event.StatsUpdate,
+			Timestamp: time.Now(),
+			Data:      stats,
+		})
 	}
 }
 
@@ -166,6 +185,12 @@ func (s *StatsService) GetCurrent(ctx context.Context) (*model.Stats, error) {
 	// Fetch current counts from DB to reflect deletions
 	currentCompleted, _ := s.downloadRepo.Count(ctx, []string{string(model.StatusComplete)})
 	currentFailed, _ := s.downloadRepo.Count(ctx, []string{string(model.StatusError)})
+
+	// Override activeUploads with DB count for accurate queue representation
+	uploadingCount, _ := s.downloadRepo.Count(ctx, []string{string(model.StatusUploading)})
+	if uploadingCount > 0 {
+		activeUploads = uploadingCount
+	}
 
 	return &model.Stats{
 

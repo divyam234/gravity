@@ -4,6 +4,7 @@ import { createRootRouteWithContext, Outlet } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { Toaster } from "sonner";
 import { Layout } from "../components/Layout";
+import { useDownloadEvents } from "../hooks/useDownloadEvents";
 import TanStackQueryDevtools from "../integrations/tanstack-query/devtools";
 
 interface MyRouterContext {
@@ -15,6 +16,9 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 });
 
 function RootComponent() {
+	// Global SSE connection for real-time updates across the app
+	useDownloadEvents();
+
 	return (
 		<Layout>
 			<Outlet />

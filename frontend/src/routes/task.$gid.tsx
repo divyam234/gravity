@@ -33,6 +33,15 @@ function TaskDetailsPage() {
   const files = task.files || [];
   const peers = task.peerDetails || [];
 
+  const isUploading = task.status === 'uploading';
+  const progressValue = isUploading 
+    ? task.uploadProgress 
+    : (task.size > 0 ? (task.downloaded / task.size) * 100 : 0);
+  
+  const currentSpeed = isUploading ? task.uploadSpeed : task.speed;
+  const speedLabel = isUploading ? "Upload Speed" : "Download Speed";
+  const speedColor = isUploading ? "text-cyan-500" : "text-success";
+
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-20 mt-6 px-4 md:px-0">
       <div className="flex items-center gap-4">
@@ -186,19 +195,21 @@ function TaskDetailsPage() {
                 
                 <div className="space-y-6">
                     <div className="flex flex-col gap-2">
-                        <p className="text-[10px] text-muted uppercase font-black tracking-widest px-1">Progress</p>
+                        <p className="text-[10px] text-muted uppercase font-black tracking-widest px-1">
+                          {isUploading ? "Upload Progress" : "Download Progress"}
+                        </p>
                         <div className="bg-default/5 p-6 rounded-3xl border border-border/50">
                             <div className="flex justify-between items-end mb-4">
                                 <p className="text-3xl font-black tracking-tighter leading-none">
-                                    {task.size > 0 ? Math.floor((task.downloaded / task.size) * 100) : 0}%
+                                    {Math.floor(progressValue)}%
                                 </p>
                                 <p className="text-xs font-bold text-muted uppercase tracking-widest">
                                     {task.status}
                                 </p>
                             </div>
                             <ProgressBar 
-                                value={task.size > 0 ? (task.downloaded / task.size) * 100 : 0} 
-                                color={task.status === 'complete' ? 'success' : 'accent'}
+                                value={progressValue} 
+                                color={task.status === 'complete' ? 'success' : isUploading ? 'cyan' : 'accent'}
                                 className="h-2"
                             />
                         </div>
@@ -206,8 +217,8 @@ function TaskDetailsPage() {
 
                     <div className="grid grid-cols-2 gap-4">
                         <div className="bg-default/5 p-4 rounded-3xl border border-border/50">
-                            <p className="text-[10px] text-muted uppercase font-black tracking-widest mb-1">Speed</p>
-                            <p className="text-sm font-bold text-success">{formatBytes(task.speed)}/s</p>
+                            <p className="text-[10px] text-muted uppercase font-black tracking-widest mb-1">{speedLabel}</p>
+                            <p className={`text-sm font-bold ${speedColor}`}>{formatBytes(currentSpeed)}/s</p>
                         </div>
                         <div className="bg-default/5 p-4 rounded-3xl border border-border/50">
                             <p className="text-[10px] text-muted uppercase font-black tracking-widest mb-1">Total Size</p>
