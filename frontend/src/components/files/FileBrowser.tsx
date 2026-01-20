@@ -1,10 +1,10 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { api } from "../../lib/api";
 import { formatBytes, cn } from "../../lib/utils";
+import { FileIcon } from "./FileIcon";
 import IconFolder from "~icons/gravity-ui/folder";
-import IconFile from "~icons/gravity-ui/file";
 import IconChevronRight from "~icons/gravity-ui/chevron-right";
 import IconPlus from "~icons/gravity-ui/plus";
 import IconTrashBin from "~icons/gravity-ui/trash-bin";
@@ -23,7 +23,6 @@ import {
   ListBox,
   ScrollShadow,
   Label,
-  Description,
 } from "@heroui/react";
 import type { Selection } from "@heroui/react";
 import { toast } from "sonner";
@@ -68,6 +67,12 @@ export function FileBrowser({ path }: FileBrowserProps) {
   const [modalType, setModalType] = useState<ModalType>(null);
   const [modalInputValue, setModalInputValue] = useState("");
   const [renameOldPath, setRenameOldPath] = useState("");
+
+  // Context Menu State
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
+  const [menuFile, setMenuFile] = useState<any | null>(null);
+  const menuTriggerRef = useRef<HTMLDivElement>(null);
 
   const {
     data: filesResponse,
@@ -429,38 +434,37 @@ export function FileBrowser({ path }: FileBrowserProps) {
                 <ListBox.Item
                   id={file.path}
                   textValue={file.name}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    setMenuPosition({ x: e.clientX, y: e.clientY });
+                    setMenuFile(file);
+                    setMenuOpen(true);
+                  }}
                   className={cn(
-                    "px-4 py-4 rounded-2xl cursor-pointer transition-all duration-200 group mb-2",
+                    "px-3 py-2 rounded-xl cursor-pointer transition-all duration-200 group mb-1",
                     "hover:bg-default/10 hover:border-border",
-                    "data-[selected=true]:bg-accent/10 data-[selected=true]:border-accent/30 flex items-center gap-4 w-full",
+                    "data-[selected=true]:bg-accent/10 data-[selected=true]:border-accent/30 flex items-center gap-3 w-full",
                   )}
                 >
-                  <div
-                    className={cn(
-                      "w-12 h-12 flex items-center justify-center rounded-xl transition-transform duration-200 group-hover:scale-110 shadow-sm",
-                      file.isDir
-                        ? "bg-warning/10 text-warning"
-                        : "bg-accent/10 text-accent",
-                    )}
-                  >
-                    {file.isDir ? (
-                      <IconFolder className="w-7 h-7" />
-                    ) : (
-                      <IconFile className="w-7 h-7" />
-                    )}
-                  </div>
+                  <FileIcon 
+                    name={file.name} 
+                    isDir={file.isDir} 
+                    className="w-10 h-10 transition-transform duration-200 group-hover:scale-105 shadow-sm" 
+                  />
 
-                  <div className="flex-1 min-w-0 flex flex-col justify-center">
-                    <Label className="font-bold truncate text-foreground text-lg tracking-tight mb-0.5">
+                  <div className="flex-1 min-w-0 flex items-center justify-between gap-4">
+                    <Label className="font-semibold truncate text-foreground text-sm tracking-tight leading-none">
                       {file.name}
                     </Label>
-                    <Description className="text-xs text-muted flex items-center gap-3 font-medium">
+
+                    <div className="flex items-center gap-3 shrink-0 text-[10px] sm:text-xs text-muted font-medium">
                       {!file.isDir && (
-                        <span className="bg-default/10 px-2 py-0.5 rounded-md font-bold">
+                        <span className="bg-default/10 px-1.5 py-0.5 rounded text-foreground/70 whitespace-nowrap">
                           {formatBytes(file.size)}
                         </span>
                       )}
-                      <span className="flex items-center gap-1">
+
+                      <span className="hidden sm:flex items-center gap-1 opacity-70 whitespace-nowrap">
                         {file.modTime &&
                           new Date(file.modTime).toLocaleDateString(undefined, {
                             year: "numeric",
@@ -468,112 +472,8 @@ export function FileBrowser({ path }: FileBrowserProps) {
                             day: "numeric",
                           })}
                       </span>
-                      {file.isDir && (
-                        <span className="uppercase text-[10px] font-black tracking-widest bg-warning/10 text-warning px-2 py-0.5 rounded-md">
-                          Folder
-                        </span>
-                      )}
-                    </Description>
-                  </div>
-
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Dropdown>
-                        <Dropdown.Trigger>
-                          <Button
-                            isIconOnly
-                            size="sm"
-                            variant="ghost"
-                            className="rounded-xl h-10 w-10 min-w-0"
-                            onPress={(e) => e.continuePropagation()}
-                          >
-                            ⋮
-                          </Button>
-                        </Dropdown.Trigger>
-                        <Dropdown.Popover className="min-w-[200px] bg-content1 border border-border shadow-2xl rounded-2xl p-1">
-                          <Dropdown.Menu
-                            aria-label="File Actions"
-                            onAction={(key) => {
-                              if (key === "open" && file.isDir)
-                                navigate(file.path);
-                              if (key === "delete")
-                                deleteMutation.mutate([file.path]);
-                              if (key === "rename") {
-                                setModalType("rename");
-                                setModalInputValue(file.name);
-                                setRenameOldPath(file.path);
-                                modal.onOpen();
-                              }
-                              if (key === "copy") {
-                                setClipboard({
-                                  op: "copy",
-                                  paths: [file.path],
-                                });
-                                toast.success("Copied to clipboard");
-                              }
-                              if (key === "cut") {
-                                setClipboard({
-                                  op: "move",
-                                  paths: [file.path],
-                                });
-                                toast.success("Cut to clipboard");
-                              }
-                            }}
-                          >
-                            <Dropdown.Item
-                              key="open"
-                              textValue="Open"
-                              className="rounded-xl py-2.5 px-3"
-                            >
-                              <div className="flex items-center gap-3">
-                                <IconFolder className="w-4 h-4 text-muted" />
-                                <Label className="font-bold">Open</Label>
-                              </div>
-                            </Dropdown.Item>
-                            <Dropdown.Item
-                              key="copy"
-                              textValue="Copy"
-                              className="rounded-xl py-2.5 px-3"
-                            >
-                              <div className="flex items-center gap-3">
-                                <IconCopy className="w-4 h-4 text-muted" />
-                                <Label className="font-bold">Copy</Label>
-                              </div>
-                            </Dropdown.Item>
-                            <Dropdown.Item
-                              key="cut"
-                              textValue="Cut"
-                              className="rounded-xl py-2.5 px-3"
-                            >
-                              <div className="flex items-center gap-3">
-                                <IconArrowRightFromSquare className="w-4 h-4 text-muted" />
-                                <Label className="font-bold">Cut</Label>
-                              </div>
-                            </Dropdown.Item>
-                            <Dropdown.Item
-                              key="rename"
-                              textValue="Rename"
-                              className="rounded-xl py-2.5 px-3"
-                            >
-                              <div className="flex items-center gap-3">
-                                <IconPencil className="w-4 h-4 text-muted" />
-                                <Label className="font-bold">Rename</Label>
-                              </div>
-                            </Dropdown.Item>
-                            <Dropdown.Item
-                              key="delete"
-                              variant="danger"
-                              textValue="Delete"
-                              className="rounded-xl py-2.5 px-3 bg-danger/10 text-danger"
-                            >
-                              <div className="flex items-center gap-3">
-                                <IconTrashBin className="w-4 h-4" />
-                                <Label className="font-bold">Delete</Label>
-                              </div>
-                            </Dropdown.Item>
-                          </Dropdown.Menu>
-                        </Dropdown.Popover>
-                      </Dropdown>
                     </div>
+                  </div>
 
                   <ListBox.ItemIndicator>
                     {({ isSelected }) =>
@@ -588,6 +488,117 @@ export function FileBrowser({ path }: FileBrowserProps) {
           )}
         </ScrollShadow>
       </div>
+
+      {/* Shared Context Menu */}
+      <div
+        ref={menuTriggerRef}
+        style={{
+          position: "fixed",
+          top: menuPosition?.y ?? 0,
+          left: menuPosition?.x ?? 0,
+          width: 0,
+          height: 0,
+        }}
+      />
+      <Dropdown
+        isOpen={menuOpen}
+        onOpenChange={(open) => !open && setMenuOpen(false)}
+      >
+        <Dropdown.Trigger className="hidden">
+          <span />
+        </Dropdown.Trigger>
+        <Dropdown.Popover
+          triggerRef={menuTriggerRef}
+          offset={0}
+          placement="bottom start"
+          className="min-w-[200px] bg-content1 border border-border shadow-2xl rounded-2xl p-1"
+        >
+          <Dropdown.Menu aria-label="File Actions">
+            <Dropdown.Item
+              key="open"
+              textValue="Open"
+              className="rounded-xl py-2.5 px-3"
+              onPress={() => {
+                setMenuOpen(false);
+                if (menuFile?.isDir) navigate(menuFile.path);
+              }}
+            >
+              <div className="flex items-center gap-3">
+                <IconFolder className="w-4 h-4 text-muted" />
+                <Label className="font-bold">Open</Label>
+              </div>
+            </Dropdown.Item>
+            <Dropdown.Item
+              key="copy"
+              textValue="Copy"
+              className="rounded-xl py-2.5 px-3"
+              onPress={() => {
+                setMenuOpen(false);
+                if (menuFile) {
+                  setClipboard({ op: "copy", paths: [menuFile.path] });
+                  toast.success("Copied to clipboard");
+                }
+              }}
+            >
+              <div className="flex items-center gap-3">
+                <IconCopy className="w-4 h-4 text-muted" />
+                <Label className="font-bold">Copy</Label>
+              </div>
+            </Dropdown.Item>
+            <Dropdown.Item
+              key="cut"
+              textValue="Cut"
+              className="rounded-xl py-2.5 px-3"
+              onPress={() => {
+                setMenuOpen(false);
+                if (menuFile) {
+                  setClipboard({ op: "move", paths: [menuFile.path] });
+                  toast.success("Cut to clipboard");
+                }
+              }}
+            >
+              <div className="flex items-center gap-3">
+                <IconArrowRightFromSquare className="w-4 h-4 text-muted" />
+                <Label className="font-bold">Cut</Label>
+              </div>
+            </Dropdown.Item>
+            <Dropdown.Item
+              key="rename"
+              textValue="Rename"
+              className="rounded-xl py-2.5 px-3"
+              onPress={() => {
+                setMenuOpen(false);
+                if (menuFile) {
+                  setModalType("rename");
+                  setModalInputValue(menuFile.name);
+                  setRenameOldPath(menuFile.path);
+                  modal.onOpen();
+                }
+              }}
+            >
+              <div className="flex items-center gap-3">
+                <IconPencil className="w-4 h-4 text-muted" />
+                <Label className="font-bold">Rename</Label>
+              </div>
+            </Dropdown.Item>
+            <Dropdown.Item
+              key="delete"
+              variant="danger"
+              textValue="Delete"
+              className="rounded-xl py-2.5 px-3 bg-danger/10 text-danger"
+              onPress={() => {
+                setMenuOpen(false);
+                if (menuFile) deleteMutation.mutate([menuFile.path]);
+              }}
+            >
+              <div className="flex items-center gap-3">
+                <IconTrashBin className="w-4 h-4" />
+                <Label className="font-bold">Delete</Label>
+              </div>
+            </Dropdown.Item>
+          </Dropdown.Menu>
+        </Dropdown.Popover>
+      </Dropdown>
 
       {/* Unified Modal for all Operations */}
       <Modal.Backdrop
