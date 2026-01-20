@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -341,4 +342,296 @@ func (e *Engine) pollProgress() {
 			}
 		}
 	}
+}
+
+func (e *Engine) parseVirtualPath(path string) (string, string) {
+	path = strings.Trim(path, "/")
+	if path == "" {
+		return "", ""
+	}
+	parts := strings.SplitN(path, "/", 2)
+	remote := parts[0]
+	remotePath := ""
+	if len(parts) > 1 {
+		remotePath = parts[1]
+	}
+	return remote, remotePath
+}
+
+func (e *Engine) List(ctx context.Context, virtualPath string) ([]engine.FileInfo, error) {
+	remote, remotePath := e.parseVirtualPath(virtualPath)
+
+	// Root: List Remotes
+	if remote == "" {
+		remotes, err := e.ListRemotes(ctx)
+		if err != nil {
+			return nil, err
+		}
+		files := make([]engine.FileInfo, len(remotes))
+		for i, r := range remotes {
+			files[i] = engine.FileInfo{
+				Path:     "/" + r.Name,
+				Name:     r.Name,
+				Type:     engine.FileTypeFolder,
+				IsDir:    true,
+				MimeType: "inode/directory",
+			}
+		}
+		return files, nil
+	}
+
+	// Remote: List Files
+	params := map[string]interface{}{
+		"fs":     remote + ":",
+		"remote": remotePath,
+		"opt": map[string]interface{}{
+			"showHash":    false,
+			"showModTime": true,
+		},
+	}
+
+	res, err := e.client.Call(ctx, "operations/list", params)
+	if err != nil {
+		return nil, err
+	}
+
+	var list struct {
+		List []struct {
+			Path     string    `json:"Path"`
+			Name     string    `json:"Name"`
+			Size     int64     `json:"Size"`
+			MimeType string    `json:"MimeType"`
+			ModTime  time.Time `json:"ModTime"`
+			IsDir    bool      `json:"IsDir"`
+		} `json:"list"`
+	}
+
+	if err := json.Unmarshal(res, &list); err != nil {
+		return nil, err
+	}
+
+	files := make([]engine.FileInfo, len(list.List))
+	for i, item := range list.List {
+		fType := engine.FileTypeFile
+		if item.IsDir {
+			fType = engine.FileTypeFolder
+		}
+
+		files[i] = engine.FileInfo{
+			Path:     "/" + remote + "/" + item.Path,
+			Name:     item.Name,
+			Size:     item.Size,
+			MimeType: item.MimeType,
+			ModTime:  item.ModTime,
+			Type:     fType,
+			IsDir:    item.IsDir,
+		}
+	}
+
+	return files, nil
+}
+
+func (e *Engine) Mkdir(ctx context.Context, virtualPath string) error {
+	remote, remotePath := e.parseVirtualPath(virtualPath)
+	if remote == "" {
+		return fmt.Errorf("cannot create folder in root")
+	}
+
+	params := map[string]interface{}{
+		"fs":     remote + ":",
+		"remote": remotePath,
+	}
+	_, err := e.client.Call(ctx, "operations/mkdir", params)
+	return err
+}
+
+func (e *Engine) Delete(ctx context.Context, virtualPath string) error {
+	remote, remotePath := e.parseVirtualPath(virtualPath)
+	if remote == "" {
+		return fmt.Errorf("cannot delete root items")
+	}
+
+	params := map[string]interface{}{
+		"fs":     remote + ":",
+		"remote": remotePath,
+	}
+	_, err := e.client.Call(ctx, "operations/deletefile", params)
+	return err
+}
+
+func (e *Engine) Rename(ctx context.Context, virtualPath, newName string) error {
+	remote, remotePath := e.parseVirtualPath(virtualPath)
+	if remote == "" {
+		return fmt.Errorf("cannot rename root items")
+	}
+
+	params := map[string]interface{}{
+		"srcFs":     remote + ":",
+		"srcRemote": remotePath,
+		"dstFs":     remote + ":",
+		"dstRemote": filepath.Join(filepath.Dir(remotePath), newName),
+	}
+	_, err := e.client.Call(ctx, "operations/movefile", params)
+	return err
+}
+
+func (e *Engine) Copy(ctx context.Context, srcPath, dstPath string) (string, error) {
+	info, err := e.Stat(ctx, srcPath)
+	if err != nil {
+		return "", err
+	}
+
+	srcRemote, srcRemotePath := e.parseVirtualPath(srcPath)
+	dstRemote, dstRemotePath := e.parseVirtualPath(dstPath)
+
+	params := map[string]interface{}{
+		"_async": true,
+	}
+	method := ""
+
+	if info.IsDir {
+		method = "sync/copy"
+		params["srcFs"] = srcRemote + ":" + srcRemotePath
+		params["dstFs"] = dstRemote + ":" + dstRemotePath
+	} else {
+		method = "operations/copyfile"
+		params["srcFs"] = srcRemote + ":"
+		params["srcRemote"] = srcRemotePath
+		params["dstFs"] = dstRemote + ":"
+		params["dstRemote"] = dstRemotePath
+	}
+
+	res, err := e.client.Call(ctx, method, params)
+	if err != nil {
+		return "", err
+	}
+
+	var jobRes struct {
+		JobID int64 `json:"jobid"`
+	}
+	if err := json.Unmarshal(res, &jobRes); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%d", jobRes.JobID), nil
+}
+
+func (e *Engine) Move(ctx context.Context, srcPath, dstPath string) (string, error) {
+	info, err := e.Stat(ctx, srcPath)
+	if err != nil {
+		return "", err
+	}
+
+	srcRemote, srcRemotePath := e.parseVirtualPath(srcPath)
+	dstRemote, dstRemotePath := e.parseVirtualPath(dstPath)
+
+	params := map[string]interface{}{
+		"_async": true,
+	}
+	method := ""
+
+	if info.IsDir {
+		method = "sync/move"
+		params["srcFs"] = srcRemote + ":" + srcRemotePath
+		params["dstFs"] = dstRemote + ":" + dstRemotePath
+	} else {
+		method = "operations/movefile"
+		params["srcFs"] = srcRemote + ":"
+		params["srcRemote"] = srcRemotePath
+		params["dstFs"] = dstRemote + ":"
+		params["dstRemote"] = dstRemotePath
+	}
+
+	res, err := e.client.Call(ctx, method, params)
+	if err != nil {
+		return "", err
+	}
+
+	var jobRes struct {
+		JobID int64 `json:"jobid"`
+	}
+	if err := json.Unmarshal(res, &jobRes); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%d", jobRes.JobID), nil
+}
+
+func (e *Engine) Stat(ctx context.Context, virtualPath string) (*engine.FileInfo, error) {
+	remote, remotePath := e.parseVirtualPath(virtualPath)
+	if remote == "" {
+		return &engine.FileInfo{
+			Path:     "/",
+			Name:     "Root",
+			Type:     engine.FileTypeFolder,
+			IsDir:    true,
+			MimeType: "inode/directory",
+		}, nil
+	}
+
+	// List parent to find the item
+	parent := filepath.Dir(remotePath)
+	name := filepath.Base(remotePath)
+	if remotePath == "" || remotePath == "." {
+		// It's the remote root
+		return &engine.FileInfo{
+			Path:     "/" + remote,
+			Name:     remote,
+			Type:     engine.FileTypeFolder,
+			IsDir:    true,
+			MimeType: "inode/directory",
+		}, nil
+	}
+
+	// If parent is "." or "/", rclone expects "" for root
+	if parent == "." || parent == "/" {
+		parent = ""
+	}
+
+	params := map[string]interface{}{
+		"fs":     remote + ":",
+		"remote": parent,
+		"opt": map[string]interface{}{
+			"showHash":    false,
+			"showModTime": true,
+		},
+	}
+
+	res, err := e.client.Call(ctx, "operations/list", params)
+	if err != nil {
+		return nil, err
+	}
+
+	var list struct {
+		List []struct {
+			Path     string    `json:"Path"`
+			Name     string    `json:"Name"`
+			Size     int64     `json:"Size"`
+			MimeType string    `json:"MimeType"`
+			ModTime  time.Time `json:"ModTime"`
+			IsDir    bool      `json:"IsDir"`
+		} `json:"list"`
+	}
+
+	if err := json.Unmarshal(res, &list); err != nil {
+		return nil, err
+	}
+
+	for _, item := range list.List {
+		if item.Name == name {
+			fType := engine.FileTypeFile
+			if item.IsDir {
+				fType = engine.FileTypeFolder
+			}
+			return &engine.FileInfo{
+				Path:     "/" + remote + "/" + item.Path,
+				Name:     item.Name,
+				Size:     item.Size,
+				MimeType: item.MimeType,
+				ModTime:  item.ModTime,
+				Type:     fType,
+				IsDir:    item.IsDir,
+			}, nil
+		}
+	}
+
+	return nil, fmt.Errorf("file not found")
 }

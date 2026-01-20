@@ -1,4 +1,4 @@
-import { Button, Header, ListBox, ScrollShadow } from "@heroui/react";
+import { Button, ListBox, ScrollShadow, Label, Header } from "@heroui/react";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import React from "react";
 import IconArrowDown from "~icons/gravity-ui/arrow-down";
@@ -7,6 +7,7 @@ import IconCircleXmark from "~icons/gravity-ui/circle-xmark";
 import IconClock from "~icons/gravity-ui/clock";
 import IconCloudArrowUpIn from "~icons/gravity-ui/cloud-arrow-up-in";
 import IconDisplay from "~icons/gravity-ui/display";
+import IconFolder from "~icons/gravity-ui/folder";
 import IconGear from "~icons/gravity-ui/gear";
 import IconLayoutHeaderCellsLarge from "~icons/gravity-ui/layout-header-cells-large";
 import IconNodesDown from "~icons/gravity-ui/nodes-down";
@@ -16,6 +17,16 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useGlobalStat } from "../hooks/useEngine";
 import { cn, formatBytes } from "../lib/utils";
 import { tasksLinkOptions } from "../routes/tasks";
+
+interface NavItem {
+  key: string;
+  label: string;
+  icon: React.ReactNode;
+  to: string;
+  count: number | null;
+  color?: string;
+  linkOptions?: any;
+}
 
 interface SidebarContentProps {
   onClose?: () => void;
@@ -34,7 +45,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
   const uploadingCount = stats?.active?.uploads ?? 0;
   const errorCount = stats?.totals?.tasksFailed ?? 0;
 
-  const mainNavItems = React.useMemo(
+  const mainNavItems = React.useMemo<NavItem[]>(
     () => [
       {
         key: "dashboard",
@@ -44,9 +55,18 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
         count: null,
       },
       {
+        key: "files",
+        label: "Files",
+        icon: <IconFolder className="w-5 h-5" />,
+        to: "/files",
+        linkOptions: { search: { path: "/" } },
+        count: null,
+      },
+      {
         key: "active",
         label: "Active",
         icon: <IconArrowDown className="w-5 h-5" />,
+        to: "/tasks",
         linkOptions: tasksLinkOptions("active"),
         count: activeCount,
         color: "text-success",
@@ -55,6 +75,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
         key: "uploading",
         label: "Uploading",
         icon: <IconCloudArrowUpIn className="w-5 h-5" />,
+        to: "/tasks",
         linkOptions: tasksLinkOptions("uploading"),
         count: uploadingCount,
         color: "text-cyan-500",
@@ -63,6 +84,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
         key: "paused",
         label: "Paused",
         icon: <IconClock className="w-5 h-5" />,
+        to: "/tasks",
         linkOptions: tasksLinkOptions("paused"),
         count: pausedCount,
         color: "text-warning",
@@ -71,6 +93,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
         key: "waiting",
         label: "Waiting",
         icon: <IconClock className="w-5 h-5" />,
+        to: "/tasks",
         linkOptions: tasksLinkOptions("waiting"),
         count: pendingCount,
         color: "text-muted",
@@ -79,6 +102,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
         key: "complete",
         label: "Completed",
         icon: <IconCheck className="w-5 h-5" />,
+        to: "/tasks",
         linkOptions: tasksLinkOptions("complete"),
         count: completeCount,
         color: "text-accent",
@@ -87,6 +111,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
         key: "error",
         label: "Failed",
         icon: <IconCircleXmark className="w-5 h-5" />,
+        to: "/tasks",
         linkOptions: tasksLinkOptions("error"),
         count: errorCount,
         color: "text-danger",
@@ -102,7 +127,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
     ],
   );
 
-  const settingsNavItems = [
+  const settingsNavItems = React.useMemo(() => [
     {
       key: "engine",
       label: "Engine Options",
@@ -133,7 +158,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
       icon: <IconDisplay className="w-4 h-4" />,
       to: "/settings/app",
     },
-  ];
+  ], []);
 
   const selectedKey = React.useMemo(() => {
     const path = location.pathname;
@@ -183,12 +208,12 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
           selectionMode="single"
           selectedKeys={selectedKey ? [selectedKey] : []}
           className="p-0 gap-1 mb-2"
+          items={mainNavItems}
         >
-          {mainNavItems.map((item) => (
+          {(item: NavItem) => (
             <ListBox.Item
-              key={item.key}
               id={item.key}
-              href="/tasks"
+              href={item.to as any}
               routerOptions={item.linkOptions}
               textValue={item.label}
               onPress={() => {
@@ -216,9 +241,9 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
                   >
                     {item.icon}
                   </span>
-                  <span className="text-sm font-bold tracking-tight">
+                  <Label className="text-sm font-bold tracking-tight">
                     {item.label}
-                  </span>
+                  </Label>
                 </div>
                 {item.count !== null && (
                   <span
@@ -234,33 +259,38 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
                 )}
               </div>
             </ListBox.Item>
-          ))}
+          )}
+        </ListBox>
 
-          <ListBox.Section className="mt-4">
-            <Header className="px-4 py-2 text-xs font-black uppercase tracking-widest text-muted">
-              Settings
-            </Header>
-            {settingsNavItems.map((item) => (
-              <ListBox.Item
-                key={item.key}
-                id={item.key}
-                textValue={item.label}
-                onPress={() => {
-                  navigate({ to: item.to });
-                  if (onClose) onClose();
-                }}
-                className={cn(
-                  "px-4 py-2.5 rounded-2xl data-[hover=true]:bg-default/10 transition-colors cursor-pointer outline-none",
-                  selectedKey === item.key && "bg-default/20 font-bold",
-                )}
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-muted">{item.icon}</span>
-                  <span className="text-sm font-medium">{item.label}</span>
-                </div>
-              </ListBox.Item>
-            ))}
-          </ListBox.Section>
+        <ListBox
+            aria-label="Settings Navigation"
+            className="p-0 gap-1"
+        >
+            <ListBox.Section>
+                <Header className="px-4 py-2 text-xs font-black uppercase tracking-widest text-muted">
+                  Settings
+                </Header>
+                {settingsNavItems.map((item) => (
+                    <ListBox.Item
+                        key={item.key}
+                        id={item.key}
+                        textValue={item.label}
+                        onPress={() => {
+                            navigate({ to: item.to });
+                            if (onClose) onClose();
+                        }}
+                        className={cn(
+                            "px-4 py-2.5 rounded-2xl data-[hover=true]:bg-default/10 transition-colors cursor-pointer outline-none",
+                            selectedKey === item.key && "bg-default/20 font-bold",
+                        )}
+                    >
+                        <div className="flex items-center gap-3">
+                            <span className="text-muted">{item.icon}</span>
+                            <Label className="text-sm font-medium">{item.label}</Label>
+                        </div>
+                    </ListBox.Item>
+                ))}
+            </ListBox.Section>
         </ListBox>
       </ScrollShadow>
 

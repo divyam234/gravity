@@ -85,6 +85,7 @@ func New() (*App, error) {
 	seth := api.NewSettingsHandler(store.NewSettingsRepo(s.GetDB()), de)
 	sysh := api.NewSystemHandler(de, ue)
 	mh := api.NewMagnetHandler(ms)
+	fh := api.NewFileHandler(ue)
 
 	// V1 Router
 	v1 := chi.NewRouter()
@@ -96,6 +97,7 @@ func New() (*App, error) {
 	v1.Mount("/settings", seth.Routes())
 	v1.Mount("/system", sysh.Routes())
 	v1.Mount("/magnets", mh.Routes())
+	v1.Mount("/files", fh.Routes())
 
 	// Mount V1 to root
 	router.Mount("/api/v1", v1)

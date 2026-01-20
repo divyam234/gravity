@@ -135,3 +135,13 @@ export interface ApiResponse<T> {
     offset: number;
   };
 }
+
+export interface FileInfo {
+  path: string;
+  name: string;
+  size: number;
+  mimeType: string;
+  modTime: string;
+  type: 'file' | 'folder';
+  isDir: boolean;
+}

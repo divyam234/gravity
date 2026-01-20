@@ -1,4 +1,4 @@
-import { Checkbox, Dropdown, ListBox } from "@heroui/react";
+import { Checkbox, Dropdown, ListBox, Label } from "@heroui/react";
 import React, { useId } from "react";
 import IconArchive from "~icons/gravity-ui/archive";
 import IconCopy from "~icons/gravity-ui/copy";
@@ -62,6 +62,7 @@ export const TaskList: React.FC<TaskListProps> = ({ status }) => {
         ) : (
           <ListBox
             aria-label="Tasks"
+            items={filteredTasks}
             className={cn(
               "outline-none border-none p-0 bg-transparent",
               viewMode === "grid"
@@ -69,10 +70,10 @@ export const TaskList: React.FC<TaskListProps> = ({ status }) => {
                 : "flex flex-col border border-border rounded-[32px] bg-muted-background/20 overflow-hidden divide-y divide-border",
             )}
           >
-            {filteredTasks.map((task) => (
+            {(task) => (
               <ListBox.Item
-                key={task.id}
                 id={task.id}
+                key={task.id}
                 textValue={task.filename || task.id}
                 className="outline-none focus:outline-none bg-transparent p-0 w-full"
               >
@@ -120,9 +121,9 @@ export const TaskList: React.FC<TaskListProps> = ({ status }) => {
                         ) : (
                           <IconPause className="w-4 h-4 text-warning" />
                         )}
-                        <span className="text-sm font-medium">
+                        <Label className="text-sm font-medium">
                           {task.status === "paused" ? "Resume" : "Pause"}
-                        </span>
+                        </Label>
                       </Dropdown.Item>
 
                       <Dropdown.Item
@@ -131,7 +132,7 @@ export const TaskList: React.FC<TaskListProps> = ({ status }) => {
                         className="px-3 py-2 rounded-lg data-[hover=true]:bg-default/15 cursor-pointer outline-none flex items-center gap-2"
                       >
                         <IconCopy className="w-4 h-4 text-accent" />
-                        <span className="text-sm font-medium">Copy Link</span>
+                        <Label className="text-sm font-medium">Copy Link</Label>
                       </Dropdown.Item>
 
                       <Dropdown.Item
@@ -141,13 +142,13 @@ export const TaskList: React.FC<TaskListProps> = ({ status }) => {
                         className="px-3 py-2 rounded-lg data-[hover=true]:bg-danger/10 text-danger cursor-pointer outline-none flex items-center gap-2"
                       >
                         <IconTrashBin className="w-4 h-4" />
-                        <span className="text-sm font-medium">Remove</span>
+                        <Label className="text-sm font-medium">Remove</Label>
                       </Dropdown.Item>
                     </Dropdown.Menu>
                   </Dropdown.Popover>
                 </Dropdown>
               </ListBox.Item>
-            ))}
+            )}
           </ListBox>
         )}
       </div>

@@ -31,6 +31,7 @@ import { useEngineActions, useGlobalStat } from "../hooks/useEngine";
 import { useShortcuts } from "../hooks/useShortcuts";
 import { useSettingsStore } from "../store/useSettingsStore";
 import { MobileSidebar, Sidebar } from "./Sidebar";
+import { cn } from "../lib/utils";
 
 export const Layout: React.FC<{ children: React.ReactNode }> = ({
 	children,
@@ -328,7 +329,10 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({
 					</div>
 				</header>
 
-				<main className="flex-1 overflow-y-auto p-4 md:p-8">
+				<main className={cn(
+					"flex-1 overflow-y-auto",
+					location.pathname === "/files" ? "p-0" : "p-4 md:p-8"
+				)}>
 					{children}
 				</main>
 			</div>

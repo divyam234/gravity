@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TasksRouteImport } from './routes/tasks'
+import { Route as FilesRouteImport } from './routes/files'
 import { Route as AddRouteImport } from './routes/add'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SettingsIndexRouteImport } from './routes/settings.index'
@@ -23,6 +24,11 @@ import { Route as SettingsAppRouteImport } from './routes/settings.app'
 const TasksRoute = TasksRouteImport.update({
   id: '/tasks',
   path: '/tasks',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FilesRoute = FilesRouteImport.update({
+  id: '/files',
+  path: '/files',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AddRoute = AddRouteImport.update({
@@ -74,6 +80,7 @@ const SettingsAppRoute = SettingsAppRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/add': typeof AddRoute
+  '/files': typeof FilesRoute
   '/tasks': typeof TasksRoute
   '/settings/app': typeof SettingsAppRoute
   '/settings/connection': typeof SettingsConnectionRoute
@@ -86,6 +93,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/add': typeof AddRoute
+  '/files': typeof FilesRoute
   '/tasks': typeof TasksRoute
   '/settings/app': typeof SettingsAppRoute
   '/settings/connection': typeof SettingsConnectionRoute
@@ -99,6 +107,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/add': typeof AddRoute
+  '/files': typeof FilesRoute
   '/tasks': typeof TasksRoute
   '/settings/app': typeof SettingsAppRoute
   '/settings/connection': typeof SettingsConnectionRoute
@@ -113,6 +122,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/add'
+    | '/files'
     | '/tasks'
     | '/settings/app'
     | '/settings/connection'
@@ -125,6 +135,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/add'
+    | '/files'
     | '/tasks'
     | '/settings/app'
     | '/settings/connection'
@@ -137,6 +148,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/add'
+    | '/files'
     | '/tasks'
     | '/settings/app'
     | '/settings/connection'
@@ -150,6 +162,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AddRoute: typeof AddRoute
+  FilesRoute: typeof FilesRoute
   TasksRoute: typeof TasksRoute
   SettingsAppRoute: typeof SettingsAppRoute
   SettingsConnectionRoute: typeof SettingsConnectionRoute
@@ -167,6 +180,13 @@ declare module '@tanstack/react-router' {
       path: '/tasks'
       fullPath: '/tasks'
       preLoaderRoute: typeof TasksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/files': {
+      id: '/files'
+      path: '/files'
+      fullPath: '/files'
+      preLoaderRoute: typeof FilesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/add': {
@@ -238,6 +258,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AddRoute: AddRoute,
+  FilesRoute: FilesRoute,
   TasksRoute: TasksRoute,
   SettingsAppRoute: SettingsAppRoute,
   SettingsConnectionRoute: SettingsConnectionRoute,

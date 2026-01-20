@@ -129,6 +129,23 @@ class ApiClient {
   downloadMagnet(req: MagnetDownloadRequest) {
     return this.request<Download>('POST', '/magnets/download', req);
   }
+  // Files
+  listFiles(path: string) {
+    const q = new URLSearchParams({ path });
+    return this.request<ApiResponse<import('./types').FileInfo[]>>('GET', `/files/list?${q.toString()}`);
+  }
+
+  mkdir(path: string) {
+    return this.request<void>('POST', '/files/mkdir', { path });
+  }
+
+  deleteFile(path: string) {
+    return this.request<void>('POST', '/files/delete', { path });
+  }
+
+  operateFile(op: 'rename' | 'copy' | 'move', src: string, dst: string) {
+    return this.request<{ jobId?: string }>('POST', '/files/operate', { op, src, dst });
+  }
 }
 
 export const api = new ApiClient();
