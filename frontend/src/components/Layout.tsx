@@ -259,7 +259,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({
 							selectedKey={activeServerId || undefined}
 							onSelectionChange={(key) => {
 								if (key === manageServersId) {
-									navigate({ to: "/settings/connection" });
+									navigate({ to: "/settings/network" });
 								} else {
 									setActiveServer(String(key));
 								}

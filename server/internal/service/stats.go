@@ -61,139 +61,63 @@ func (s *StatsService) GetCurrent(ctx context.Context) (*model.Stats, error) {
 	downloads, _ := s.downloadEngine.List(ctx)
 
 	activeDownloads := 0
-	pendingDownloads := 0
-	pausedDownloads := 0
 	downloadSpeed := int64(0)
 	for _, d := range downloads {
 		status := model.DownloadStatus(d.Status)
 		if status == model.StatusActive {
 			activeDownloads++
 			downloadSpeed += d.Speed
-		} else if status == model.StatusPaused {
-			pausedDownloads++
-		} else if status == model.StatusWaiting {
-			pendingDownloads++
 		}
 	}
 
-			uploadStats, _ := s.uploadEngine.GetGlobalStats(ctx)
+	// Fetch paused/waiting from DB as they might not be in engine
+	pendingDownloads, _ := s.downloadRepo.Count(ctx, []string{string(model.StatusWaiting)})
+	pausedDownloads, _ := s.downloadRepo.Count(ctx, []string{string(model.StatusPaused)})
 
-			activeUploads := 0
+	activeUploads := 0
+	uploadSpeed := int64(0)
+	uploadStats, _ := s.uploadEngine.GetGlobalStats(ctx)
+	if uploadStats != nil {
+		activeUploads = uploadStats.ActiveTransfers
+		if activeUploads > 0 {
+			uploadSpeed = uploadStats.Speed
+		}
+	}
 
-			uploadSpeed := int64(0)
+	// Fetch current counts from DB to reflect deletions
+	currentCompleted, _ := s.downloadRepo.Count(ctx, []string{string(model.StatusComplete)})
+	currentFailed, _ := s.downloadRepo.Count(ctx, []string{string(model.StatusError)})
 
-			if uploadStats != nil {
+	return &model.Stats{
 
-				activeUploads = uploadStats.ActiveTransfers
+		Active: model.ActiveStats{
 
-				if activeUploads > 0 {
+			Downloads: activeDownloads,
 
-					uploadSpeed = uploadStats.Speed
+			DownloadSpeed: downloadSpeed,
 
-				}
+			Uploads: activeUploads,
 
-			}
+			UploadSpeed: uploadSpeed,
+		},
 
-		
+		Queue: model.QueueStats{
 
-	
+			Pending: pendingDownloads,
 
-		// Fetch current counts from DB to reflect deletions
+			Paused: pausedDownloads,
+		},
 
-		_, currentCompleted, _ := s.downloadRepo.List(ctx, []string{string(model.StatusComplete)}, 0, 0)
+		Totals: model.TotalStats{
 
-		_, currentFailed, _ := s.downloadRepo.List(ctx, []string{string(model.StatusError)}, 0, 0)
+			TotalDownloaded: historical["total_downloaded"],
 
-	
+			TotalUploaded: historical["total_uploaded"],
 
-						return &model.Stats{
+			TasksFinished: int64(currentCompleted),
 
-	
+			TasksFailed: int64(currentFailed),
+		},
+	}, nil
 
-							Active: model.ActiveStats{
-
-	
-
-								Downloads:     activeDownloads,
-
-	
-
-								DownloadSpeed: downloadSpeed,
-
-	
-
-								Uploads:       activeUploads,
-
-	
-
-								UploadSpeed:   uploadSpeed,
-
-	
-
-							},
-
-	
-
-							Queue: model.QueueStats{
-
-	
-
-								Pending: pendingDownloads,
-
-	
-
-								Paused:  pausedDownloads,
-
-	
-
-							},
-
-	
-
-							Totals: model.TotalStats{
-
-	
-
-								TotalDownloaded:    historical["total_downloaded"],
-
-	
-
-								TotalUploaded:      historical["total_uploaded"],
-
-	
-
-								TasksFinished:      int64(currentCompleted),
-
-	
-
-								TasksFailed:        int64(currentFailed),
-
-	
-
-							},
-
-	
-
-						}, nil
-
-	
-
-					}
-
-	
-
-					
-
-	
-
-				
-
-	
-
-			
-
-	
-
-		
-
-	
+}

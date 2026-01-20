@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strconv"
 
 	"gravity/internal/service"
+	"gravity/internal/store"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -34,13 +36,33 @@ func (h *SearchHandler) Search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	results, err := h.service.Search(r.Context(), q)
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	if limit <= 0 {
+		limit = 50
+	}
+	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
+	if offset < 0 {
+		offset = 0
+	}
+
+	results, total, err := h.service.Search(r.Context(), q, limit, offset)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	json.NewEncoder(w).Encode(map[string]interface{}{"data": results})
+	if results == nil {
+		results = make([]store.IndexedFile, 0)
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"data": results,
+		"meta": map[string]interface{}{
+			"total":  total,
+			"limit":  limit,
+			"offset": offset,
+		},
+	})
 }
 
 func (h *SearchHandler) GetConfigs(w http.ResponseWriter, r *http.Request) {

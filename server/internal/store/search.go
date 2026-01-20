@@ -68,18 +68,29 @@ func (r *SearchRepo) SaveFiles(ctx context.Context, remote string, files []Index
 	return tx.Commit()
 }
 
-func (r *SearchRepo) Search(ctx context.Context, query string) ([]IndexedFile, error) {
+func (r *SearchRepo) Search(ctx context.Context, query string, limit, offset int) ([]IndexedFile, int, error) {
+	countQuery := `
+		SELECT COUNT(*) 
+		FROM files_search s
+		JOIN indexed_files i ON s.rowid = i.id
+		WHERE files_search MATCH ?
+	`
+	var total int
+	if err := r.db.QueryRowContext(ctx, countQuery, query).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
 	sqlQuery := `
 		SELECT i.id, i.remote, i.path, i.filename, i.size, i.mod_time, i.is_dir 
 		FROM files_search s
 		JOIN indexed_files i ON s.rowid = i.id
 		WHERE files_search MATCH ?
 		ORDER BY rank
-		LIMIT 100
+		LIMIT ? OFFSET ?
 	`
-	rows, err := r.db.QueryContext(ctx, sqlQuery, query)
+	rows, err := r.db.QueryContext(ctx, sqlQuery, query, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 
@@ -87,11 +98,11 @@ func (r *SearchRepo) Search(ctx context.Context, query string) ([]IndexedFile, e
 	for rows.Next() {
 		var f IndexedFile
 		if err := rows.Scan(&f.ID, &f.Remote, &f.Path, &f.Filename, &f.Size, &f.ModTime, &f.IsDir); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		results = append(results, f)
 	}
-	return results, nil
+	return results, total, nil
 }
 
 func (r *SearchRepo) GetConfigs(ctx context.Context) ([]RemoteIndexConfig, error) {

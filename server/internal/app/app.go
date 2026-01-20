@@ -127,6 +127,7 @@ func New() (*App, error) {
 		providerService: ps,
 		magnetService:   ms,
 		statsService:    ss,
+		searchService:   searchService,
 		httpServer:      srv,
 	}, nil
 }

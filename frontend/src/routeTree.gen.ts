@@ -15,11 +15,12 @@ import { Route as AddRouteImport } from './routes/add'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SettingsIndexRouteImport } from './routes/settings.index'
 import { Route as TaskGidRouteImport } from './routes/task.$gid'
-import { Route as SettingsRemotesRouteImport } from './routes/settings.remotes'
-import { Route as SettingsProvidersRouteImport } from './routes/settings.providers'
-import { Route as SettingsEngineRouteImport } from './routes/settings.engine'
-import { Route as SettingsConnectionRouteImport } from './routes/settings.connection'
-import { Route as SettingsAppRouteImport } from './routes/settings.app'
+import { Route as SettingsTorrentsRouteImport } from './routes/settings.torrents'
+import { Route as SettingsPremiumRouteImport } from './routes/settings.premium'
+import { Route as SettingsPreferencesRouteImport } from './routes/settings.preferences'
+import { Route as SettingsNetworkRouteImport } from './routes/settings.network'
+import { Route as SettingsDownloadsRouteImport } from './routes/settings.downloads'
+import { Route as SettingsCloudRouteImport } from './routes/settings.cloud'
 
 const TasksRoute = TasksRouteImport.update({
   id: '/tasks',
@@ -51,29 +52,34 @@ const TaskGidRoute = TaskGidRouteImport.update({
   path: '/task/$gid',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SettingsRemotesRoute = SettingsRemotesRouteImport.update({
-  id: '/settings/remotes',
-  path: '/settings/remotes',
+const SettingsTorrentsRoute = SettingsTorrentsRouteImport.update({
+  id: '/settings/torrents',
+  path: '/settings/torrents',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SettingsProvidersRoute = SettingsProvidersRouteImport.update({
-  id: '/settings/providers',
-  path: '/settings/providers',
+const SettingsPremiumRoute = SettingsPremiumRouteImport.update({
+  id: '/settings/premium',
+  path: '/settings/premium',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SettingsEngineRoute = SettingsEngineRouteImport.update({
-  id: '/settings/engine',
-  path: '/settings/engine',
+const SettingsPreferencesRoute = SettingsPreferencesRouteImport.update({
+  id: '/settings/preferences',
+  path: '/settings/preferences',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SettingsConnectionRoute = SettingsConnectionRouteImport.update({
-  id: '/settings/connection',
-  path: '/settings/connection',
+const SettingsNetworkRoute = SettingsNetworkRouteImport.update({
+  id: '/settings/network',
+  path: '/settings/network',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SettingsAppRoute = SettingsAppRouteImport.update({
-  id: '/settings/app',
-  path: '/settings/app',
+const SettingsDownloadsRoute = SettingsDownloadsRouteImport.update({
+  id: '/settings/downloads',
+  path: '/settings/downloads',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsCloudRoute = SettingsCloudRouteImport.update({
+  id: '/settings/cloud',
+  path: '/settings/cloud',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -82,11 +88,12 @@ export interface FileRoutesByFullPath {
   '/add': typeof AddRoute
   '/files': typeof FilesRoute
   '/tasks': typeof TasksRoute
-  '/settings/app': typeof SettingsAppRoute
-  '/settings/connection': typeof SettingsConnectionRoute
-  '/settings/engine': typeof SettingsEngineRoute
-  '/settings/providers': typeof SettingsProvidersRoute
-  '/settings/remotes': typeof SettingsRemotesRoute
+  '/settings/cloud': typeof SettingsCloudRoute
+  '/settings/downloads': typeof SettingsDownloadsRoute
+  '/settings/network': typeof SettingsNetworkRoute
+  '/settings/preferences': typeof SettingsPreferencesRoute
+  '/settings/premium': typeof SettingsPremiumRoute
+  '/settings/torrents': typeof SettingsTorrentsRoute
   '/task/$gid': typeof TaskGidRoute
   '/settings': typeof SettingsIndexRoute
 }
@@ -95,11 +102,12 @@ export interface FileRoutesByTo {
   '/add': typeof AddRoute
   '/files': typeof FilesRoute
   '/tasks': typeof TasksRoute
-  '/settings/app': typeof SettingsAppRoute
-  '/settings/connection': typeof SettingsConnectionRoute
-  '/settings/engine': typeof SettingsEngineRoute
-  '/settings/providers': typeof SettingsProvidersRoute
-  '/settings/remotes': typeof SettingsRemotesRoute
+  '/settings/cloud': typeof SettingsCloudRoute
+  '/settings/downloads': typeof SettingsDownloadsRoute
+  '/settings/network': typeof SettingsNetworkRoute
+  '/settings/preferences': typeof SettingsPreferencesRoute
+  '/settings/premium': typeof SettingsPremiumRoute
+  '/settings/torrents': typeof SettingsTorrentsRoute
   '/task/$gid': typeof TaskGidRoute
   '/settings': typeof SettingsIndexRoute
 }
@@ -109,11 +117,12 @@ export interface FileRoutesById {
   '/add': typeof AddRoute
   '/files': typeof FilesRoute
   '/tasks': typeof TasksRoute
-  '/settings/app': typeof SettingsAppRoute
-  '/settings/connection': typeof SettingsConnectionRoute
-  '/settings/engine': typeof SettingsEngineRoute
-  '/settings/providers': typeof SettingsProvidersRoute
-  '/settings/remotes': typeof SettingsRemotesRoute
+  '/settings/cloud': typeof SettingsCloudRoute
+  '/settings/downloads': typeof SettingsDownloadsRoute
+  '/settings/network': typeof SettingsNetworkRoute
+  '/settings/preferences': typeof SettingsPreferencesRoute
+  '/settings/premium': typeof SettingsPremiumRoute
+  '/settings/torrents': typeof SettingsTorrentsRoute
   '/task/$gid': typeof TaskGidRoute
   '/settings/': typeof SettingsIndexRoute
 }
@@ -124,11 +133,12 @@ export interface FileRouteTypes {
     | '/add'
     | '/files'
     | '/tasks'
-    | '/settings/app'
-    | '/settings/connection'
-    | '/settings/engine'
-    | '/settings/providers'
-    | '/settings/remotes'
+    | '/settings/cloud'
+    | '/settings/downloads'
+    | '/settings/network'
+    | '/settings/preferences'
+    | '/settings/premium'
+    | '/settings/torrents'
     | '/task/$gid'
     | '/settings'
   fileRoutesByTo: FileRoutesByTo
@@ -137,11 +147,12 @@ export interface FileRouteTypes {
     | '/add'
     | '/files'
     | '/tasks'
-    | '/settings/app'
-    | '/settings/connection'
-    | '/settings/engine'
-    | '/settings/providers'
-    | '/settings/remotes'
+    | '/settings/cloud'
+    | '/settings/downloads'
+    | '/settings/network'
+    | '/settings/preferences'
+    | '/settings/premium'
+    | '/settings/torrents'
     | '/task/$gid'
     | '/settings'
   id:
@@ -150,11 +161,12 @@ export interface FileRouteTypes {
     | '/add'
     | '/files'
     | '/tasks'
-    | '/settings/app'
-    | '/settings/connection'
-    | '/settings/engine'
-    | '/settings/providers'
-    | '/settings/remotes'
+    | '/settings/cloud'
+    | '/settings/downloads'
+    | '/settings/network'
+    | '/settings/preferences'
+    | '/settings/premium'
+    | '/settings/torrents'
     | '/task/$gid'
     | '/settings/'
   fileRoutesById: FileRoutesById
@@ -164,11 +176,12 @@ export interface RootRouteChildren {
   AddRoute: typeof AddRoute
   FilesRoute: typeof FilesRoute
   TasksRoute: typeof TasksRoute
-  SettingsAppRoute: typeof SettingsAppRoute
-  SettingsConnectionRoute: typeof SettingsConnectionRoute
-  SettingsEngineRoute: typeof SettingsEngineRoute
-  SettingsProvidersRoute: typeof SettingsProvidersRoute
-  SettingsRemotesRoute: typeof SettingsRemotesRoute
+  SettingsCloudRoute: typeof SettingsCloudRoute
+  SettingsDownloadsRoute: typeof SettingsDownloadsRoute
+  SettingsNetworkRoute: typeof SettingsNetworkRoute
+  SettingsPreferencesRoute: typeof SettingsPreferencesRoute
+  SettingsPremiumRoute: typeof SettingsPremiumRoute
+  SettingsTorrentsRoute: typeof SettingsTorrentsRoute
   TaskGidRoute: typeof TaskGidRoute
   SettingsIndexRoute: typeof SettingsIndexRoute
 }
@@ -217,39 +230,46 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TaskGidRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/settings/remotes': {
-      id: '/settings/remotes'
-      path: '/settings/remotes'
-      fullPath: '/settings/remotes'
-      preLoaderRoute: typeof SettingsRemotesRouteImport
+    '/settings/torrents': {
+      id: '/settings/torrents'
+      path: '/settings/torrents'
+      fullPath: '/settings/torrents'
+      preLoaderRoute: typeof SettingsTorrentsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/settings/providers': {
-      id: '/settings/providers'
-      path: '/settings/providers'
-      fullPath: '/settings/providers'
-      preLoaderRoute: typeof SettingsProvidersRouteImport
+    '/settings/premium': {
+      id: '/settings/premium'
+      path: '/settings/premium'
+      fullPath: '/settings/premium'
+      preLoaderRoute: typeof SettingsPremiumRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/settings/engine': {
-      id: '/settings/engine'
-      path: '/settings/engine'
-      fullPath: '/settings/engine'
-      preLoaderRoute: typeof SettingsEngineRouteImport
+    '/settings/preferences': {
+      id: '/settings/preferences'
+      path: '/settings/preferences'
+      fullPath: '/settings/preferences'
+      preLoaderRoute: typeof SettingsPreferencesRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/settings/connection': {
-      id: '/settings/connection'
-      path: '/settings/connection'
-      fullPath: '/settings/connection'
-      preLoaderRoute: typeof SettingsConnectionRouteImport
+    '/settings/network': {
+      id: '/settings/network'
+      path: '/settings/network'
+      fullPath: '/settings/network'
+      preLoaderRoute: typeof SettingsNetworkRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/settings/app': {
-      id: '/settings/app'
-      path: '/settings/app'
-      fullPath: '/settings/app'
-      preLoaderRoute: typeof SettingsAppRouteImport
+    '/settings/downloads': {
+      id: '/settings/downloads'
+      path: '/settings/downloads'
+      fullPath: '/settings/downloads'
+      preLoaderRoute: typeof SettingsDownloadsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings/cloud': {
+      id: '/settings/cloud'
+      path: '/settings/cloud'
+      fullPath: '/settings/cloud'
+      preLoaderRoute: typeof SettingsCloudRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -260,11 +280,12 @@ const rootRouteChildren: RootRouteChildren = {
   AddRoute: AddRoute,
   FilesRoute: FilesRoute,
   TasksRoute: TasksRoute,
-  SettingsAppRoute: SettingsAppRoute,
-  SettingsConnectionRoute: SettingsConnectionRoute,
-  SettingsEngineRoute: SettingsEngineRoute,
-  SettingsProvidersRoute: SettingsProvidersRoute,
-  SettingsRemotesRoute: SettingsRemotesRoute,
+  SettingsCloudRoute: SettingsCloudRoute,
+  SettingsDownloadsRoute: SettingsDownloadsRoute,
+  SettingsNetworkRoute: SettingsNetworkRoute,
+  SettingsPreferencesRoute: SettingsPreferencesRoute,
+  SettingsPremiumRoute: SettingsPremiumRoute,
+  SettingsTorrentsRoute: SettingsTorrentsRoute,
   TaskGidRoute: TaskGidRoute,
   SettingsIndexRoute: SettingsIndexRoute,
 }

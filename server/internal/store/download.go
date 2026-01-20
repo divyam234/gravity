@@ -74,7 +74,7 @@ func (r *DownloadRepo) GetByUploadJobID(ctx context.Context, jobID string) (*mod
 	return r.scanDownload(row)
 }
 
-func (r *DownloadRepo) List(ctx context.Context, status []string, limit, offset int) ([]*model.Download, int, error) {
+func (r *DownloadRepo) List(ctx context.Context, status []string, limit, offset int, sortAsc bool) ([]*model.Download, int, error) {
 	where := ""
 	args := []interface{}{}
 	if len(status) > 0 {
@@ -90,7 +90,12 @@ func (r *DownloadRepo) List(ctx context.Context, status []string, limit, offset 
 		return nil, 0, err
 	}
 
-	query := fmt.Sprintf("SELECT %s FROM downloads %s ORDER BY created_at DESC LIMIT ? OFFSET ?", downloadColumns, where)
+	order := "DESC"
+	if sortAsc {
+		order = "ASC"
+	}
+
+	query := fmt.Sprintf("SELECT %s FROM downloads %s ORDER BY created_at %s LIMIT ? OFFSET ?", downloadColumns, where, order)
 	args = append(args, limit, offset)
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
@@ -152,11 +157,29 @@ func (r *DownloadRepo) Delete(ctx context.Context, id string) error {
 	return err
 }
 
+func (r *DownloadRepo) Count(ctx context.Context, status []string) (int, error) {
+	where := ""
+	args := []interface{}{}
+	if len(status) > 0 {
+		where = "WHERE status IN (" + strings.Repeat("?,", len(status)-1) + "?)"
+		for _, s := range status {
+			args = append(args, s)
+		}
+	}
+
+	query := fmt.Sprintf("SELECT COUNT(*) FROM downloads %s", where)
+	var total int
+	if err := r.db.QueryRowContext(ctx, query, args...).Scan(&total); err != nil {
+		return 0, err
+	}
+	return total, nil
+}
+
 func (r *DownloadRepo) scanDownload(scanner interface {
 	Scan(dest ...interface{}) error
 }) (*model.Download, error) {
 	d := &model.Download{}
-	var tags, headers, selectedFiles string
+	var tags, headers, selectedFiles sql.NullString
 	var resolvedURL, provider, errStr, filename, localPath, destination, uploadStatus, category, engineID, uploadJobID sql.NullString
 	var magnetHash, magnetSource, magnetID, torrentData sql.NullString
 	var startedAt, completedAt sql.NullTime
@@ -176,9 +199,6 @@ func (r *DownloadRepo) scanDownload(scanner interface {
 	if err != nil {
 		return nil, err
 	}
-
-	d.Seeders = int(d.Seeders) // Just to make sure we set them if needed, but Scan already did
-	d.Peers = int(d.Peers)
 
 	d.ResolvedURL = resolvedURL.String
 	d.Provider = provider.String
@@ -202,9 +222,15 @@ func (r *DownloadRepo) scanDownload(scanner interface {
 		d.CompletedAt = &completedAt.Time
 	}
 
-	json.Unmarshal([]byte(tags), &d.Tags)
-	json.Unmarshal([]byte(headers), &d.Headers)
-	json.Unmarshal([]byte(selectedFiles), &d.SelectedFiles)
+	if tags.Valid && tags.String != "" {
+		json.Unmarshal([]byte(tags.String), &d.Tags)
+	}
+	if headers.Valid && headers.String != "" {
+		json.Unmarshal([]byte(headers.String), &d.Headers)
+	}
+	if selectedFiles.Valid && selectedFiles.String != "" {
+		json.Unmarshal([]byte(selectedFiles.String), &d.SelectedFiles)
+	}
 
 	return d, nil
 }
@@ -261,12 +287,18 @@ func (r *DownloadRepo) CreateWithFiles(ctx context.Context, d *model.Download) e
 	return tx.Commit()
 }
 
-// GetFiles returns all files for a download
-func (r *DownloadRepo) GetFiles(ctx context.Context, downloadID string) ([]model.DownloadFile, error) {
-	query := `SELECT id, download_id, name, path, size, downloaded, progress, status, error, engine_id, url, file_index FROM download_files WHERE download_id = ?`
-	rows, err := r.db.QueryContext(ctx, query, downloadID)
+// GetFiles returns all files for a download with pagination
+func (r *DownloadRepo) GetFiles(ctx context.Context, downloadID string, limit, offset int) ([]model.DownloadFile, int, error) {
+	countQuery := `SELECT COUNT(*) FROM download_files WHERE download_id = ?`
+	var total int
+	if err := r.db.QueryRowContext(ctx, countQuery, downloadID).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	query := `SELECT id, download_id, name, path, size, downloaded, progress, status, error, engine_id, url, file_index FROM download_files WHERE download_id = ? ORDER BY file_index ASC LIMIT ? OFFSET ?`
+	rows, err := r.db.QueryContext(ctx, query, downloadID, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 
@@ -277,7 +309,7 @@ func (r *DownloadRepo) GetFiles(ctx context.Context, downloadID string) ([]model
 		var fileIndex sql.NullInt64
 		err := rows.Scan(&f.ID, &f.DownloadID, &f.Name, &f.Path, &f.Size, &f.Downloaded, &f.Progress, &f.Status, &errStr, &engineID, &url, &fileIndex)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		f.Error = errStr.String
 		f.EngineID = engineID.String
@@ -287,7 +319,7 @@ func (r *DownloadRepo) GetFiles(ctx context.Context, downloadID string) ([]model
 		}
 		files = append(files, f)
 	}
-	return files, nil
+	return files, total, nil
 }
 
 // UpdateFile updates a single download file

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -97,7 +98,7 @@ func (s *DownloadService) Get(ctx context.Context, id string) (*model.Download, 
 	}
 
 	// Attach files for multi-file downloads
-	files, err := s.repo.GetFiles(ctx, id)
+	files, _, err := s.repo.GetFiles(ctx, id, 10000, 0)
 	if err == nil && len(files) > 0 {
 		d.Files = files
 	}
@@ -136,7 +137,7 @@ func (s *DownloadService) Get(ctx context.Context, id string) (*model.Download, 
 }
 
 func (s *DownloadService) List(ctx context.Context, status []string, limit, offset int) ([]*model.Download, int, error) {
-	downloads, total, err := s.repo.List(ctx, status, limit, offset)
+	downloads, total, err := s.repo.List(ctx, status, limit, offset, false)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -265,9 +266,42 @@ func (s *DownloadService) Delete(ctx context.Context, id string, deleteFiles boo
 		return err
 	}
 
-	// 1. Stop in engine
+	// 1. Resolve paths for deletion before stopping engine
+	var pathsToDelete []string
+	if deleteFiles {
+		// If we have a stored LocalPath, that's the primary target
+		if d.LocalPath != "" {
+			pathsToDelete = append(pathsToDelete, d.LocalPath)
+		}
+
+		// If active/paused in engine, query it for current path
+		if d.EngineID != "" {
+			status, err := s.engine.Status(ctx, d.EngineID)
+			if err == nil && len(status.Files) > 0 {
+				// Use the logic from handleComplete to find root path
+				actualPath := status.Files[0].Path
+				if actualPath == "" {
+					actualPath = filepath.Join(status.Dir, status.Filename)
+				}
+
+				// Add to deletion list if not already there (simple dedup)
+				duplicate := false
+				for _, p := range pathsToDelete {
+					if p == actualPath {
+						duplicate = true
+						break
+					}
+				}
+				if !duplicate && actualPath != "" {
+					pathsToDelete = append(pathsToDelete, actualPath)
+				}
+			}
+		}
+	}
+
+	// 2. Stop in engine
 	if d.IsMagnet && d.MagnetSource == "alldebrid" {
-		files, _ := s.repo.GetFiles(ctx, d.ID)
+		files, _, _ := s.repo.GetFiles(ctx, d.ID, 1000, 0)
 		for _, f := range files {
 			if f.EngineID != "" {
 				s.engine.Cancel(ctx, f.EngineID)
@@ -283,12 +317,25 @@ func (s *DownloadService) Delete(ctx context.Context, id string, deleteFiles boo
 		}
 	}
 
-	// 2. Also stop upload if active
+	// 3. Also stop upload if active
 	if d.Status == model.StatusUploading && d.UploadJobID != "" {
 		s.uploadEngine.Cancel(ctx, d.UploadJobID)
 	}
 
-	// 3. Clean up database
+	// 4. Delete files from disk
+	if deleteFiles {
+		for _, path := range pathsToDelete {
+			// Safety check: don't delete root or obviously wrong paths
+			if len(path) > 5 { // arbitary safety len
+				os.RemoveAll(path)
+
+				// Also try to remove aria2 control file
+				os.Remove(path + ".aria2")
+			}
+		}
+	}
+
+	// 5. Clean up database
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return err
 	}
@@ -335,7 +382,7 @@ func (s *DownloadService) ProcessQueue(ctx context.Context) {
 	}
 
 	// 1. Count active tasks in DB (instead of engine to be more robust)
-	dbActive, _, _ := s.repo.List(ctx, []string{string(model.StatusActive)}, 100, 0)
+	dbActive, _, _ := s.repo.List(ctx, []string{string(model.StatusActive)}, 100, 0, false)
 	activeCount := len(dbActive)
 
 	if activeCount >= maxConcurrent {
@@ -344,7 +391,7 @@ func (s *DownloadService) ProcessQueue(ctx context.Context) {
 
 	// 2. Fetch next waiting tasks from DB
 	limit := maxConcurrent - activeCount
-	waiting, _, err := s.repo.List(ctx, []string{string(model.StatusWaiting)}, limit, 0)
+	waiting, _, err := s.repo.List(ctx, []string{string(model.StatusWaiting)}, limit, 0, true)
 	if err != nil || len(waiting) == 0 {
 		return
 	}
@@ -352,7 +399,7 @@ func (s *DownloadService) ProcessQueue(ctx context.Context) {
 	for _, d := range waiting {
 		// Calculate total size from selected files only if multi-file
 		var totalSize int64
-		files, _ := s.repo.GetFiles(ctx, d.ID)
+		files, _, _ := s.repo.GetFiles(ctx, d.ID, 1000, 0)
 		if len(files) > 0 {
 			for _, f := range files {
 				totalSize += f.Size
@@ -402,7 +449,7 @@ func (s *DownloadService) Sync(ctx context.Context) error {
 		gidMap[t.ID] = t
 	}
 
-	dbActive, _, err := s.repo.List(ctx, []string{string(model.StatusActive)}, 1000, 0)
+	dbActive, _, err := s.repo.List(ctx, []string{string(model.StatusActive)}, 1000, 0, false)
 	if err != nil {
 		return err
 	}
@@ -532,7 +579,7 @@ func (s *DownloadService) handleProgress(engineID string, p engine.Progress) {
 }
 
 func (s *DownloadService) updateAggregateProgress(ctx context.Context, d *model.Download) {
-	files, err := s.repo.GetFiles(ctx, d.ID)
+	files, _, err := s.repo.GetFiles(ctx, d.ID, 1000, 0)
 	if err != nil {
 		return
 	}
@@ -598,6 +645,10 @@ func (s *DownloadService) handleComplete(engineID string, filePath string) {
 		// Determine the actual path created by aria2
 		status, err := s.engine.Status(ctx, engineID)
 		if err == nil {
+			// Update final stats
+			d.Downloaded = status.Downloaded
+			d.Size = status.Size
+
 			// aria2 returns 'dir' (output dir) and 'files' (actual paths)
 			// For a torrent, files[0].path will be something like /downloads/ReleaseName/file.mp4
 			// if dir is /downloads, we want to upload /downloads/ReleaseName
@@ -656,7 +707,8 @@ func (s *DownloadService) handleComplete(engineID string, filePath string) {
 }
 
 func (s *DownloadService) GetFiles(ctx context.Context, id string) ([]model.DownloadFile, error) {
-	return s.repo.GetFiles(ctx, id)
+	files, _, err := s.repo.GetFiles(ctx, id, 10000, 0)
+	return files, err
 }
 
 func (s *DownloadService) handleError(engineID string, err error) {

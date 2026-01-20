@@ -2,16 +2,18 @@ import { Button, ListBox, ScrollShadow, Label, Header } from "@heroui/react";
 import { useLocation } from "@tanstack/react-router";
 import React from "react";
 import IconArrowDown from "~icons/gravity-ui/arrow-down";
+import IconThunderbolt from "~icons/gravity-ui/thunderbolt";
 import IconCheck from "~icons/gravity-ui/check";
 import IconCircleXmark from "~icons/gravity-ui/circle-xmark";
 import IconClock from "~icons/gravity-ui/clock";
+import IconCloud from "~icons/gravity-ui/cloud";
 import IconCloudArrowUpIn from "~icons/gravity-ui/cloud-arrow-up-in";
 import IconDisplay from "~icons/gravity-ui/display";
 import IconFolder from "~icons/gravity-ui/folder";
-import IconGear from "~icons/gravity-ui/gear";
+import IconGlobe from "~icons/gravity-ui/globe";
 import IconLayoutHeaderCellsLarge from "~icons/gravity-ui/layout-header-cells-large";
-import IconNodesDown from "~icons/gravity-ui/nodes-down";
-import IconServer from "~icons/gravity-ui/server";
+import IconMagnet from "~icons/gravity-ui/magnet";
+import IconRocket from "~icons/gravity-ui/rocket";
 import IconXmark from "~icons/gravity-ui/xmark";
 import { useQueryClient } from "@tanstack/react-query";
 import { useGlobalStat } from "../hooks/useEngine";
@@ -129,34 +131,40 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
   const settingsNavItems = React.useMemo(
     () => [
       {
-        key: "engine",
-        label: "Engine Options",
-        icon: <IconGear className="w-4 h-4" />,
-        to: "/settings/engine",
+        key: "downloads",
+        label: "Downloads",
+        icon: <IconRocket className="w-4 h-4" />,
+        to: "/settings/downloads",
       },
       {
-        key: "providers",
-        label: "Providers",
-        icon: <IconNodesDown className="w-4 h-4" />,
-        to: "/settings/providers",
+        key: "cloud",
+        label: "Cloud Storage",
+        icon: <IconCloud className="w-4 h-4" />,
+        to: "/settings/cloud",
       },
       {
-        key: "remotes",
-        label: "Cloud Remotes",
-        icon: <IconCloudArrowUpIn className="w-4 h-4" />,
-        to: "/settings/remotes",
+        key: "premium",
+        label: "Premium Services",
+        icon: <IconThunderbolt className="w-4 h-4" />,
+        to: "/settings/premium",
       },
       {
-        key: "connection",
-        label: "Server",
-        icon: <IconServer className="w-4 h-4" />,
-        to: "/settings/connection",
+        key: "network",
+        label: "Network",
+        icon: <IconGlobe className="w-4 h-4" />,
+        to: "/settings/network",
       },
       {
-        key: "app",
+        key: "torrents",
+        label: "Torrents",
+        icon: <IconMagnet className="w-4 h-4" />,
+        to: "/settings/torrents",
+      },
+      {
+        key: "preferences",
         label: "Preferences",
         icon: <IconDisplay className="w-4 h-4" />,
-        to: "/settings/app",
+        to: "/settings/preferences",
       },
     ],
     [],

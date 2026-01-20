@@ -29,6 +29,9 @@ func NewSearchService(repo *store.SearchRepo, storage engine.StorageEngine) *Sea
 }
 
 func (s *SearchService) Start() {
+	if s == nil {
+		return
+	}
 	go func() {
 		ticker := time.NewTicker(5 * time.Minute)
 		defer ticker.Stop()
@@ -39,6 +42,9 @@ func (s *SearchService) Start() {
 }
 
 func (s *SearchService) checkAutoIndexing() {
+	if s == nil || s.repo == nil {
+		return
+	}
 	ctx := context.Background()
 	configs, err := s.repo.GetConfigs(ctx)
 	if err != nil {
@@ -138,8 +144,8 @@ func (s *SearchService) listRecursive(ctx context.Context, remote, path string) 
 	return results, nil
 }
 
-func (s *SearchService) Search(ctx context.Context, query string) ([]store.IndexedFile, error) {
-	return s.repo.Search(ctx, query)
+func (s *SearchService) Search(ctx context.Context, query string, limit, offset int) ([]store.IndexedFile, int, error) {
+	return s.repo.Search(ctx, query, limit, offset)
 }
 
 func (s *SearchService) GetConfigs(ctx context.Context) ([]store.RemoteIndexConfig, error) {
