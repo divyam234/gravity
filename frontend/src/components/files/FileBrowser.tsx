@@ -446,10 +446,10 @@ export function FileBrowser({ path }: FileBrowserProps) {
                     "data-[selected=true]:bg-accent/10 data-[selected=true]:border-accent/30 flex items-center gap-3 w-full",
                   )}
                 >
-                  <FileIcon 
-                    name={file.name} 
-                    isDir={file.isDir} 
-                    className="w-10 h-10 transition-transform duration-200 group-hover:scale-105 shadow-sm" 
+                  <FileIcon
+                    name={file.name}
+                    isDir={file.isDir}
+                    className="w-10 h-10 transition-transform duration-200 group-hover:scale-105 shadow-sm"
                   />
 
                   <div className="flex-1 min-w-0 flex items-center justify-between gap-4">
@@ -513,88 +513,79 @@ export function FileBrowser({ path }: FileBrowserProps) {
           placement="bottom start"
           className="min-w-[200px] bg-content1 border border-border shadow-2xl rounded-2xl p-1"
         >
-          <Dropdown.Menu aria-label="File Actions">
+          <Dropdown.Menu
+            dependencies={[menuFile]}
+            aria-label="File Actions"
+            onAction={(key) => {
+              console.log("jfojdfaljflk", menuFile,key)
+              if (!menuFile) return;
+              const file = menuFile;
+              setMenuOpen(false);
+
+              if (key === "open" && file.isDir) navigate(file.path);
+              if (key === "delete") deleteMutation.mutateAsync([file.path]);
+              if (key === "rename") {
+                setModalType("rename");
+                setModalInputValue(file.name);
+                setRenameOldPath(file.path);
+                modal.onOpen();
+              }
+              if (key === "copy") {
+                setClipboard({
+                  op: "copy",
+                  paths: [file.path],
+                });
+                toast.success("Copied to clipboard");
+              }
+              if (key === "cut") {
+                setClipboard({
+                  op: "move",
+                  paths: [file.path],
+                });
+                toast.success("Cut to clipboard");
+              }
+            }}
+          >
             <Dropdown.Item
-              key="open"
+              id="open"
               textValue="Open"
               className="rounded-xl py-2.5 px-3"
-              onPress={() => {
-                setMenuOpen(false);
-                if (menuFile?.isDir) navigate(menuFile.path);
-              }}
             >
-              <div className="flex items-center gap-3">
-                <IconFolder className="w-4 h-4 text-muted" />
-                <Label className="font-bold">Open</Label>
-              </div>
+              <IconFolder className="size-4 shrink-0" />
+              <Label className="font-bold">Open</Label>
             </Dropdown.Item>
             <Dropdown.Item
-              key="copy"
+              id="copy"
               textValue="Copy"
               className="rounded-xl py-2.5 px-3"
-              onPress={() => {
-                setMenuOpen(false);
-                if (menuFile) {
-                  setClipboard({ op: "copy", paths: [menuFile.path] });
-                  toast.success("Copied to clipboard");
-                }
-              }}
             >
-              <div className="flex items-center gap-3">
-                <IconCopy className="w-4 h-4 text-muted" />
-                <Label className="font-bold">Copy</Label>
-              </div>
+              <IconCopy className="size-4 shrink-0" />
+              <Label className="font-bold">Copy</Label>
             </Dropdown.Item>
             <Dropdown.Item
-              key="cut"
+              id="cut"
               textValue="Cut"
               className="rounded-xl py-2.5 px-3"
-              onPress={() => {
-                setMenuOpen(false);
-                if (menuFile) {
-                  setClipboard({ op: "move", paths: [menuFile.path] });
-                  toast.success("Cut to clipboard");
-                }
-              }}
             >
-              <div className="flex items-center gap-3">
-                <IconArrowRightFromSquare className="w-4 h-4 text-muted" />
-                <Label className="font-bold">Cut</Label>
-              </div>
+              <IconArrowRightFromSquare className="size-4 shrink-0" />
+              <Label className="font-bold">Cut</Label>
             </Dropdown.Item>
             <Dropdown.Item
-              key="rename"
+              id="rename"
               textValue="Rename"
               className="rounded-xl py-2.5 px-3"
-              onPress={() => {
-                setMenuOpen(false);
-                if (menuFile) {
-                  setModalType("rename");
-                  setModalInputValue(menuFile.name);
-                  setRenameOldPath(menuFile.path);
-                  modal.onOpen();
-                }
-              }}
             >
-              <div className="flex items-center gap-3">
-                <IconPencil className="w-4 h-4 text-muted" />
-                <Label className="font-bold">Rename</Label>
-              </div>
+              <IconPencil className="size-4 shrink-0" />
+              <Label className="font-bold">Rename</Label>
             </Dropdown.Item>
             <Dropdown.Item
-              key="delete"
+              id="delete"
               variant="danger"
               textValue="Delete"
               className="rounded-xl py-2.5 px-3 bg-danger/10 text-danger"
-              onPress={() => {
-                setMenuOpen(false);
-                if (menuFile) deleteMutation.mutate([menuFile.path]);
-              }}
             >
-              <div className="flex items-center gap-3">
-                <IconTrashBin className="w-4 h-4" />
-                <Label className="font-bold">Delete</Label>
-              </div>
+              <IconTrashBin className="size-4 shrink-0" />
+              <Label className="font-bold">Delete</Label>
             </Dropdown.Item>
           </Dropdown.Menu>
         </Dropdown.Popover>
@@ -684,9 +675,9 @@ export function FileBrowser({ path }: FileBrowserProps) {
                           )}
                         </span>
                       </div>
-                      <Button 
-                        size="sm" 
-                        variant="primary" 
+                      <Button
+                        size="sm"
+                        variant="primary"
                         className="rounded-xl"
                         isDisabled={config.status === "indexing"}
                         onPress={() => triggerIndexMutation.mutate(config.remote)}
@@ -697,12 +688,12 @@ export function FileBrowser({ path }: FileBrowserProps) {
 
                     <div className="flex items-center gap-4 mt-4">
                       <Label className="text-xs font-bold text-muted uppercase tracking-widest shrink-0">Auto Update</Label>
-                      <select 
+                      <select
                         className="flex-1 bg-background border border-border rounded-lg px-2 py-1 text-sm outline-none"
                         value={config.autoIndexIntervalMin}
-                        onChange={(e) => updateIndexConfigMutation.mutate({ 
-                          remote: config.remote, 
-                          interval: parseInt(e.target.value) 
+                        onChange={(e) => updateIndexConfigMutation.mutate({
+                          remote: config.remote,
+                          interval: parseInt(e.target.value)
                         })}
                       >
                         <option value={0}>Disabled</option>
