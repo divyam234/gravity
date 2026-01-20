@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -18,6 +19,7 @@ import (
 
 type DownloadService struct {
 	repo         *store.DownloadRepo
+	settingsRepo *store.SettingsRepo
 	engine       engine.DownloadEngine
 	uploadEngine engine.UploadEngine
 	bus          *event.Bus
@@ -28,9 +30,10 @@ type DownloadService struct {
 	mu             sync.RWMutex
 }
 
-func NewDownloadService(repo *store.DownloadRepo, eng engine.DownloadEngine, ue engine.UploadEngine, bus *event.Bus, provider *ProviderService) *DownloadService {
+func NewDownloadService(repo *store.DownloadRepo, settingsRepo *store.SettingsRepo, eng engine.DownloadEngine, ue engine.UploadEngine, bus *event.Bus, provider *ProviderService) *DownloadService {
 	s := &DownloadService{
 		repo:           repo,
+		settingsRepo:   settingsRepo,
 		engine:         eng,
 		uploadEngine:   ue,
 		bus:            bus,
@@ -61,6 +64,7 @@ func (s *DownloadService) Create(ctx context.Context, url string, filename strin
 		ID:          "d_" + uuid.New().String()[:8],
 		URL:         url,
 		ResolvedURL: res.URL,
+		Headers:     res.Headers,
 		Provider:    providerName,
 		Filename:    filename,
 		Size:        res.Size,
@@ -74,29 +78,14 @@ func (s *DownloadService) Create(ctx context.Context, url string, filename strin
 		return nil, err
 	}
 
-	// 2. Start download in engine with resolved URL and headers
-	engineID, err := s.engine.Add(ctx, res.URL, engine.DownloadOptions{
-		Filename: filename,
-		Headers:  res.Headers,
-	})
-	if err != nil {
-		d.Status = model.StatusError
-		d.Error = err.Error()
-		s.repo.Update(ctx, d)
-		return nil, err
-	}
-
-	d.EngineID = engineID
-	d.Status = model.StatusActive
-	if err := s.repo.Update(ctx, d); err != nil {
-		return nil, err
-	}
-
 	s.bus.Publish(event.Event{
 		Type:      event.DownloadCreated,
 		Timestamp: time.Now(),
 		Data:      d,
 	})
+
+	// Trigger queue processing
+	go s.ProcessQueue(context.Background())
 
 	return d, nil
 }
@@ -185,20 +174,13 @@ func (s *DownloadService) Pause(ctx context.Context, id string) error {
 		return err
 	}
 
-	if d.IsMagnet && d.MagnetSource == "alldebrid" {
-		files, _ := s.repo.GetFiles(ctx, d.ID)
-		for _, f := range files {
-			if f.EngineID != "" {
-				s.engine.Pause(ctx, f.EngineID)
-			}
-		}
-	} else if d.EngineID != "" {
-		if err := s.engine.Pause(ctx, d.EngineID); err != nil {
-			return err
-		}
+	// Remove from engine if active
+	if d.EngineID != "" {
+		s.engine.Cancel(ctx, d.EngineID)
 	}
 
 	d.Status = model.StatusPaused
+	d.EngineID = "" // Clear GID as it's no longer in engine
 	if err := s.repo.Update(ctx, d); err != nil {
 		return err
 	}
@@ -209,6 +191,9 @@ func (s *DownloadService) Pause(ctx context.Context, id string) error {
 		Data:      map[string]string{"id": id},
 	})
 
+	// Trigger queue to fill the slot
+	go s.ProcessQueue(context.Background())
+
 	return nil
 }
 
@@ -218,20 +203,7 @@ func (s *DownloadService) Resume(ctx context.Context, id string) error {
 		return err
 	}
 
-	if d.IsMagnet && d.MagnetSource == "alldebrid" {
-		files, _ := s.repo.GetFiles(ctx, d.ID)
-		for _, f := range files {
-			if f.EngineID != "" {
-				s.engine.Resume(ctx, f.EngineID)
-			}
-		}
-	} else if d.EngineID != "" {
-		if err := s.engine.Resume(ctx, d.EngineID); err != nil {
-			return err
-		}
-	}
-
-	d.Status = model.StatusActive
+	d.Status = model.StatusWaiting
 	if err := s.repo.Update(ctx, d); err != nil {
 		return err
 	}
@@ -241,6 +213,9 @@ func (s *DownloadService) Resume(ctx context.Context, id string) error {
 		Timestamp: time.Now(),
 		Data:      map[string]string{"id": id},
 	})
+
+	// Trigger queue
+	go s.ProcessQueue(context.Background())
 
 	return nil
 }
@@ -321,8 +296,99 @@ func (s *DownloadService) Delete(ctx context.Context, id string, deleteFiles boo
 	return nil
 }
 
-func (s *DownloadService) GetFiles(ctx context.Context, id string) ([]model.DownloadFile, error) {
-	return s.repo.GetFiles(ctx, id)
+func (s *DownloadService) Start() {
+	// 1. Listen for engine events to trigger scheduler
+	events := s.bus.Subscribe()
+	go func() {
+		for ev := range events {
+			switch ev.Type {
+			case event.DownloadCompleted, event.DownloadError:
+				s.ProcessQueue(context.Background())
+			}
+		}
+	}()
+
+	// 2. Periodic scheduler check
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		for range ticker.C {
+			s.ProcessQueue(context.Background())
+		}
+	}()
+
+	// 3. Initial processing
+	s.ProcessQueue(context.Background())
+}
+
+func (s *DownloadService) ProcessQueue(ctx context.Context) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Get max concurrent settings
+	settings, _ := s.settingsRepo.Get(ctx)
+	maxConcurrent := 3 // default
+	if val, ok := settings["max_concurrent_downloads"]; ok {
+		if i, err := strconv.Atoi(val); err == nil {
+			maxConcurrent = i
+		}
+	}
+
+	// 1. Count active tasks in DB (instead of engine to be more robust)
+	dbActive, _, _ := s.repo.List(ctx, []string{string(model.StatusActive)}, 100, 0)
+	activeCount := len(dbActive)
+
+	if activeCount >= maxConcurrent {
+		return
+	}
+
+	// 2. Fetch next waiting tasks from DB
+	limit := maxConcurrent - activeCount
+	waiting, _, err := s.repo.List(ctx, []string{string(model.StatusWaiting)}, limit, 0)
+	if err != nil || len(waiting) == 0 {
+		return
+	}
+
+	for _, d := range waiting {
+		// Calculate total size from selected files only if multi-file
+		var totalSize int64
+		files, _ := s.repo.GetFiles(ctx, d.ID)
+		if len(files) > 0 {
+			for _, f := range files {
+				totalSize += f.Size
+			}
+			d.Size = totalSize
+		}
+
+		// Submit to engine
+		opts := engine.DownloadOptions{
+			Filename:      d.Filename,
+			Dir:           d.LocalPath,
+			Headers:       d.Headers,
+			TorrentData:   d.TorrentData,
+			SelectedFiles: d.SelectedFiles,
+		}
+
+		// If it's a magnet, we need special handling if it's already got metadata
+		// but for now, simple Add is enough for normal URLs and magnets.
+		engineID, err := s.engine.Add(ctx, d.ResolvedURL, opts)
+		if err != nil {
+			d.Status = model.StatusError
+			d.Error = "Queue submission failed: " + err.Error()
+			s.repo.Update(ctx, d)
+			continue
+		}
+
+		d.EngineID = engineID
+		d.Status = model.StatusActive
+		s.repo.Update(ctx, d)
+
+		s.bus.Publish(event.Event{
+			Type:      event.DownloadStarted,
+			Timestamp: time.Now(),
+			Data:      d,
+		})
+	}
 }
 
 func (s *DownloadService) Sync(ctx context.Context) error {
@@ -332,42 +398,42 @@ func (s *DownloadService) Sync(ctx context.Context) error {
 	}
 
 	gidMap := make(map[string]*engine.DownloadStatus)
-	nameMap := make(map[string]*engine.DownloadStatus)
 	for _, t := range engineTasks {
 		gidMap[t.ID] = t
-		if t.Filename != "" {
-			nameMap[t.Filename] = t
-		}
 	}
 
-	dbDownloads, _, err := s.repo.List(ctx, []string{
-		string(model.StatusActive),
-		string(model.StatusPaused),
-		string(model.StatusWaiting),
-	}, 1000, 0)
+	dbActive, _, err := s.repo.List(ctx, []string{string(model.StatusActive)}, 1000, 0)
 	if err != nil {
 		return err
 	}
 
-	for _, d := range dbDownloads {
-		var matched *engine.DownloadStatus
-		if d.EngineID != "" {
-			matched = gidMap[d.EngineID]
-		}
-		if matched == nil && d.Filename != "" {
-			matched = nameMap[d.Filename]
+	for _, d := range dbActive {
+		if d.EngineID == "" {
+			d.Status = model.StatusWaiting
+			s.repo.Update(ctx, d)
+			continue
 		}
 
-		if matched != nil {
-			d.EngineID = matched.ID
-			d.Status = model.DownloadStatus(matched.Status)
-			s.repo.Update(ctx, d)
-		} else if d.Status == model.StatusActive {
+		if matched, ok := gidMap[d.EngineID]; ok {
+			// update status if it changed in engine (e.g. finished while app was off)
+			if matched.Status == "complete" {
+				s.handleComplete(matched.ID, "")
+			} else if matched.Status == "error" {
+				s.handleError(matched.ID, fmt.Errorf("engine reported error"))
+			} else if matched.Status == "paused" {
+				d.Status = model.StatusPaused
+				s.repo.Update(ctx, d)
+			}
+		} else {
+			// disappeared from engine entirely, move to waiting so queue can pick it up
 			d.Status = model.StatusWaiting
-			d.Error = "Engine task not found, waiting for recovery"
+			d.EngineID = ""
 			s.repo.Update(ctx, d)
 		}
 	}
+
+	// Trigger queue processing
+	go s.ProcessQueue(context.Background())
 
 	return nil
 }
@@ -406,6 +472,9 @@ func (s *DownloadService) handleProgress(engineID string, p engine.Progress) {
 						s.lastPersistMap[file.ID] = time.Now()
 					}
 					s.mu.Unlock()
+
+					// Update parent aggregate stats
+					s.updateAggregateProgress(ctx, parent)
 					return
 				}
 			}
@@ -526,13 +595,38 @@ func (s *DownloadService) handleComplete(engineID string, filePath string) {
 
 	d, err := s.repo.GetByEngineID(ctx, engineID)
 	if err == nil {
+		// Determine the actual path created by aria2
+		status, err := s.engine.Status(ctx, engineID)
+		if err == nil {
+			// aria2 returns 'dir' (output dir) and 'files' (actual paths)
+			// For a torrent, files[0].path will be something like /downloads/ReleaseName/file.mp4
+			// if dir is /downloads, we want to upload /downloads/ReleaseName
+			if len(status.Files) > 0 {
+				actualPath := status.Files[0].Path // Use .Path from the refactored engine status
+				if actualPath == "" {
+					actualPath = filePath // fallback
+				}
+
+				// Calculate relative path to the download directory
+				rel, err := filepath.Rel(status.Dir, actualPath)
+				if err == nil {
+					// Split relative path and take the first component
+					// e.g. "Release/file.mp4" -> "Release"
+					// e.g. "file.mp4" -> "file.mp4"
+					parts := strings.Split(filepath.ToSlash(rel), "/")
+					if len(parts) > 0 {
+						d.LocalPath = filepath.Join(status.Dir, parts[0])
+					}
+				}
+			}
+		}
+
 		if d.Destination != "" {
 			d.Status = model.StatusUploading
 		} else {
 			d.Status = model.StatusComplete
 		}
 
-		d.LocalPath = filePath
 		now := time.Now()
 		d.CompletedAt = &now
 		s.repo.Update(ctx, d)
@@ -559,6 +653,10 @@ func (s *DownloadService) handleComplete(engineID string, filePath string) {
 		}
 		return
 	}
+}
+
+func (s *DownloadService) GetFiles(ctx context.Context, id string) ([]model.DownloadFile, error) {
+	return s.repo.GetFiles(ctx, id)
 }
 
 func (s *DownloadService) handleError(engineID string, err error) {

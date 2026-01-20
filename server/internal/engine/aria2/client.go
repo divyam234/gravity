@@ -7,18 +7,13 @@ import (
 	"fmt"
 	"net/http"
 	"time"
-
-	"nhooyr.io/websocket"
-	"nhooyr.io/websocket/wsjson"
 )
 
 type Client struct {
-	url     string
-	secret  string
 	httpUrl string
 }
 
-func NewClient(wsUrl, secret string) *Client {
+func NewClient(wsUrl string) *Client {
 	httpUrl := wsUrl
 	if bytes.HasPrefix([]byte(wsUrl), []byte("ws://")) {
 		httpUrl = "http://" + wsUrl[5:]
@@ -27,8 +22,6 @@ func NewClient(wsUrl, secret string) *Client {
 	}
 
 	return &Client{
-		url:     wsUrl,
-		secret:  secret,
 		httpUrl: httpUrl,
 	}
 }
@@ -52,16 +45,23 @@ type JsonRpcError struct {
 }
 
 func (c *Client) Call(ctx context.Context, method string, params ...interface{}) (json.RawMessage, error) {
-	finalParams := []interface{}{"token:" + c.secret}
-	finalParams = append(finalParams, params...)
+	// For internal use, we pass empty params if none provided
+	p := params
+	if len(p) == 0 {
+		p = []interface{}{}
+	}
 
 	reqBody := JsonRpcRequest{
 		JsonRPC: "2.0",
 		Method:  method,
 		Id:      fmt.Sprintf("%d", time.Now().UnixNano()),
-		Params:  finalParams,
+		Params:  p,
 	}
 
+	return c.doRequest(ctx, reqBody)
+}
+
+func (c *Client) doRequest(ctx context.Context, reqBody JsonRpcRequest) (json.RawMessage, error) {
 	jsonData, err := json.Marshal(reqBody)
 	if err != nil {
 		return nil, err
@@ -90,30 +90,4 @@ func (c *Client) Call(ctx context.Context, method string, params ...interface{})
 	}
 
 	return rpcResp.Result, nil
-}
-
-type Notification struct {
-	Method string `json:"method"`
-	Params []struct {
-		Gid string `json:"gid"`
-	} `json:"params"`
-}
-
-func (c *Client) Listen(ctx context.Context, handler func(method string, gid string)) error {
-	conn, _, err := websocket.Dial(ctx, c.url, nil)
-	if err != nil {
-		return err
-	}
-	defer conn.Close(websocket.StatusNormalClosure, "")
-
-	for {
-		var msg Notification
-		if err := wsjson.Read(ctx, conn, &msg); err != nil {
-			return err
-		}
-
-		if len(msg.Params) > 0 {
-			handler(msg.Method, msg.Params[0].Gid)
-		}
-	}
 }

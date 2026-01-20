@@ -19,6 +19,8 @@ const downloadColumns = `
 	is_magnet, magnet_hash, magnet_source, magnet_id, 
 	total_files, files_complete,
 	seeders, peers,
+	headers,
+	torrent_data, selected_files,
 	created_at, started_at, completed_at, updated_at
 `
 
@@ -32,9 +34,11 @@ func NewDownloadRepo(db *sql.DB) *DownloadRepo {
 
 func (r *DownloadRepo) Create(ctx context.Context, d *model.Download) error {
 	tagsJson, _ := json.Marshal(d.Tags)
+	headersJson, _ := json.Marshal(d.Headers)
+	selectedFilesJson, _ := json.Marshal(d.SelectedFiles)
 	query := fmt.Sprintf(`
 		INSERT INTO downloads (%s) 
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, downloadColumns)
 
 	_, err := r.db.ExecContext(ctx, query,
@@ -45,6 +49,8 @@ func (r *DownloadRepo) Create(ctx context.Context, d *model.Download) error {
 		d.IsMagnet, d.MagnetHash, d.MagnetSource, d.MagnetID,
 		d.TotalFiles, d.FilesComplete,
 		d.Seeders, d.Peers,
+		string(headersJson),
+		d.TorrentData, string(selectedFilesJson),
 		d.CreatedAt, d.StartedAt, d.CompletedAt, d.UpdatedAt,
 	)
 	return err
@@ -107,6 +113,8 @@ func (r *DownloadRepo) List(ctx context.Context, status []string, limit, offset 
 
 func (r *DownloadRepo) Update(ctx context.Context, d *model.Download) error {
 	tagsJson, _ := json.Marshal(d.Tags)
+	headersJson, _ := json.Marshal(d.Headers)
+	selectedFilesJson, _ := json.Marshal(d.SelectedFiles)
 	d.UpdatedAt = time.Now()
 
 	query := `
@@ -118,6 +126,8 @@ func (r *DownloadRepo) Update(ctx context.Context, d *model.Download) error {
 			is_magnet = ?, magnet_hash = ?, magnet_source = ?, magnet_id = ?,
 			total_files = ?, files_complete = ?,
 			seeders = ?, peers = ?,
+			headers = ?,
+			torrent_data = ?, selected_files = ?,
 			started_at = ?, completed_at = ?, updated_at = ?
 		WHERE id = ?
 	`
@@ -129,6 +139,8 @@ func (r *DownloadRepo) Update(ctx context.Context, d *model.Download) error {
 		d.IsMagnet, d.MagnetHash, d.MagnetSource, d.MagnetID,
 		d.TotalFiles, d.FilesComplete,
 		d.Seeders, d.Peers,
+		string(headersJson),
+		d.TorrentData, string(selectedFilesJson),
 		d.StartedAt, d.CompletedAt, d.UpdatedAt,
 		d.ID,
 	)
@@ -144,9 +156,9 @@ func (r *DownloadRepo) scanDownload(scanner interface {
 	Scan(dest ...interface{}) error
 }) (*model.Download, error) {
 	d := &model.Download{}
-	var tags string
+	var tags, headers, selectedFiles string
 	var resolvedURL, provider, errStr, filename, localPath, destination, uploadStatus, category, engineID, uploadJobID sql.NullString
-	var magnetHash, magnetSource, magnetID sql.NullString
+	var magnetHash, magnetSource, magnetID, torrentData sql.NullString
 	var startedAt, completedAt sql.NullTime
 
 	err := scanner.Scan(
@@ -157,6 +169,8 @@ func (r *DownloadRepo) scanDownload(scanner interface {
 		&d.IsMagnet, &magnetHash, &magnetSource, &magnetID,
 		&d.TotalFiles, &d.FilesComplete,
 		&d.Seeders, &d.Peers,
+		&headers,
+		&torrentData, &selectedFiles,
 		&d.CreatedAt, &startedAt, &completedAt, &d.UpdatedAt,
 	)
 	if err != nil {
@@ -179,6 +193,7 @@ func (r *DownloadRepo) scanDownload(scanner interface {
 	d.MagnetHash = magnetHash.String
 	d.MagnetSource = magnetSource.String
 	d.MagnetID = magnetID.String
+	d.TorrentData = torrentData.String
 
 	if startedAt.Valid {
 		d.StartedAt = &startedAt.Time
@@ -188,6 +203,8 @@ func (r *DownloadRepo) scanDownload(scanner interface {
 	}
 
 	json.Unmarshal([]byte(tags), &d.Tags)
+	json.Unmarshal([]byte(headers), &d.Headers)
+	json.Unmarshal([]byte(selectedFiles), &d.SelectedFiles)
 
 	return d, nil
 }
@@ -202,9 +219,11 @@ func (r *DownloadRepo) CreateWithFiles(ctx context.Context, d *model.Download) e
 
 	// Create download
 	tagsJson, _ := json.Marshal(d.Tags)
+	headersJson, _ := json.Marshal(d.Headers)
+	selectedFilesJson, _ := json.Marshal(d.SelectedFiles)
 	query := fmt.Sprintf(`
 		INSERT INTO downloads (%s) 
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, downloadColumns)
 
 	_, err = tx.ExecContext(ctx, query,
@@ -215,6 +234,8 @@ func (r *DownloadRepo) CreateWithFiles(ctx context.Context, d *model.Download) e
 		d.IsMagnet, d.MagnetHash, d.MagnetSource, d.MagnetID,
 		d.TotalFiles, d.FilesComplete,
 		d.Seeders, d.Peers,
+		string(headersJson),
+		d.TorrentData, string(selectedFilesJson),
 		d.CreatedAt, d.StartedAt, d.CompletedAt, d.UpdatedAt,
 	)
 	if err != nil {

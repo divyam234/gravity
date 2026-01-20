@@ -12,13 +12,12 @@ import (
 
 type Runner struct {
 	port        int
-	secret      string
 	sessionFile string
 	downloadDir string
 	cmd         *exec.Cmd
 }
 
-func NewRunner(port int, secret, dataDir string) *Runner {
+func NewRunner(port int, dataDir string) *Runner {
 	os.MkdirAll(dataDir, 0755)
 	sessionFile := filepath.Join(dataDir, "aria2.session")
 	if _, err := os.Stat(sessionFile); os.IsNotExist(err) {
@@ -30,7 +29,6 @@ func NewRunner(port int, secret, dataDir string) *Runner {
 
 	return &Runner{
 		port:        port,
-		secret:      secret,
 		sessionFile: sessionFile,
 		downloadDir: downloadDir,
 	}
@@ -41,7 +39,6 @@ func (r *Runner) Start() error {
 		"--enable-rpc",
 		"--rpc-listen-all=false",
 		fmt.Sprintf("--rpc-listen-port=%d", r.port),
-		fmt.Sprintf("--rpc-secret=%s", r.secret),
 		"--rpc-allow-origin-all=true",
 		fmt.Sprintf("--input-file=%s", r.sessionFile),
 		fmt.Sprintf("--save-session=%s", r.sessionFile),

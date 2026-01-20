@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -22,15 +22,19 @@ type Engine struct {
 	onError    func(id string, err error)
 
 	mu sync.RWMutex
+
+	// Track reported stopped GIDs to avoid duplicate events
+	reportedGids map[string]bool
 }
 
-func NewEngine(port int, secret, dataDir string) *Engine {
-	runner := NewRunner(port, secret, dataDir)
-	client := NewClient(fmt.Sprintf("ws://localhost:%d/jsonrpc", port), secret)
+func NewEngine(port int, dataDir string) *Engine {
+	runner := NewRunner(port, dataDir)
+	client := NewClient(fmt.Sprintf("http://localhost:%d/jsonrpc", port))
 
 	return &Engine{
-		runner: runner,
-		client: client,
+		runner:       runner,
+		client:       client,
+		reportedGids: make(map[string]bool),
 	}
 }
 
@@ -53,16 +57,8 @@ func (e *Engine) Start(ctx context.Context) error {
 		return fmt.Errorf("aria2 engine failed to become ready")
 	}
 
-	// Start listener
-	go func() {
-		err := e.client.Listen(context.Background(), e.handleNotification)
-		if err != nil {
-			log.Printf("Aria2 listener stopped: %v", err)
-		}
-	}()
-
-	// Start poller for progress
-	go e.pollProgress()
+	// Start poller for progress and lifecycle
+	go e.poll()
 
 	return nil
 }
@@ -79,8 +75,12 @@ func (e *Engine) Add(ctx context.Context, url string, opts engine.DownloadOption
 	if opts.Dir != "" {
 		ariaOpts["dir"] = opts.Dir
 	}
-	for k, v := range opts.Headers {
-		ariaOpts["header"] = append(ariaOpts["header"].([]string), fmt.Sprintf("%s: %s", k, v))
+	if len(opts.Headers) > 0 {
+		var headers []string
+		for k, v := range opts.Headers {
+			headers = append(headers, fmt.Sprintf("%s: %s", k, v))
+		}
+		ariaOpts["header"] = headers
 	}
 	if opts.MaxSpeed > 0 {
 		ariaOpts["max-download-limit"] = strconv.FormatInt(opts.MaxSpeed, 10)
@@ -90,7 +90,27 @@ func (e *Engine) Add(ctx context.Context, url string, opts engine.DownloadOption
 		ariaOpts["max-connection-per-server"] = strconv.Itoa(opts.Connections)
 	}
 
-	res, err := e.client.Call(ctx, "aria2.addUri", []string{url}, ariaOpts)
+	// File selection for torrents/magnets
+	if len(opts.SelectedFiles) > 0 {
+		var indexes []string
+		for _, idx := range opts.SelectedFiles {
+			indexes = append(indexes, strconv.Itoa(idx))
+		}
+		ariaOpts["select-file"] = strings.Join(indexes, ",")
+	}
+
+	var method string
+	var params []interface{}
+
+	if opts.TorrentData != "" {
+		method = "aria2.addTorrent"
+		params = []interface{}{opts.TorrentData, []interface{}{}, ariaOpts}
+	} else {
+		method = "aria2.addUri"
+		params = []interface{}{[]string{url}, ariaOpts}
+	}
+
+	res, err := e.client.Call(ctx, method, params...)
 	if err != nil {
 		return "", err
 	}
@@ -171,41 +191,23 @@ func (e *Engine) GetPeers(ctx context.Context, id string) ([]engine.DownloadPeer
 }
 
 func (e *Engine) List(ctx context.Context) ([]*engine.DownloadStatus, error) {
-	// For simplicity, just get active and stopped tasks
-	var results []*engine.DownloadStatus
-
-	active, _ := e.client.Call(ctx, "aria2.tellActive")
-	var activeTasks []Aria2Task
-	json.Unmarshal(active, &activeTasks)
-	for _, t := range activeTasks {
-		results = append(results, e.mapStatus(&t))
+	results, err := e.fetchTasks(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	waiting, _ := e.client.Call(ctx, "aria2.tellWaiting", 0, 100)
-	var waitingTasks []Aria2Task
-	json.Unmarshal(waiting, &waitingTasks)
-	for _, t := range waitingTasks {
-		results = append(results, e.mapStatus(&t))
+	var statuses []*engine.DownloadStatus
+	for _, t := range results {
+		statuses = append(statuses, e.mapStatus(t))
 	}
-
-	stopped, _ := e.client.Call(ctx, "aria2.tellStopped", 0, 100)
-	var stoppedTasks []Aria2Task
-	json.Unmarshal(stopped, &stoppedTasks)
-	for _, t := range stoppedTasks {
-		results = append(results, e.mapStatus(&t))
-	}
-
-	return results, nil
+	return statuses, nil
 }
 
 func (e *Engine) Sync(ctx context.Context) error {
-	// Aria2 handles session recovery via its session file automatically.
-	// We can use this method to verify connectivity if needed.
 	return nil
 }
 
 func (e *Engine) Configure(ctx context.Context, options map[string]string) error {
-	// Map generic keys to Aria2 keys
 	keyMap := map[string]string{
 		"downloadDir":              "dir",
 		"maxConcurrentDownloads":   "max-concurrent-downloads",
@@ -231,12 +233,6 @@ func (e *Engine) Configure(ctx context.Context, options map[string]string) error
 		if ariaKey, ok := keyMap[k]; ok {
 			ariaOpts[ariaKey] = v
 		} else {
-			// If key not in map, assume it might be a direct key or ignored?
-			// For safety and abstraction, we should probably ignore unknown keys or pass them through if we trust the source.
-			// Let's pass through for now to support legacy/direct usage if needed, or strict.
-			// Given "nice abstraction" goal, strict mapping is better, but passing through allows fallback.
-			// I'll pass through with logging (if I had logger).
-			// I'll pass through for flexibility.
 			ariaOpts[k] = v
 		}
 	}
@@ -245,7 +241,7 @@ func (e *Engine) Configure(ctx context.Context, options map[string]string) error
 }
 
 func (e *Engine) Version(ctx context.Context) (string, error) {
-	res, err := e.client.Call(ctx, "aria2.getVersion", nil)
+	res, err := e.client.Call(ctx, "aria2.getVersion")
 	if err != nil {
 		return "", err
 	}
@@ -274,40 +270,6 @@ func (e *Engine) OnComplete(h func(string, string)) {
 }
 func (e *Engine) OnError(h func(string, error)) { e.mu.Lock(); defer e.mu.Unlock(); e.onError = h }
 
-func (e *Engine) handleNotification(method string, gid string) {
-	switch method {
-	case "aria2.onDownloadComplete":
-		if h := e.onComplete; h != nil {
-			status, _ := e.Status(context.Background(), gid)
-			filePath := ""
-			if status != nil {
-				filePath = status.Filename
-				if !filepath.IsAbs(filePath) {
-					filePath = filepath.Join(status.Dir, status.Filename)
-				}
-
-				// If the file is in a subdirectory of the download dir,
-				// it's likely a multi-file download (torrent).
-				// We should return the directory path instead of the first file.
-				parent := filepath.Dir(filePath)
-				if parent != filepath.Clean(status.Dir) && parent != "." && parent != "/" {
-					filePath = parent
-				}
-			}
-			h(gid, filePath)
-		}
-	case "aria2.onDownloadError":
-		if h := e.onError; h != nil {
-			status, _ := e.Status(context.Background(), gid)
-			errMsg := "unknown error"
-			if status != nil {
-				errMsg = status.Error
-			}
-			h(gid, fmt.Errorf("%s", errMsg))
-		}
-	}
-}
-
 type Aria2Task struct {
 	Gid             string      `json:"gid"`
 	Status          string      `json:"status"`
@@ -322,59 +284,6 @@ type Aria2Task struct {
 	Files           []Aria2File `json:"files"`
 }
 
-func (e *Engine) mapStatus(t *Aria2Task) *engine.DownloadStatus {
-	total, _ := strconv.ParseInt(t.TotalLength, 10, 64)
-	completed, _ := strconv.ParseInt(t.CompletedLength, 10, 64)
-	speed, _ := strconv.ParseInt(t.DownloadSpeed, 10, 64)
-	conn, _ := strconv.Atoi(t.Connections)
-	seeders, _ := strconv.Atoi(t.NumSeeders)
-
-	// Calculate ETA manually if speed > 0
-	eta := 0
-	if speed > 0 && total > 0 {
-		remaining := total - completed
-		if remaining > 0 {
-			eta = int(remaining / speed)
-		}
-	}
-
-	// Map Aria2 status to Gravity canonical status
-	status := t.Status
-	switch t.Status {
-	case "active":
-		status = "active"
-	case "waiting":
-		status = "waiting"
-	case "paused":
-		status = "paused"
-	case "complete":
-		status = "complete"
-	case "error":
-		status = "error"
-	}
-
-	filename := ""
-	if len(t.Files) > 0 {
-		filename = filepath.Base(t.Files[0].Path)
-	}
-
-	return &engine.DownloadStatus{
-		ID:          t.Gid,
-		Status:      status,
-		URL:         "", // Aria2 doesn't return original URL easily in tellStatus
-		Filename:    filename,
-		Dir:         t.Dir,
-		Size:        total,
-		Downloaded:  completed,
-		Speed:       speed,
-		Connections: conn,
-		Seeders:     seeders,
-		Peers:       conn - seeders, // Peers = total connections - seeders
-		Eta:         eta,
-		Error:       t.ErrorMessage,
-	}
-}
-
 type Aria2File struct {
 	Index           string `json:"index"`
 	Path            string `json:"path"`
@@ -383,71 +292,210 @@ type Aria2File struct {
 	Selected        string `json:"selected"`
 }
 
-func (e *Engine) pollProgress() {
+func (e *Engine) mapStatus(t *Aria2Task) *engine.DownloadStatus {
+	total, _ := strconv.ParseInt(t.TotalLength, 10, 64)
+	completed, _ := strconv.ParseInt(t.CompletedLength, 10, 64)
+	speed, _ := strconv.ParseInt(t.DownloadSpeed, 10, 64)
+	conn, _ := strconv.Atoi(t.Connections)
+	seeders, _ := strconv.Atoi(t.NumSeeders)
+
+	eta := 0
+	if speed > 0 && total > 0 {
+		remaining := total - completed
+		if remaining > 0 {
+			eta = int(remaining / speed)
+		}
+	}
+
+	status := t.Status
+	filename := ""
+	var files []engine.DownloadFileStatus
+	if len(t.Files) > 0 {
+		filename = filepath.Base(t.Files[0].Path)
+		for _, f := range t.Files {
+			idx, _ := strconv.Atoi(f.Index)
+			length, _ := strconv.ParseInt(f.Length, 10, 64)
+			files = append(files, engine.DownloadFileStatus{
+				Index:    idx,
+				Path:     f.Path,
+				Size:     length,
+				Selected: f.Selected == "true",
+			})
+		}
+	}
+
+	return &engine.DownloadStatus{
+		ID:          t.Gid,
+		Status:      status,
+		Filename:    filename,
+		Dir:         t.Dir,
+		Size:        total,
+		Downloaded:  completed,
+		Speed:       speed,
+		Connections: conn,
+		Seeders:     seeders,
+		Peers:       conn - seeders,
+		Eta:         eta,
+		Error:       t.ErrorMessage,
+		Files:       files,
+	}
+}
+
+func (e *Engine) fetchTasks(ctx context.Context) ([]*Aria2Task, error) {
+	var allTasks []*Aria2Task
+
+	// 1. tellActive
+	res, err := e.client.Call(ctx, "aria2.tellActive")
+	if err == nil {
+		var tasks []*Aria2Task
+		if err := json.Unmarshal(res, &tasks); err == nil {
+			allTasks = append(allTasks, tasks...)
+		}
+	}
+
+	// 2. tellWaiting
+	res, err = e.client.Call(ctx, "aria2.tellWaiting", 0, 1000)
+	if err == nil {
+		var tasks []*Aria2Task
+		if err := json.Unmarshal(res, &tasks); err == nil {
+			allTasks = append(allTasks, tasks...)
+		}
+	}
+
+	// 3. tellStopped
+	res, err = e.client.Call(ctx, "aria2.tellStopped", 0, 1000)
+	if err == nil {
+		var tasks []*Aria2Task
+		if err := json.Unmarshal(res, &tasks); err == nil {
+			allTasks = append(allTasks, tasks...)
+		}
+	}
+
+	return allTasks, nil
+}
+
+func (e *Engine) poll() {
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		h := e.onProgress
-		if h == nil {
-			continue
-		}
+	// Track seen tasks to detect transitions to stopped/complete
+	activeGids := make(map[string]bool)
 
-		// Get all active tasks with full file info
-		res, err := e.client.Call(context.Background(), "aria2.tellActive")
+	for range ticker.C {
+		ctx := context.Background()
+		tasks, err := e.fetchTasks(ctx)
 		if err != nil {
 			continue
 		}
 
-		var tasks []Aria2Task
-		if err := json.Unmarshal(res, &tasks); err != nil {
-			continue
-		}
+		currentActive := make(map[string]*Aria2Task)
+		currentStopped := make(map[string]*Aria2Task)
 
 		for _, t := range tasks {
-			// 1. Emit aggregate progress for the task
-			total, _ := strconv.ParseInt(t.TotalLength, 10, 64)
-			completed, _ := strconv.ParseInt(t.CompletedLength, 10, 64)
-			speed, _ := strconv.ParseInt(t.DownloadSpeed, 10, 64)
-			conn, _ := strconv.Atoi(t.Connections)
-			seeders, _ := strconv.Atoi(t.NumSeeders)
+			if t.Status == "active" {
+				currentActive[t.Gid] = t
+			} else if t.Status == "complete" || t.Status == "error" || t.Status == "removed" {
+				currentStopped[t.Gid] = t
+			}
+		}
 
-			eta := 0
-			if speed > 0 && total > 0 {
-				remaining := total - completed
-				if remaining > 0 {
-					eta = int(remaining / speed)
+		e.mu.RLock()
+		onProgress := e.onProgress
+		onComplete := e.onComplete
+		onError := e.onError
+		e.mu.RUnlock()
+
+		// 1. Report progress for active tasks
+		for gid, t := range currentActive {
+			activeGids[gid] = true
+			if onProgress != nil {
+				s := e.mapStatus(t)
+				onProgress(gid, engine.Progress{
+					Downloaded: s.Downloaded,
+					Size:       s.Size,
+					Speed:      s.Speed,
+					ETA:        s.Eta,
+					Seeders:    s.Seeders,
+					Peers:      s.Peers,
+				})
+
+				// File progress
+				for _, f := range t.Files {
+					if f.Selected == "true" {
+						fTotal, _ := strconv.ParseInt(f.Length, 10, 64)
+						fCompleted, _ := strconv.ParseInt(f.CompletedLength, 10, 64)
+						onProgress(fmt.Sprintf("%s:%s", gid, f.Index), engine.Progress{
+							Downloaded: fCompleted,
+							Size:       fTotal,
+						})
+					}
 				}
 			}
+		}
 
-			h(t.Gid, engine.Progress{
-				Downloaded: completed,
-				Size:       total,
-				Speed:      speed,
-				ETA:        eta,
-				Seeders:    seeders,
-				Peers:      conn - seeders,
-			})
+		// 2. Detect completions/errors
+		for gid := range activeGids {
+			if _, active := currentActive[gid]; !active {
+				// Task is no longer active, check if it stopped
+				if t, stopped := currentStopped[gid]; stopped {
+					e.mu.Lock()
+					reported := e.reportedGids[gid]
+					if !reported {
+						e.reportedGids[gid] = true
+						e.mu.Unlock()
 
-			// 2. If it's a multi-file task (torrent/magnet), emit per-file progress
-			// We use a special ID format "gid:index" for individual files
-			if len(t.Files) > 1 || (len(t.Files) == 1 && t.Files[0].Index != "") {
-				for _, f := range t.Files {
-					if f.Selected == "false" {
-						continue
+						if t.Status == "complete" && onComplete != nil {
+							onComplete(gid, e.getDownloadPath(t))
+						} else if t.Status == "error" && onError != nil {
+							onError(gid, fmt.Errorf("%s", t.ErrorMessage))
+						}
+					} else {
+						e.mu.Unlock()
 					}
-
-					fTotal, _ := strconv.ParseInt(f.Length, 10, 64)
-					fCompleted, _ := strconv.ParseInt(f.CompletedLength, 10, 64)
-
-					// We don't have per-file speed from aria2 easily without more calls
-					// but we can report downloaded/size.
-					h(fmt.Sprintf("%s:%s", t.Gid, f.Index), engine.Progress{
-						Downloaded: fCompleted,
-						Size:       fTotal,
-					})
+					delete(activeGids, gid)
+				} else {
+					// Disappeared completely? (removed from result)
+					// We treat this as "stopped/removed"
+					delete(activeGids, gid)
 				}
+			}
+		}
+
+		// 3. Catch tasks that completed so fast they were never seen as active
+		for gid, t := range currentStopped {
+			e.mu.Lock()
+			reported := e.reportedGids[gid]
+			if !reported {
+				e.reportedGids[gid] = true
+				e.mu.Unlock()
+
+				if t.Status == "complete" && onComplete != nil {
+					onComplete(gid, e.getDownloadPath(t))
+				} else if t.Status == "error" && onError != nil {
+					onError(gid, fmt.Errorf("%s", t.ErrorMessage))
+				}
+			} else {
+				e.mu.Unlock()
 			}
 		}
 	}
+}
+
+func (e *Engine) getDownloadPath(t *Aria2Task) string {
+	if len(t.Files) == 0 {
+		return t.Dir
+	}
+	path := t.Files[0].Path
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(t.Dir, path)
+	}
+
+	rel, err := filepath.Rel(t.Dir, path)
+	if err == nil {
+		parts := strings.Split(filepath.ToSlash(rel), "/")
+		if len(parts) > 1 {
+			return filepath.Join(t.Dir, parts[0])
+		}
+	}
+	return path
 }

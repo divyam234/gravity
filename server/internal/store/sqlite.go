@@ -86,8 +86,35 @@ func (s *Store) migrate() error {
 			return fmt.Errorf("failed to read migration %s: %w", f, err)
 		}
 
-		// Split by semicolon to run statements individually and handle errors gracefully
-		statements := strings.Split(string(content), ";")
+		// Robust statement splitting that handles BEGIN...END blocks (like triggers)
+		var statements []string
+		var current strings.Builder
+		inBegin := false
+
+		lines := strings.Split(string(content), "\n")
+		for _, line := range lines {
+			trimmed := strings.TrimSpace(line)
+			if trimmed == "" || strings.HasPrefix(trimmed, "--") {
+				continue
+			}
+
+			current.WriteString(line)
+			current.WriteString("\n")
+
+			upper := strings.ToUpper(trimmed)
+			if strings.Contains(upper, "BEGIN") {
+				inBegin = true
+			}
+			if strings.Contains(upper, "END") {
+				inBegin = false
+			}
+
+			if !inBegin && strings.HasSuffix(trimmed, ";") {
+				statements = append(statements, current.String())
+				current.Reset()
+			}
+		}
+
 		for _, stmt := range statements {
 			stmt = strings.TrimSpace(stmt)
 			if stmt == "" {

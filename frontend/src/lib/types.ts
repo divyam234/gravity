@@ -145,3 +145,11 @@ export interface FileInfo {
   type: 'file' | 'folder';
   isDir: boolean;
 }
+
+export interface SearchConfig {
+  remote: string;
+  autoIndexIntervalMin: number;
+  lastIndexedAt?: string;
+  status: 'idle' | 'indexing' | 'error';
+  errorMsg?: string;
+}

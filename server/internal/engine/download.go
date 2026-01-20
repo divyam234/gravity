@@ -14,27 +14,37 @@ type Progress struct {
 }
 
 type DownloadStatus struct {
-	ID          string `json:"id"`
-	Status      string `json:"status"` // active, paused, complete, error
-	URL         string `json:"url"`
-	Filename    string `json:"filename"`
-	Dir         string `json:"dir"`
-	Size        int64  `json:"size"`
-	Downloaded  int64  `json:"downloaded"`
-	Speed       int64  `json:"speed"`
-	Connections int    `json:"connections"`
-	Seeders     int    `json:"seeders"`
-	Peers       int    `json:"peers"`
-	Eta         int    `json:"eta"`
-	Error       string `json:"error,omitempty"`
+	ID          string               `json:"id"`
+	Status      string               `json:"status"` // active, paused, complete, error
+	URL         string               `json:"url"`
+	Filename    string               `json:"filename"`
+	Dir         string               `json:"dir"`
+	Size        int64                `json:"size"`
+	Downloaded  int64                `json:"downloaded"`
+	Speed       int64                `json:"speed"`
+	Connections int                  `json:"connections"`
+	Seeders     int                  `json:"seeders"`
+	Peers       int                  `json:"peers"`
+	Eta         int                  `json:"eta"`
+	Error       string               `json:"error,omitempty"`
+	Files       []DownloadFileStatus `json:"files,omitempty"`
+}
+
+type DownloadFileStatus struct {
+	Index    int    `json:"index"`
+	Path     string `json:"path"`
+	Size     int64  `json:"size"`
+	Selected bool   `json:"selected"`
 }
 
 type DownloadOptions struct {
-	Filename    string
-	Dir         string
-	Headers     map[string]string
-	MaxSpeed    int64
-	Connections int
+	Filename      string
+	Dir           string
+	Headers       map[string]string
+	MaxSpeed      int64
+	Connections   int
+	TorrentData   string // Base64 encoded .torrent
+	SelectedFiles []int  // 1-indexed file numbers
 }
 
 type DownloadEngine interface {

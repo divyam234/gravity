@@ -16,38 +16,41 @@ const (
 )
 
 type Download struct {
-	ID             string         `json:"id"`
-	URL            string         `json:"url"`
-	ResolvedURL    string         `json:"resolvedUrl,omitempty"`
-	Provider       string         `json:"provider,omitempty"`
-	Status         DownloadStatus `json:"status"`
-	Error          string         `json:"error,omitempty"`
-	Filename       string         `json:"filename,omitempty"`
-	LocalPath      string         `json:"localPath,omitempty"`
-	Size           int64          `json:"size"`
-	Downloaded     int64          `json:"downloaded"`
-	Speed          int64          `json:"speed"`
-	ETA            int            `json:"eta"`
-	Seeders        int            `json:"seeders,omitempty"`
-	Peers          int            `json:"peers,omitempty"`
-	Destination    string         `json:"destination,omitempty"`
-	UploadStatus   string         `json:"uploadStatus,omitempty"`
-	UploadProgress int            `json:"uploadProgress"`
-	UploadSpeed    int64          `json:"uploadSpeed"`
-	Category       string         `json:"category,omitempty"`
-	Tags           []string       `json:"tags,omitempty"`
-	EngineID       string         `json:"-"`
-	UploadJobID    string         `json:"-"`
-	CreatedAt      time.Time      `json:"createdAt"`
-	StartedAt      *time.Time     `json:"startedAt,omitempty"`
-	CompletedAt    *time.Time     `json:"completedAt,omitempty"`
-	UpdatedAt      time.Time      `json:"updatedAt"`
+	ID             string            `json:"id"`
+	URL            string            `json:"url"`
+	ResolvedURL    string            `json:"resolvedUrl,omitempty"`
+	Provider       string            `json:"provider,omitempty"`
+	Status         DownloadStatus    `json:"status"`
+	Error          string            `json:"error,omitempty"`
+	Filename       string            `json:"filename,omitempty"`
+	LocalPath      string            `json:"localPath,omitempty"`
+	Size           int64             `json:"size"`
+	Downloaded     int64             `json:"downloaded"`
+	Speed          int64             `json:"speed"`
+	ETA            int               `json:"eta"`
+	Seeders        int               `json:"seeders,omitempty"`
+	Peers          int               `json:"peers,omitempty"`
+	Destination    string            `json:"destination,omitempty"`
+	UploadStatus   string            `json:"uploadStatus,omitempty"`
+	UploadProgress int               `json:"uploadProgress"`
+	UploadSpeed    int64             `json:"uploadSpeed"`
+	Category       string            `json:"category,omitempty"`
+	Tags           []string          `json:"tags,omitempty"`
+	EngineID       string            `json:"-"`
+	UploadJobID    string            `json:"-"`
+	Headers        map[string]string `json:"-"`
+	CreatedAt      time.Time         `json:"createdAt"`
+	StartedAt      *time.Time        `json:"startedAt,omitempty"`
+	CompletedAt    *time.Time        `json:"completedAt,omitempty"`
+	UpdatedAt      time.Time         `json:"updatedAt"`
 
 	// Multi-file support for magnets/torrents
 	IsMagnet      bool           `json:"isMagnet,omitempty"`
 	MagnetHash    string         `json:"magnetHash,omitempty"`
 	MagnetSource  string         `json:"magnetSource,omitempty"` // "alldebrid" or "aria2"
 	MagnetID      string         `json:"-"`                      // AllDebrid magnet ID
+	TorrentData   string         `json:"-"`                      // Base64 encoded .torrent
+	SelectedFiles []int          `json:"-"`                      // Selected file indexes
 	Files         []DownloadFile `json:"files,omitempty"`
 	PeerDetails   []Peer         `json:"peerDetails,omitempty"`
 	TotalFiles    int            `json:"totalFiles,omitempty"`

@@ -38,6 +38,7 @@ type App struct {
 	providerService *service.ProviderService
 	magnetService   *service.MagnetService
 	statsService    *service.StatsService
+	searchService   *service.SearchService
 
 	httpServer *http.Server
 }
@@ -53,7 +54,7 @@ func New() (*App, error) {
 	bus := event.NewBus()
 
 	// Engines
-	de := aria2.NewEngine(cfg.Aria2RPCPort, cfg.Aria2Secret, cfg.DataDir)
+	de := aria2.NewEngine(cfg.Aria2RPCPort, cfg.DataDir)
 	ue := rclone.NewEngine(cfg.RcloneRPCPort)
 
 	// Repos
@@ -70,10 +71,12 @@ func New() (*App, error) {
 
 	// Services
 	ps := service.NewProviderService(pr, registry)
-	ds := service.NewDownloadService(dr, de, ue, bus, ps)
+	setr := store.NewSettingsRepo(s.GetDB())
+	ds := service.NewDownloadService(dr, setr, de, ue, bus, ps)
 	us := service.NewUploadService(dr, ue, bus)
-	ms := service.NewMagnetService(dr, store.NewSettingsRepo(s.GetDB()), de, ad, ue)
+	ms := service.NewMagnetService(dr, setr, de, ad, ue)
 	ss := service.NewStatsService(sr, dr, de, ue, bus)
+	searchService := service.NewSearchService(store.NewSearchRepo(s.GetDB()), ue)
 
 	// API
 	router := api.NewRouter(cfg.APIKey)
@@ -82,10 +85,11 @@ func New() (*App, error) {
 	ph := api.NewProviderHandler(ps)
 	rh := api.NewRemoteHandler(ue)
 	sh := api.NewStatsHandler(ss)
-	seth := api.NewSettingsHandler(store.NewSettingsRepo(s.GetDB()), de)
+	seth := api.NewSettingsHandler(setr, de)
 	sysh := api.NewSystemHandler(de, ue)
 	mh := api.NewMagnetHandler(ms)
 	fh := api.NewFileHandler(ue)
+	searchHandler := api.NewSearchHandler(searchService)
 
 	// V1 Router
 	v1 := chi.NewRouter()
@@ -98,6 +102,7 @@ func New() (*App, error) {
 	v1.Mount("/system", sysh.Routes())
 	v1.Mount("/magnets", mh.Routes())
 	v1.Mount("/files", fh.Routes())
+	v1.Mount("/search", searchHandler.Routes())
 
 	// Mount V1 to root
 	router.Mount("/api/v1", v1)
@@ -146,8 +151,10 @@ func (a *App) Run() error {
 	}
 
 	// Start background services
+	a.downloadService.Start()
 	a.uploadService.Start()
 	a.statsService.Start()
+	a.searchService.Start()
 
 	// Start HTTP server
 	go func() {

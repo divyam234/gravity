@@ -146,6 +146,23 @@ class ApiClient {
   operateFile(op: 'rename' | 'copy' | 'move', src: string, dst: string) {
     return this.request<{ jobId?: string }>('POST', '/files/operate', { op, src, dst });
   }
+
+  // Search
+  search(q: string) {
+    return this.request<ApiResponse<import('./types').FileInfo[]>>('GET', `/search?q=${encodeURIComponent(q)}`);
+  }
+
+  getSearchConfigs() {
+    return this.request<ApiResponse<import('./types').SearchConfig[]>>('GET', '/search/config');
+  }
+
+  updateSearchConfig(remote: string, interval: number) {
+    return this.request<void>('POST', `/search/config/${remote}`, { interval });
+  }
+
+  triggerIndex(remote: string) {
+    return this.request<void>('POST', `/search/index/${remote}`);
+  }
 }
 
 export const api = new ApiClient();

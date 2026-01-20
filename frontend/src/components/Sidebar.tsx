@@ -1,5 +1,5 @@
 import { Button, ListBox, ScrollShadow, Label, Header } from "@heroui/react";
-import { useLocation, useNavigate } from "@tanstack/react-router";
+import { useLocation } from "@tanstack/react-router";
 import React from "react";
 import IconArrowDown from "~icons/gravity-ui/arrow-down";
 import IconCheck from "~icons/gravity-ui/check";
@@ -33,7 +33,6 @@ interface SidebarContentProps {
 }
 
 export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
-  const navigate = useNavigate();
   const location = useLocation();
   const queryClient = useQueryClient();
   const { data: stats } = useGlobalStat();
@@ -127,45 +126,52 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
     ],
   );
 
-  const settingsNavItems = React.useMemo(() => [
-    {
-      key: "engine",
-      label: "Engine Options",
-      icon: <IconGear className="w-4 h-4" />,
-      to: "/settings/engine",
-    },
-    {
-      key: "providers",
-      label: "Providers",
-      icon: <IconNodesDown className="w-4 h-4" />,
-      to: "/settings/providers",
-    },
-    {
-      key: "remotes",
-      label: "Cloud Remotes",
-      icon: <IconCloudArrowUpIn className="w-4 h-4" />,
-      to: "/settings/remotes",
-    },
-    {
-      key: "connection",
-      label: "Server",
-      icon: <IconServer className="w-4 h-4" />,
-      to: "/settings/connection",
-    },
-    {
-      key: "app",
-      label: "Preferences",
-      icon: <IconDisplay className="w-4 h-4" />,
-      to: "/settings/app",
-    },
-  ], []);
+  const settingsNavItems = React.useMemo(
+    () => [
+      {
+        key: "engine",
+        label: "Engine Options",
+        icon: <IconGear className="w-4 h-4" />,
+        to: "/settings/engine",
+      },
+      {
+        key: "providers",
+        label: "Providers",
+        icon: <IconNodesDown className="w-4 h-4" />,
+        to: "/settings/providers",
+      },
+      {
+        key: "remotes",
+        label: "Cloud Remotes",
+        icon: <IconCloudArrowUpIn className="w-4 h-4" />,
+        to: "/settings/remotes",
+      },
+      {
+        key: "connection",
+        label: "Server",
+        icon: <IconServer className="w-4 h-4" />,
+        to: "/settings/connection",
+      },
+      {
+        key: "app",
+        label: "Preferences",
+        icon: <IconDisplay className="w-4 h-4" />,
+        to: "/settings/app",
+      },
+    ],
+    [],
+  );
 
   const selectedKey = React.useMemo(() => {
     const path = location.pathname;
-    const search = location.search as any;
+    const search = location.search;
 
     if (path === "/tasks") {
       return search.status || "active";
+    }
+
+    if (path === "/files") {
+      return "files";
     }
 
     const foundSetting = settingsNavItems.find((item) => item.to === path);
@@ -202,7 +208,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
         )}
       </div>
 
-      <ScrollShadow className="flex-1 px-3 mt-4 overflow-y-auto custom-scrollbar">
+      <ScrollShadow className="flex-1 px-3 mt-4 overflow-y-auto">
         <ListBox
           aria-label="Navigation"
           selectionMode="single"
@@ -210,7 +216,7 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
           className="p-0 gap-1 mb-2"
           items={mainNavItems}
         >
-          {(item: NavItem) => (
+          {(item) => (
             <ListBox.Item
               id={item.key}
               href={item.to as any}
@@ -226,71 +232,69 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
               }}
               className={cn(
                 "px-4 py-3 rounded-2xl data-[hover=true]:bg-default/10 transition-colors cursor-pointer outline-none",
-                selectedKey === item.key &&
-                  "bg-accent text-accent-foreground shadow-lg shadow-accent/20",
+                "data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground",
               )}
             >
-              <div className="flex items-center justify-between w-full">
-                <div className="flex items-center gap-3">
-                  <span
-                    className={cn(
-                      "text-muted",
-                      item.color,
-                      selectedKey === item.key && "text-inherit",
-                    )}
-                  >
-                    {item.icon}
-                  </span>
-                  <Label className="text-sm font-bold tracking-tight">
-                    {item.label}
-                  </Label>
+              {({ isSelected }) => (
+                <div className="flex items-center justify-between w-full">
+                  <div className="flex items-center gap-3">
+                    <span
+                      className={cn(
+                        "text-muted",
+                        item.color,
+                        isSelected && "text-inherit",
+                      )}
+                    >
+                      {item.icon}
+                    </span>
+                    <Label className="text-sm font-bold tracking-tight text-inherit">
+                      {item.label}
+                    </Label>
+                  </div>
+                  {item.count !== null && (
+                    <span
+                      className={cn(
+                        "text-[10px] font-black px-2 py-0.5 rounded-full bg-default/30 group-hover:bg-default/50 transition-colors",
+                        isSelected &&
+                          "bg-accent-foreground/20 text-accent-foreground",
+                      )}
+                    >
+                      {item.count}
+                    </span>
+                  )}
                 </div>
-                {item.count !== null && (
-                  <span
-                    className={cn(
-                      "text-[10px] font-black px-2 py-0.5 rounded-full bg-default/30 group-hover:bg-default/50 transition-colors",
-                      selectedKey === item.key
-                        ? "bg-accent-foreground/20 text-accent-foreground"
-                        : "",
-                    )}
-                  >
-                    {item.count}
-                  </span>
-                )}
-              </div>
+              )}
             </ListBox.Item>
           )}
         </ListBox>
 
-        <ListBox
-            aria-label="Settings Navigation"
-            className="p-0 gap-1"
-        >
-            <ListBox.Section>
-                <Header className="px-4 py-2 text-xs font-black uppercase tracking-widest text-muted">
-                  Settings
-                </Header>
-                {settingsNavItems.map((item) => (
-                    <ListBox.Item
-                        key={item.key}
-                        id={item.key}
-                        textValue={item.label}
-                        onPress={() => {
-                            navigate({ to: item.to });
-                            if (onClose) onClose();
-                        }}
-                        className={cn(
-                            "px-4 py-2.5 rounded-2xl data-[hover=true]:bg-default/10 transition-colors cursor-pointer outline-none",
-                            selectedKey === item.key && "bg-default/20 font-bold",
-                        )}
-                    >
-                        <div className="flex items-center gap-3">
-                            <span className="text-muted">{item.icon}</span>
-                            <Label className="text-sm font-medium">{item.label}</Label>
-                        </div>
-                    </ListBox.Item>
-                ))}
-            </ListBox.Section>
+        <ListBox aria-label="Settings Navigation" className="p-0 gap-1">
+          <ListBox.Section>
+            <Header className="px-4 py-2 text-xs font-black uppercase tracking-widest text-muted">
+              Settings
+            </Header>
+            {settingsNavItems.map((item) => (
+              <ListBox.Item
+                key={item.key}
+                id={item.key}
+                textValue={item.label}
+                href={item.to as any}
+                // routerOptions={item.linkOptions}
+                onPress={() => {
+                  if (onClose) onClose();
+                }}
+                className={cn(
+                  "px-4 py-2.5 rounded-2xl data-[hover=true]:bg-default/10 transition-colors cursor-pointer outline-none",
+                  selectedKey === item.key && "bg-default/20 font-bold",
+                )}
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-muted">{item.icon}</span>
+                  <Label className="text-sm font-medium">{item.label}</Label>
+                </div>
+              </ListBox.Item>
+            ))}
+          </ListBox.Section>
         </ListBox>
       </ScrollShadow>
 

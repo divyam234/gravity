@@ -99,7 +99,6 @@ func (s *UploadService) handleProgress(downloadID string, p engine.UploadProgres
 	// Update DB with latest progress
 	if p.Size > 0 {
 		d.UploadProgress = int((p.Uploaded * 100) / p.Size)
-		d.Size = p.Size // Update size from rclone stats
 	}
 	d.UploadSpeed = p.Speed
 	s.repo.Update(ctx, d)

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -117,25 +116,25 @@ func (s *MagnetService) DownloadMagnet(ctx context.Context, req MagnetDownloadRe
 		downloadDir = "/downloads"
 	}
 
-	localPath := filepath.Join(downloadDir, req.Name)
-
 	// Create download record
 	d := &model.Download{
 		ID:           "d_" + uuid.New().String()[:8],
 		URL:          req.Magnet,
-		Status:       model.StatusActive,
+		Status:       model.StatusWaiting,
 		Destination:  req.Destination,
-		LocalPath:    localPath,
+		LocalPath:    downloadDir,
 		IsMagnet:     true,
 		MagnetSource: req.Source,
 		MagnetID:     req.MagnetID,
 		MagnetHash:   extractHashFromMagnet(req.Magnet),
+		TorrentData:  req.TorrentBase64,
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
 	}
 
 	// Build file list and calculate total size
 	var totalSize int64
+	var selectedIndexes []int
 	for _, fileID := range req.SelectedFiles {
 		file := req.FindFile(fileID)
 		if file == nil {
@@ -152,11 +151,15 @@ func (s *MagnetService) DownloadMagnet(ctx context.Context, req MagnetDownloadRe
 			Index:  file.Index, // Only for aria2
 		})
 		totalSize += file.Size
+		if file.Index > 0 {
+			selectedIndexes = append(selectedIndexes, file.Index)
+		}
 	}
 
 	d.Size = totalSize
 	d.TotalFiles = len(d.Files)
 	d.Filename = req.Name // Torrent name
+	d.SelectedFiles = selectedIndexes
 
 	// Save to database
 	if err := s.downloadRepo.CreateWithFiles(ctx, d); err != nil {
@@ -166,10 +169,10 @@ func (s *MagnetService) DownloadMagnet(ctx context.Context, req MagnetDownloadRe
 	// Start downloads based on source
 	if req.Source == "alldebrid" {
 		go s.startAllDebridDownload(context.Background(), d)
-	} else if req.TorrentBase64 != "" {
-		go s.startTorrentDownload(context.Background(), d, req.TorrentBase64)
 	} else {
-		go s.startAria2Download(context.Background(), d, req.Magnet)
+		// Native torrents/magnets go to the queue first
+		d.Status = model.StatusWaiting
+		s.downloadRepo.Update(ctx, d)
 	}
 
 	return d, nil
