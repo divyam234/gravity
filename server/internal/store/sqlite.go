@@ -46,6 +46,10 @@ func New(dataDir string) (*Store, error) {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
+	// Limit to 1 connection to prevent "database is locked" errors.
+	// SQLite handles concurrent reads/writes better when Go serializes the writes.
+	db.SetMaxOpenConns(1)
+
 	s := &Store{db: db}
 	if err := s.migrate(); err != nil {
 		return nil, fmt.Errorf("migration failed: %w", err)

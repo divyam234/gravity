@@ -21,15 +21,19 @@ type DownloadService struct {
 	uploadEngine engine.UploadEngine
 	bus          *event.Bus
 	provider     *ProviderService
+
+	// Throttling for database writes
+	lastPersistMap map[string]time.Time
 }
 
 func NewDownloadService(repo *store.DownloadRepo, eng engine.DownloadEngine, ue engine.UploadEngine, bus *event.Bus, provider *ProviderService) *DownloadService {
 	s := &DownloadService{
-		repo:         repo,
-		engine:       eng,
-		uploadEngine: ue,
-		bus:          bus,
-		provider:     provider,
+		repo:           repo,
+		engine:         eng,
+		uploadEngine:   ue,
+		bus:            bus,
+		provider:       provider,
+		lastPersistMap: make(map[string]time.Time),
 	}
 
 	// Wire up engine events
@@ -290,7 +294,17 @@ func (s *DownloadService) Sync(ctx context.Context) error {
 		return err
 	}
 
-	// 2. Get all non-complete downloads from repo
+	// 2. Create maps for quick lookup
+	gidMap := make(map[string]*engine.DownloadStatus)
+	nameMap := make(map[string]*engine.DownloadStatus)
+	for _, t := range engineTasks {
+		gidMap[t.ID] = t
+		if t.Filename != "" {
+			nameMap[t.Filename] = t
+		}
+	}
+
+	// 3. Get all non-complete downloads from repo
 	dbDownloads, _, err := s.repo.List(ctx, []string{
 		string(model.StatusActive),
 		string(model.StatusPaused),
@@ -300,29 +314,31 @@ func (s *DownloadService) Sync(ctx context.Context) error {
 		return err
 	}
 
-	// 3. Map engine tasks by filename (simplistic mapping)
-	engineMap := make(map[string]*engine.DownloadStatus)
-	for _, t := range engineTasks {
-		if t.Filename != "" {
-			engineMap[t.Filename] = t
-		}
-	}
-
-	// 4. Update EngineID for downloads that exist in engine
+	// 4. Match and update
 	for _, d := range dbDownloads {
-		if t, ok := engineMap[d.Filename]; ok {
-			d.EngineID = t.ID
-			// Engine status is already mapped to canonical Gravity status
-			d.Status = model.DownloadStatus(t.Status)
+		var matched *engine.DownloadStatus
+
+		// Try match by EngineID (GID)
+		if d.EngineID != "" {
+			matched = gidMap[d.EngineID]
+		}
+
+		// Fallback to name match if GID didn't work
+		if matched == nil && d.Filename != "" {
+			matched = nameMap[d.Filename]
+		}
+
+		if matched != nil {
+			d.EngineID = matched.ID
+			d.Status = model.DownloadStatus(matched.Status)
 			s.repo.Update(ctx, d)
-		} else {
-			// If not in engine but was downloading, it might have failed or session lost
-			// Only mark as error if it was actually downloading before
-			if d.Status == model.StatusActive {
-				d.Status = model.StatusError
-				d.Error = "Engine task lost"
-				s.repo.Update(ctx, d)
-			}
+		} else if d.Status == model.StatusActive {
+			// Only mark as lost if it was active and we really can't find it.
+			// But let's be less aggressive: maybe it's just slow to load.
+			// We'll mark it as waiting instead of error, so it can be resumed or re-found later.
+			d.Status = model.StatusWaiting
+			d.Error = "Engine task not found, waiting for recovery"
+			s.repo.Update(ctx, d)
 		}
 	}
 
@@ -351,13 +367,19 @@ func (s *DownloadService) handleProgress(engineID string, p engine.Progress) {
 						file.Progress = int((file.Downloaded * 100) / file.Size)
 					}
 
+					oldStatus := file.Status
 					if file.Progress == 100 {
 						file.Status = model.StatusComplete
 					} else {
 						file.Status = model.StatusActive
 					}
 
-					s.repo.UpdateFile(ctx, file)
+					// Only persist to DB if status changed or 10 seconds passed
+					lastPersist := s.lastPersistMap[file.ID]
+					if file.Status != oldStatus || time.Since(lastPersist) > 10*time.Second {
+						s.repo.UpdateFile(ctx, file)
+						s.lastPersistMap[file.ID] = time.Now()
+					}
 
 					// Parent aggregate progress is updated via the aggregate event from aria2
 					return
@@ -369,14 +391,21 @@ func (s *DownloadService) handleProgress(engineID string, p engine.Progress) {
 	// 2. Try to find if this is a single-file download
 	d, err := s.repo.GetByEngineID(ctx, engineID)
 	if err == nil {
-		// Update DB with latest progress
+		// Update in-memory values for event broadcasting
 		d.Downloaded = p.Downloaded
 		d.Size = p.Size
 		d.Speed = p.Speed
 		d.ETA = p.ETA
 		d.Seeders = p.Seeders
 		d.Peers = p.Peers
-		s.repo.Update(ctx, d)
+
+		// Only persist to DB every 10 seconds to reduce load,
+		// but always broadcast progress events to UI.
+		lastPersist := s.lastPersistMap[d.ID]
+		if time.Since(lastPersist) > 10*time.Second {
+			s.repo.Update(ctx, d)
+			s.lastPersistMap[d.ID] = time.Now()
+		}
 
 		s.publishProgress(d)
 		return
@@ -390,8 +419,16 @@ func (s *DownloadService) handleProgress(engineID string, p engine.Progress) {
 		if file.Size > 0 {
 			file.Progress = int((file.Downloaded * 100) / file.Size)
 		}
+
+		oldStatus := file.Status
 		file.Status = model.StatusActive
-		s.repo.UpdateFile(ctx, file)
+
+		// Only persist to DB if status changed or 10 seconds passed
+		lastPersist := s.lastPersistMap[file.ID]
+		if file.Status != oldStatus || time.Since(lastPersist) > 10*time.Second {
+			s.repo.UpdateFile(ctx, file)
+			s.lastPersistMap[file.ID] = time.Now()
+		}
 
 		// Update parent download aggregate progress
 		parent, err := s.repo.Get(ctx, file.DownloadID)
@@ -443,7 +480,14 @@ func (s *DownloadService) updateAggregateProgress(ctx context.Context, d *model.
 		d.CompletedAt = &now
 	}
 
-	s.repo.Update(ctx, d)
+	// Only persist to DB every 10 seconds to reduce load,
+	// but always broadcast progress events to UI.
+	lastPersist := s.lastPersistMap[d.ID]
+	if time.Since(lastPersist) > 10*time.Second {
+		s.repo.Update(ctx, d)
+		s.lastPersistMap[d.ID] = time.Now()
+	}
+
 	s.publishProgress(d)
 }
 
