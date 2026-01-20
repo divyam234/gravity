@@ -51,5 +51,11 @@ export function useRemoteActions() {
 		onError: (err: Error) => toast.error(`Failed to delete remote: ${err.message}`),
 	});
 
-	return { createRemote, deleteRemote };
+    const testRemote = useMutation({
+        mutationFn: (name: string) => api.request('POST', `/remotes/${name}/test`),
+        onSuccess: () => toast.success("Connection successful"),
+        onError: (err: Error) => toast.error(`Connection failed: ${err.message}`),
+    });
+
+	return { createRemote, deleteRemote, testRemote };
 }

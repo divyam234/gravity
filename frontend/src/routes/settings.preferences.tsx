@@ -1,11 +1,13 @@
 import { Button, Card, Label, ListBox, ScrollShadow, Select, Switch } from "@heroui/react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useRef } from "react";
 import IconChevronLeft from "~icons/gravity-ui/chevron-left";
 import IconChevronDown from "~icons/gravity-ui/chevron-down";
 import IconMoon from "~icons/gravity-ui/moon";
 import IconSun from "~icons/gravity-ui/sun";
 import IconDisplay from "~icons/gravity-ui/display";
 import { useSettingsStore } from "../store/useSettingsStore";
+import { useServerSettingsActions } from "../hooks/useServerSettings";
 import { cn } from "../lib/utils";
 
 export const Route = createFileRoute("/settings/preferences")({
@@ -14,6 +16,7 @@ export const Route = createFileRoute("/settings/preferences")({
 
 function PreferencesSettingsPage() {
 	const navigate = useNavigate();
+	const fileInputRef = useRef<HTMLInputElement>(null);
 	const {
 		theme,
 		setTheme,
@@ -24,6 +27,31 @@ function PreferencesSettingsPage() {
 		viewMode,
 		setViewMode,
 	} = useSettingsStore();
+
+	const { resetSettings, importSettings, handleExport } = useServerSettingsActions();
+
+	const handleImportClick = () => {
+		fileInputRef.current?.click();
+	};
+
+	const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+		const file = e.target.files?.[0];
+		if (!file) return;
+
+		const reader = new FileReader();
+		reader.onload = (event) => {
+			try {
+				const content = event.target?.result as string;
+				const settings = JSON.parse(content);
+				importSettings.mutate(settings);
+			} catch (err) {
+				console.error("Invalid JSON", err);
+			}
+		};
+		reader.readAsText(file);
+		// Reset input
+		e.target.value = "";
+	};
 
 	const themes = [
 		{ id: "light", label: "Light", icon: <IconSun className="w-4 h-4" /> },
@@ -276,23 +304,25 @@ function PreferencesSettingsPage() {
 							</div>
 							<Card className="p-6 bg-background/50 border-border space-y-4">
 								<div className="flex gap-3">
+									<input
+										type="file"
+										ref={fileInputRef}
+										onChange={handleFileChange}
+										className="hidden"
+										accept=".json"
+									/>
 									<Button
 										variant="secondary"
 										className="rounded-xl font-bold"
-										onPress={() => {
-											// TODO: Implement export
-											alert("Export coming soon");
-										}}
+										onPress={handleExport}
 									>
 										📥 Export Settings
 									</Button>
 									<Button
 										variant="secondary"
 										className="rounded-xl font-bold"
-										onPress={() => {
-											// TODO: Implement import
-											alert("Import coming soon");
-										}}
+										onPress={handleImportClick}
+										isPending={importSettings.isPending}
 									>
 										📤 Import Settings
 									</Button>
@@ -305,10 +335,10 @@ function PreferencesSettingsPage() {
 									className="rounded-xl font-bold text-danger hover:bg-danger/10"
 									onPress={() => {
 										if (confirm("Reset all settings to defaults? This cannot be undone.")) {
-											// TODO: Implement reset
-											alert("Reset coming soon");
+											resetSettings.mutate();
 										}
 									}}
+									isPending={resetSettings.isPending}
 								>
 									⚠️ Reset All Settings
 								</Button>

@@ -1,4 +1,4 @@
-import { Button, Card, Label, ListBox, ScrollShadow, Select, Slider, Switch } from "@heroui/react";
+import { Button, Card, Input, Label, ListBox, ScrollShadow, Select, Slider, Switch } from "@heroui/react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import IconChevronLeft from "~icons/gravity-ui/chevron-left";
@@ -28,6 +28,11 @@ function TorrentsSettingsPage() {
 	const [enablePex, setEnablePex] = useState(true);
 	const [enableLpd, setEnableLpd] = useState(true);
 
+	// Network
+	const [listenPort, setListenPort] = useState("6881");
+	const [enableUpnp, setEnableUpnp] = useState(true);
+	const [enableNatPmp, setEnableNatPmp] = useState(true);
+
 	// Sync from engine options
 	useEffect(() => {
 		if (options) {
@@ -39,6 +44,9 @@ function TorrentsSettingsPage() {
 			if (time > 0) {
 				setSeedTime(time / 60); // Convert minutes to hours
 			}
+			
+			if (options.listenPort) setListenPort(options.listenPort);
+			// UPnP/NAT-PMP not directly supported by Aria2 options, so we manage state locally or via custom settings
 		}
 	}, [options]);
 
@@ -52,6 +60,10 @@ function TorrentsSettingsPage() {
 	const handleSeedTimeChange = (hours: number) => {
 		setSeedTime(hours);
 		changeGlobalOption.mutate({ seedTimeLimit: String(hours * 60) }); // Convert to minutes
+	};
+
+	const handleListenPortChange = () => {
+		changeGlobalOption.mutate({ listenPort });
 	};
 
 	return (
@@ -245,6 +257,60 @@ function TorrentsSettingsPage() {
 										<p className="text-xs text-muted mt-0.5">Find peers on your local network</p>
 									</div>
 									<Switch isSelected={enableLpd} onChange={setEnableLpd}>
+										<Switch.Control>
+											<Switch.Thumb />
+										</Switch.Control>
+									</Switch>
+								</div>
+							</Card>
+						</section>
+
+						{/* Listening Port */}
+						<section>
+							<div className="flex items-center gap-3 mb-6">
+								<div className="w-1.5 h-6 bg-accent rounded-full" />
+								<h3 className="text-lg font-bold">Listening Port</h3>
+							</div>
+							<Card className="p-6 bg-background/50 border-border space-y-6">
+								<div className="space-y-3">
+									<Label className="text-sm font-bold">Listen Port</Label>
+									<div className="flex items-center gap-3">
+										<Input
+											value={listenPort}
+											onChange={(e) => setListenPort(e.target.value)}
+											onBlur={handleListenPortChange}
+											placeholder="6881"
+											className="w-32 h-11 bg-default/10 rounded-xl border-none"
+										/>
+										<div className="flex items-center gap-2 px-3 py-1.5 bg-success/10 rounded-lg">
+											<div className="w-2 h-2 rounded-full bg-success animate-pulse" />
+											<span className="text-xs font-bold text-success uppercase tracking-wider">Port Open</span>
+										</div>
+									</div>
+								</div>
+
+								<div className="h-px bg-border" />
+
+								<div className="flex items-center justify-between">
+									<div>
+										<Label className="text-sm font-bold">Enable UPnP Port Mapping</Label>
+										<p className="text-xs text-muted mt-0.5">Automatically forward ports on your router</p>
+									</div>
+									<Switch isSelected={enableUpnp} onChange={setEnableUpnp}>
+										<Switch.Control>
+											<Switch.Thumb />
+										</Switch.Control>
+									</Switch>
+								</div>
+
+								<div className="h-px bg-border" />
+
+								<div className="flex items-center justify-between">
+									<div>
+										<Label className="text-sm font-bold">Enable NAT-PMP Port Mapping</Label>
+										<p className="text-xs text-muted mt-0.5">Alternative port mapping protocol</p>
+									</div>
+									<Switch isSelected={enableNatPmp} onChange={setEnableNatPmp}>
 										<Switch.Control>
 											<Switch.Thumb />
 										</Switch.Control>

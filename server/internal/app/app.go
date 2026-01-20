@@ -53,14 +53,15 @@ func New() (*App, error) {
 
 	bus := event.NewBus()
 
-	// Engines
-	de := aria2.NewEngine(cfg.Aria2RPCPort, cfg.DataDir)
-	ue := rclone.NewEngine(cfg.RcloneRPCPort)
-
 	// Repos
 	dr := store.NewDownloadRepo(s.GetDB())
 	pr := store.NewProviderRepo(s.GetDB())
 	sr := store.NewStatsRepo(s.GetDB())
+	cr := store.NewCacheRepo(s.GetDB())
+
+	// Engines
+	de := aria2.NewEngine(cfg.Aria2RPCPort, cfg.DataDir)
+	ue := rclone.NewEngine(cfg.RcloneRPCPort, cr)
 
 	// Providers
 	registry := provider.NewRegistry()
@@ -85,7 +86,7 @@ func New() (*App, error) {
 	ph := api.NewProviderHandler(ps)
 	rh := api.NewRemoteHandler(ue)
 	sh := api.NewStatsHandler(ss)
-	seth := api.NewSettingsHandler(setr, de)
+	seth := api.NewSettingsHandler(setr, pr, de, ue)
 	sysh := api.NewSystemHandler(de, ue)
 	mh := api.NewMagnetHandler(ms)
 	fh := api.NewFileHandler(ue)

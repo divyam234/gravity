@@ -96,25 +96,12 @@ function CloudSettingsPage() {
 				return (
 					<div className="space-y-4">
 						<p className="text-sm text-muted">
-							Google Drive requires OAuth authorization. Click the button below to authorize Gravity to access your Google Drive.
-						</p>
-						<Button
-							variant="primary"
-							className="w-full h-12 rounded-2xl font-bold"
-							onPress={() => {
-								// TODO: Implement OAuth flow
-								alert("OAuth flow coming soon. For now, configure via rclone config command.");
-							}}
-						>
-							🔐 Sign in with Google
-						</Button>
-						<p className="text-xs text-muted text-center">
-							Or enter a pre-configured token from rclone:
+							Enter your Google Drive configuration token or JSON from rclone.
 						</p>
 						<Input
 							value={wizard.config.token || ""}
 							onChange={(e) => setWizard({ ...wizard, config: { ...wizard.config, token: e.target.value } })}
-							placeholder="Paste rclone token here..."
+							placeholder="Paste rclone config/token here..."
 							className="h-12 bg-default/10 rounded-2xl border-none font-mono text-xs"
 						/>
 					</div>

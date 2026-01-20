@@ -22,6 +22,9 @@ func (h *ProviderHandler) Routes() chi.Router {
 	r.Get("/", h.List)
 	r.Get("/{name}", h.Get)
 	r.Put("/{name}", h.Configure)
+	r.Delete("/{name}", h.Delete)
+	r.Get("/{name}/status", h.GetStatus)
+	r.Get("/{name}/hosts", h.GetHosts)
 	r.Post("/resolve", h.Resolve)
 	return r
 }
@@ -33,6 +36,35 @@ func (h *ProviderHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	json.NewEncoder(w).Encode(map[string]interface{}{"data": list})
+}
+
+func (h *ProviderHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	if err := h.service.Delete(r.Context(), name); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *ProviderHandler) GetStatus(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	status, err := h.service.GetStatus(r.Context(), name)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	json.NewEncoder(w).Encode(status)
+}
+
+func (h *ProviderHandler) GetHosts(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	hosts, err := h.service.GetHosts(r.Context(), name)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	json.NewEncoder(w).Encode(map[string]interface{}{"hosts": hosts})
 }
 
 func (h *ProviderHandler) Get(w http.ResponseWriter, r *http.Request) {

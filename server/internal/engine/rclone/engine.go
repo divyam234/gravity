@@ -1,7 +1,9 @@
 package rclone
 
 import (
+	"bytes"
 	"context"
+	"encoding/gob"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -14,6 +16,13 @@ import (
 	"gravity/internal/engine"
 )
 
+type Cache interface {
+	Get(ctx context.Context, key string) ([]byte, error)
+	Set(ctx context.Context, key string, value []byte, ttl time.Duration) error
+	Delete(ctx context.Context, key string) error
+	DeletePrefix(ctx context.Context, prefix string) error
+}
+
 type Engine struct {
 	runner *Runner
 	client *Client
@@ -25,11 +34,14 @@ type Engine struct {
 	activeJobs map[string]struct {
 		trackID string
 		size    int64
+		srcPath string
+		dstPath string
 	}
-	mu sync.RWMutex
+	cache Cache
+	mu    sync.RWMutex
 }
 
-func NewEngine(port int) *Engine {
+func NewEngine(port int, cache Cache) *Engine {
 	runner := NewRunner(port)
 	client := NewClient(fmt.Sprintf("http://localhost:%d", port))
 
@@ -39,7 +51,10 @@ func NewEngine(port int) *Engine {
 		activeJobs: make(map[string]struct {
 			trackID string
 			size    int64
+			srcPath string
+			dstPath string
 		}),
+		cache: cache,
 	}
 }
 
@@ -107,7 +122,14 @@ func (e *Engine) Upload(ctx context.Context, src, dst string, opts engine.Upload
 	e.activeJobs[jobID] = struct {
 		trackID string
 		size    int64
-	}{trackID: opts.TrackingID, size: info.Size()}
+		srcPath string
+		dstPath string
+	}{
+		trackID: opts.TrackingID,
+		size:    info.Size(),
+		srcPath: src,
+		dstPath: dst,
+	}
 	e.mu.Unlock()
 
 	return jobID, nil
@@ -294,6 +316,8 @@ func (e *Engine) pollProgress() {
 		jobs := make(map[string]struct {
 			trackID string
 			size    int64
+			srcPath string
+			dstPath string
 		})
 		for id, data := range e.activeJobs {
 			jobs[id] = data
@@ -310,6 +334,11 @@ func (e *Engine) pollProgress() {
 				if h := e.onComplete; h != nil {
 					h(data.trackID) // Pass trackID (download ID) instead of rclone job ID
 				}
+				// Invalidate cache for destination
+				if data.dstPath != "" {
+					e.invalidateListCache(context.Background(), data.dstPath)
+				}
+
 				e.mu.Lock()
 				delete(e.activeJobs, id)
 				e.mu.Unlock()
@@ -358,29 +387,73 @@ func (e *Engine) parseVirtualPath(path string) (string, string) {
 	return remote, remotePath
 }
 
+func (e *Engine) invalidateListCache(ctx context.Context, virtualPath string) {
+	// Invalidate the directory listing where this item resides
+	parent := filepath.Dir(virtualPath)
+	if parent == "." {
+		parent = "/"
+	}
+	e.cache.Delete(ctx, "list:"+parent)
+
+	// Also invalidate the item itself if it's a directory
+	e.cache.Delete(ctx, "list:"+virtualPath)
+}
+
 func (e *Engine) List(ctx context.Context, virtualPath string) ([]engine.FileInfo, error) {
+	// Check cache
+	cacheKey := "list:" + virtualPath
+	if cached, err := e.cache.Get(ctx, cacheKey); err == nil && cached != nil {
+		var files []engine.FileInfo
+		if err := gob.NewDecoder(bytes.NewReader(cached)).Decode(&files); err == nil {
+			return files, nil
+		}
+	}
+
 	remote, remotePath := e.parseVirtualPath(virtualPath)
+
+	var files []engine.FileInfo
+	var err error
 
 	// Root: List Remotes
 	if remote == "" {
-		remotes, err := e.ListRemotes(ctx)
-		if err != nil {
-			return nil, err
-		}
-		files := make([]engine.FileInfo, len(remotes))
-		for i, r := range remotes {
-			files[i] = engine.FileInfo{
-				Path:     "/" + r.Name,
-				Name:     r.Name,
-				Type:     engine.FileTypeFolder,
-				IsDir:    true,
-				MimeType: "inode/directory",
-			}
-		}
-		return files, nil
+		files, err = e.listRemotesAsFiles(ctx)
+	} else {
+		// Remote: List Files
+		files, err = e.listFiles(ctx, remote, remotePath)
 	}
 
-	// Remote: List Files
+	if err != nil {
+		return nil, err
+	}
+
+	// Save to cache
+	var buf bytes.Buffer
+	if err := gob.NewEncoder(&buf).Encode(files); err == nil {
+		e.cache.Set(ctx, cacheKey, buf.Bytes(), 1*time.Minute)
+	}
+
+	return files, nil
+}
+
+func (e *Engine) listRemotesAsFiles(ctx context.Context) ([]engine.FileInfo, error) {
+	remotes, err := e.ListRemotes(ctx)
+	if err != nil {
+		return nil, err
+	}
+	files := make([]engine.FileInfo, len(remotes))
+	for i, r := range remotes {
+		files[i] = engine.FileInfo{
+			Path:     "/" + r.Name,
+			Name:     r.Name,
+			Type:     engine.FileTypeFolder,
+			IsDir:    true,
+			MimeType: "inode/directory",
+		}
+	}
+	return files, nil
+}
+
+func (e *Engine) listFiles(ctx context.Context, remote, remotePath string) ([]engine.FileInfo, error) {
 	params := map[string]interface{}{
 		"fs":     remote + ":",
 		"remote": remotePath,
@@ -442,6 +515,9 @@ func (e *Engine) Mkdir(ctx context.Context, virtualPath string) error {
 		"remote": remotePath,
 	}
 	_, err := e.client.Call(ctx, "operations/mkdir", params)
+	if err == nil {
+		e.invalidateListCache(ctx, virtualPath)
+	}
 	return err
 }
 
@@ -456,6 +532,9 @@ func (e *Engine) Delete(ctx context.Context, virtualPath string) error {
 		"remote": remotePath,
 	}
 	_, err := e.client.Call(ctx, "operations/deletefile", params)
+	if err == nil {
+		e.invalidateListCache(ctx, virtualPath)
+	}
 	return err
 }
 
@@ -472,6 +551,15 @@ func (e *Engine) Rename(ctx context.Context, virtualPath, newName string) error 
 		"dstRemote": filepath.Join(filepath.Dir(remotePath), newName),
 	}
 	_, err := e.client.Call(ctx, "operations/movefile", params)
+	if err == nil {
+		e.invalidateListCache(ctx, virtualPath)
+		// Invalidate destination as well
+		parent := filepath.Dir(virtualPath)
+		if parent == "." {
+			parent = "/"
+		}
+		e.invalidateListCache(ctx, filepath.Join(parent, newName))
+	}
 	return err
 }
 

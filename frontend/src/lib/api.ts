@@ -112,6 +112,18 @@ class ApiClient {
     return this.request<void>('PATCH', '/settings', settings);
   }
 
+  exportSettings() {
+    return this.request<Record<string, string>>('POST', '/settings/export');
+  }
+
+  importSettings(settings: Record<string, string>) {
+    return this.request<void>('POST', '/settings/import', settings);
+  }
+
+  resetSettings() {
+    return this.request<void>('POST', '/settings/reset');
+  }
+
   // System
   getVersion() {
     return this.request<{ version: string; aria2: string; rclone: string }>('GET', '/system/version');

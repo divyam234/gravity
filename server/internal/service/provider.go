@@ -102,3 +102,30 @@ func (s *ProviderService) GetConfigSchema(name string) ([]provider.ConfigField, 
 	}
 	return impl.ConfigSchema(), nil
 }
+
+func (s *ProviderService) Delete(ctx context.Context, name string) error {
+	// Reset config and disable
+	return s.Configure(ctx, name, map[string]string{}, false)
+}
+
+func (s *ProviderService) GetStatus(ctx context.Context, name string) (*model.AccountInfo, error) {
+	impl := s.registry.Get(name)
+	if impl == nil {
+		return nil, fmt.Errorf("provider not found")
+	}
+	// Force a test to get fresh status
+	return impl.Test(ctx)
+}
+
+func (s *ProviderService) GetHosts(ctx context.Context, name string) ([]string, error) {
+	impl := s.registry.Get(name)
+	if impl == nil {
+		return nil, fmt.Errorf("provider not found")
+	}
+	
+	if debrid, ok := impl.(provider.DebridProvider); ok {
+		return debrid.GetHosts(ctx)
+	}
+	
+	return []string{}, nil
+}

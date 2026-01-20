@@ -226,6 +226,7 @@ func (e *Engine) Configure(ctx context.Context, options map[string]string) error
 		"checkIntegrity":           "check-integrity",
 		"continueDownloads":        "continue",
 		"checkCertificate":         "check-certificate",
+		"listenPort":               "listen-port",
 	}
 
 	ariaOpts := make(map[string]interface{})
