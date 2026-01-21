@@ -191,7 +191,7 @@ function SearchSettingsLayout({
                   className={cn(
                     "w-full text-left transition-all duration-200 border rounded-2xl overflow-hidden outline-none group bg-background/50 border-border p-0",
                     "data-[selected=true]:border-accent/30 data-[selected=true]:bg-accent/5",
-                    "data-[hovered=true]:bg-default/10 data-[hovered=true]:border-border/60"
+                    "data-[hovered=true]:bg-default/10 data-[hovered=true]:border-border/60",
                   )}
                 >
                   {({ isSelected }) => (
@@ -217,8 +217,14 @@ function SearchSettingsLayout({
             <div className="w-1.5 h-6 bg-accent rounded-full" />
             <h3 className="text-lg font-bold">Configuration</h3>
             {selectedConfigs.length > 0 && (
-              <Chip size="sm" color="accent" variant="soft" className="h-5 px-2 text-[10px] font-black uppercase tracking-widest">
-                {selectedConfigs.length} Remote{selectedConfigs.length !== 1 ? "s" : ""}
+              <Chip
+                size="sm"
+                color="accent"
+                variant="soft"
+                className="h-5 px-2 text-[10px] font-black uppercase tracking-widest"
+              >
+                {selectedConfigs.length} Remote
+                {selectedConfigs.length !== 1 ? "s" : ""}
               </Chip>
             )}
           </div>
@@ -303,30 +309,37 @@ function RemoteCard({ config, isSelected, onIndex, isIndexing }: any) {
           </div>
         </div>
 
-        <Checkbox
-          isSelected={isSelected}
-          className="pointer-events-none"
-          size="sm"
-          color="primary"
-        />
+        <Checkbox isSelected={isSelected} className="pointer-events-none" />
       </div>
 
       {/* Badges - Compact */}
       <div className="flex flex-wrap gap-1.5">
-        <Chip size="sm" variant="soft" className="h-6 px-2 text-[10px] font-bold border-none bg-default/10">
+        <Chip
+          size="sm"
+          variant="soft"
+          className="h-6 px-2 text-[10px] font-bold border-none bg-default/10"
+        >
           <IconClock className="w-3 h-3 mr-1.5 opacity-60" />
           {intervalLabel}
         </Chip>
 
         {(config.minSizeBytes || 0) > 0 && (
-          <Chip size="sm" variant="soft" className="h-6 px-2 text-[10px] font-bold border-none bg-default/10">
+          <Chip
+            size="sm"
+            variant="soft"
+            className="h-6 px-2 text-[10px] font-bold border-none bg-default/10"
+          >
             <IconFunnel className="w-3 h-3 mr-1.5 opacity-60" />
             {formatBytes(config.minSizeBytes)}
           </Chip>
         )}
 
         {config.includedExtensions && (
-          <Chip size="sm" variant="soft" className="h-6 px-2 text-[10px] font-bold border-none bg-default/10 max-w-[120px] truncate">
+          <Chip
+            size="sm"
+            variant="soft"
+            className="h-6 px-2 text-[10px] font-bold border-none bg-default/10 max-w-[120px] truncate"
+          >
             {config.includedExtensions}
           </Chip>
         )}
@@ -520,9 +533,7 @@ function SearchSettingsForm({
               </span>
             }
             placeholder={
-              isMixed.patterns
-                ? "Mixed values"
-                : "e.g. /node_modules/"
+              isMixed.patterns ? "Mixed values" : "e.g. /node_modules/"
             }
           />
         </div>
@@ -546,11 +557,7 @@ function SearchSettingsForm({
                 )}
               </span>
             }
-            placeholder={
-              isMixed.extensions
-                ? "Mixed values"
-                : "e.g. mp4, mkv"
-            }
+            placeholder={isMixed.extensions ? "Mixed values" : "e.g. mp4, mkv"}
           />
         </div>
       </div>
