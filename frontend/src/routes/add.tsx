@@ -60,6 +60,7 @@ function AddDownloadPage() {
 
     try {
       const info = await api.checkMagnet(magnet);
+      info.files = buildTreeFromFlatFiles(info.files);
       setMagnetInfo(info);
 
       // Pre-select all files
@@ -88,6 +89,7 @@ function AddDownloadPage() {
       setTorrentBase64(base64);
       try {
         const info = await api.checkTorrent(base64);
+        info.files = buildTreeFromFlatFiles(info.files);
         setMagnetInfo(info);
         const allIds = getAllFileIds(info.files);
         setSelectedFiles(new Set(allIds));
@@ -370,7 +372,7 @@ function AddDownloadPage() {
               </div>
 
               {/* File Tree */}
-              <div className="max-h-[500px] overflow-y-auto rounded-2xl border border-border bg-default/5 custom-scrollbar">
+              <div className="max-h-[500px] overflow-y-auto rounded-2xl border border-border bg-default/5 custom-scrollbar overscroll-y-contain relative">
                 <FileTree
                   files={magnetInfo.files}
                   selectedKeys={selectedFiles}
@@ -498,4 +500,58 @@ function flattenFiles(files: MagnetFile[]): any[] {
 
   traverse(files);
   return result;
+}
+
+function buildTreeFromFlatFiles(files: MagnetFile[]): MagnetFile[] {
+  // 1. Check if already nested
+  if (files.some((f) => f.children && f.children.length > 0)) {
+    return files;
+  }
+
+  if (files.length === 0) return [];
+
+  const root: MagnetFile[] = [];
+
+  files.forEach((file) => {
+    let parts = file.path.split("/");
+    let currentLevel = root;
+    let currentPath = "";
+
+    parts.forEach((part, index) => {
+      currentPath = currentPath ? `${currentPath}/${part}` : part;
+      const isFile = index === parts.length - 1;
+
+      // Find existing node at this level
+      let existing = currentLevel.find((n) => n.name === part);
+
+      if (existing) {
+        if (existing.isFolder) {
+          if (!existing.children) existing.children = [];
+          currentLevel = existing.children;
+          existing.size += file.size; // Aggregate size
+        }
+      } else {
+        if (isFile) {
+          // File node - preserve original ID
+          const node = { ...file, name: part };
+          currentLevel.push(node);
+        } else {
+          // Folder node
+          const folder: MagnetFile = {
+            id: currentPath, // Use path as ID for folders
+            name: part,
+            path: currentPath,
+            size: file.size,
+            isFolder: true,
+            children: [],
+          };
+          currentLevel.push(folder);
+          // Move into new folder
+          currentLevel = folder.children!;
+        }
+      }
+    });
+  });
+
+  return root;
 }

@@ -213,14 +213,22 @@ func (e *Engine) GetTorrentFiles(ctx context.Context, torrentBase64 string) (*mo
 
 	var magnetFiles []model.MagnetFile
 	var totalSize int64
+	name := status.BitTorrent.Info.Name
+
 	for _, f := range files {
 		size := parseSize(f.Length)
+
+		// Extract relative path (remove download dir prefix)
+		relPath := f.Path
+		if idx := strings.Index(f.Path, name); idx >= 0 {
+			relPath = f.Path[idx:]
+		}
 
 		idx, _ := strconv.Atoi(f.Index)
 		magnetFiles = append(magnetFiles, model.MagnetFile{
 			ID:       f.Index,
-			Name:     extractFilename(f.Path),
-			Path:     f.Path,
+			Name:     extractFilename(relPath),
+			Path:     relPath,
 			Size:     size,
 			IsFolder: false,
 			Index:    idx,
