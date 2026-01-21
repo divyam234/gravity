@@ -1,4 +1,4 @@
-import { Button, Card, Label, ScrollShadow, Input, TextField } from "@heroui/react";
+import { Button, Card, Label, ScrollShadow, Input, TextField, Select, ListBox } from "@heroui/react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -8,6 +8,7 @@ import { api } from "../lib/api";
 import { toast } from "sonner";
 import { cn } from "../lib/utils";
 import { useGlobalOption, useEngineActions, globalOptionOptions } from "../hooks/useEngine";
+import type { Key } from "react-aria-components";
 
 export const Route = createFileRoute("/settings/browser")({
 	component: BrowserSettingsPage,
@@ -22,30 +23,69 @@ function BrowserSettingsPage() {
 	const { data: options } = useGlobalOption();
 	const { changeGlobalOption } = useEngineActions();
 
-	const [cacheTTL, setCacheTTL] = useState("5m");
+  // VFS States
+  const [vfsCacheMode, setVfsCacheMode] = useState<Key>("off");
+  const [vfsCacheMaxSize, setVfsCacheMaxSize] = useState("10G");
+  const [vfsCacheMaxAge, setVfsCacheMaxAge] = useState("1h");
+  const [vfsWriteBack, setVfsWriteBack] = useState("5s");
+  const [vfsReadChunkSize, setVfsReadChunkSize] = useState("128M");
+  const [vfsReadChunkSizeLimit, setVfsReadChunkSizeLimit] = useState("off");
+  const [vfsReadAhead, setVfsReadAhead] = useState("128M");
+  const [vfsDirCacheTime, setVfsDirCacheTime] = useState("5m");
+  const [vfsPollInterval, setVfsPollInterval] = useState("1m");
+  const [vfsReadChunkStreams, setVfsReadChunkStreams] = useState("0");
+  
+  // VFS Flags
   const [isValid, setIsValid] = useState(true);
 
 	useEffect(() => {
-		if (options?.fileBrowserCacheTTL) {
-			setCacheTTL(options.fileBrowserCacheTTL);
-		}
+    // Load VFS Options
+    if (options?.vfsCacheMode) setVfsCacheMode(options.vfsCacheMode);
+    if (options?.vfsCacheMaxSize) setVfsCacheMaxSize(options.vfsCacheMaxSize);
+    if (options?.vfsCacheMaxAge) setVfsCacheMaxAge(options.vfsCacheMaxAge);
+    if (options?.vfsWriteBack) setVfsWriteBack(options.vfsWriteBack);
+    if (options?.vfsReadChunkSize) setVfsReadChunkSize(options.vfsReadChunkSize);
+    if (options?.vfsReadChunkSizeLimit) setVfsReadChunkSizeLimit(options.vfsReadChunkSizeLimit);
+    if (options?.vfsReadAhead) setVfsReadAhead(options.vfsReadAhead);
+    if (options?.vfsDirCacheTime) setVfsDirCacheTime(options.vfsDirCacheTime);
+    if (options?.vfsPollInterval) setVfsPollInterval(options.vfsPollInterval);
+    if (options?.vfsReadChunkStreams) setVfsReadChunkStreams(options.vfsReadChunkStreams);
 	}, [options]);
 
   const validateDuration = (val: string) => {
-    if (val.toLowerCase() === "unlimited") return true;
-    // Matches patterns like 1m, 5h, 2d, 10s
+    if (val.toLowerCase() === "unlimited" || val === "off" || val === "0") return true;
     return /^\d+[smhd]$/i.test(val);
   };
 
-	const handleTTLChange = (val: string) => {
-		setCacheTTL(val);
-    const valid = validateDuration(val);
-    setIsValid(valid);
-    
+  const validateSize = (val: string) => {
+    if (val === "off" || val === "0") return true;
+    return /^\d+[KMGTP]?$/i.test(val);
+  }
+
+  const handleVfsChange = (key: string, val: string | boolean, validator?: (v: string) => boolean) => {
+    const stringVal = val.toString();
+    const valid = typeof val === 'boolean' ? true : (validator ? validator(stringVal) : true);
+
+    // Update Local State
+    const setters: Record<string, Function> = {
+      vfsCacheMode: setVfsCacheMode,
+      vfsCacheMaxSize: setVfsCacheMaxSize,
+      vfsCacheMaxAge: setVfsCacheMaxAge,
+      vfsWriteBack: setVfsWriteBack,
+      vfsReadChunkSize: setVfsReadChunkSize,
+      vfsReadChunkSizeLimit: setVfsReadChunkSizeLimit,
+      vfsReadAhead: setVfsReadAhead,
+      vfsDirCacheTime: setVfsDirCacheTime,
+      vfsPollInterval: setVfsPollInterval,
+      vfsReadChunkStreams: setVfsReadChunkStreams,
+    };
+
+    if (setters[key]) setters[key](val);
+
     if (valid) {
-		  changeGlobalOption.mutate({ fileBrowserCacheTTL: val });
+      changeGlobalOption.mutate({ [key]: stringVal });
     }
-	};
+  };
 
   const purgeMutation = useMutation({
     mutationFn: () => api.purgeFileCache(),
@@ -87,34 +127,6 @@ function BrowserSettingsPage() {
               <div className="grid gap-4">
                 <Card className="p-6 bg-background/50 border-border">
                   <div className="flex items-center justify-between">
-                    <div className="flex-1 mr-8">
-                      <Label className="text-sm font-bold">Cache Duration</Label>
-                      <p className="text-xs text-muted mt-0.5">
-                        How long to cache file listings (e.g., 1m, 1h, 1d, or "unlimited")
-                      </p>
-                    </div>
-                    
-                    <TextField className="w-48">
-                      <Input
-                        value={cacheTTL}
-                        onChange={(e) => handleTTLChange(e.target.value)}
-                        placeholder="e.g. 5m"
-                        className={cn(
-                          "h-11 bg-default/10 rounded-2xl border-none text-center font-bold",
-                          !isValid && "ring-2 ring-danger/50"
-                        )}
-                      />
-                    </TextField>
-                  </div>
-                  {!isValid && (
-                    <p className="text-[10px] text-danger mt-2 font-bold uppercase tracking-wider">
-                      Invalid duration format (use s, m, h, d or "unlimited")
-                    </p>
-                  )}
-                </Card>
-
-                <Card className="p-6 bg-background/50 border-border">
-                  <div className="flex items-center justify-between">
                     <div>
                       <Label className="text-sm font-bold">Purge Cache</Label>
                       <p className="text-xs text-muted mt-0.5">
@@ -134,6 +146,177 @@ function BrowserSettingsPage() {
                 </Card>
               </div>
 						</section>
+
+            {/* VFS Options */}
+            <section>
+							<div className="flex items-center gap-3 mb-6">
+								<div className="w-1.5 h-6 bg-primary rounded-full" />
+								<h3 className="text-lg font-bold">VFS Cache (Streaming)</h3>
+							</div>
+
+              <div className="grid gap-4">
+                <Card className="p-6 bg-background/50 border-border">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1 mr-8">
+                      <Label className="text-sm font-bold">VFS Cache Mode</Label>
+                      <p className="text-xs text-muted mt-0.5">
+                        "full" is required for seeking in videos and random access.
+                      </p>
+                    </div>
+                    
+                    <Select 
+                      className="w-48"
+                      value={vfsCacheMode}
+                      onChange={(key) => handleVfsChange("vfsCacheMode", key as string)}
+                    >
+                      <Select.Trigger>
+                        <Select.Value className="text-sm font-bold" />
+                        <Select.Indicator />
+                      </Select.Trigger>
+                      <Select.Popover>
+                        <ListBox>
+                          <ListBox.Item id="off" textValue="Off">Off</ListBox.Item>
+                          <ListBox.Item id="minimal" textValue="Minimal">Minimal</ListBox.Item>
+                          <ListBox.Item id="writes" textValue="Writes">Writes</ListBox.Item>
+                          <ListBox.Item id="full" textValue="Full">Full</ListBox.Item>
+                        </ListBox>
+                      </Select.Popover>
+                    </Select>
+                  </div>
+                </Card>
+
+                {/* Sizes Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Card className="p-6 bg-background/50 border-border">
+                    <Label className="text-sm font-bold">Max Cache Size</Label>
+                    <p className="text-xs text-muted mb-4">Max disk space for cache (e.g. 10G, 100G)</p>
+                    <TextField>
+                      <Input
+                        value={vfsCacheMaxSize}
+                        onChange={(e) => handleVfsChange("vfsCacheMaxSize", e.target.value, validateSize)}
+                        className="h-11 bg-default/10 rounded-2xl border-none font-bold px-4"
+                      />
+                    </TextField>
+                  </Card>
+
+                  <Card className="p-6 bg-background/50 border-border">
+                    <Label className="text-sm font-bold">Read Ahead</Label>
+                    <p className="text-xs text-muted mb-4">Bytes to read ahead in "full" mode (e.g. 128M)</p>
+                    <TextField>
+                      <Input
+                        value={vfsReadAhead}
+                        onChange={(e) => handleVfsChange("vfsReadAhead", e.target.value, validateSize)}
+                        className="h-11 bg-default/10 rounded-2xl border-none font-bold px-4"
+                      />
+                    </TextField>
+                  </Card>
+
+                  <Card className="p-6 bg-background/50 border-border">
+                    <Label className="text-sm font-bold">Read Chunk Size</Label>
+                    <p className="text-xs text-muted mb-4">Initial chunk size for reads (e.g. 128M)</p>
+                    <TextField>
+                      <Input
+                        value={vfsReadChunkSize}
+                        onChange={(e) => handleVfsChange("vfsReadChunkSize", e.target.value, validateSize)}
+                        className="h-11 bg-default/10 rounded-2xl border-none font-bold px-4"
+                      />
+                    </TextField>
+                  </Card>
+
+                   <Card className="p-6 bg-background/50 border-border">
+                    <Label className="text-sm font-bold">Chunk Size Limit</Label>
+                    <p className="text-xs text-muted mb-4">Max doubled chunk size (e.g. 512M, or "off")</p>
+                    <TextField>
+                      <Input
+                        value={vfsReadChunkSizeLimit}
+                        onChange={(e) => handleVfsChange("vfsReadChunkSizeLimit", e.target.value, validateSize)}
+                        className="h-11 bg-default/10 rounded-2xl border-none font-bold px-4"
+                      />
+                    </TextField>
+                  </Card>
+                </div>
+
+                {/* Durations Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Card className="p-6 bg-background/50 border-border">
+                    <Label className="text-sm font-bold">Dir Cache Time</Label>
+                    <p className="text-xs text-muted mb-4">How long to cache directory listings (e.g. 5m)</p>
+                    <TextField>
+                      <Input
+                        value={vfsDirCacheTime}
+                        onChange={(e) => handleVfsChange("vfsDirCacheTime", e.target.value, validateDuration)}
+                        className="h-11 bg-default/10 rounded-2xl border-none font-bold px-4"
+                      />
+                    </TextField>
+                  </Card>
+
+                  <Card className="p-6 bg-background/50 border-border">
+                    <Label className="text-sm font-bold">Max Cache Age</Label>
+                    <p className="text-xs text-muted mb-4">Max age of cached files (e.g. 1h, 24h)</p>
+                    <TextField>
+                      <Input
+                        value={vfsCacheMaxAge}
+                        onChange={(e) => handleVfsChange("vfsCacheMaxAge", e.target.value, validateDuration)}
+                        className="h-11 bg-default/10 rounded-2xl border-none font-bold px-4"
+                      />
+                    </TextField>
+                  </Card>
+
+                  <Card className="p-6 bg-background/50 border-border">
+                    <Label className="text-sm font-bold">Write Back Delay</Label>
+                    <p className="text-xs text-muted mb-4">Delay before uploading changed files (e.g. 5s)</p>
+                    <TextField>
+                      <Input
+                        value={vfsWriteBack}
+                        onChange={(e) => handleVfsChange("vfsWriteBack", e.target.value, validateDuration)}
+                        className="h-11 bg-default/10 rounded-2xl border-none font-bold px-4"
+                      />
+                    </TextField>
+                  </Card>
+
+                  <Card className="p-6 bg-background/50 border-border">
+                    <Label className="text-sm font-bold">Poll Interval</Label>
+                    <p className="text-xs text-muted mb-4">How often to poll for changes (e.g. 1m)</p>
+                    <TextField>
+                      <Input
+                        value={vfsPollInterval}
+                        onChange={(e) => handleVfsChange("vfsPollInterval", e.target.value, validateDuration)}
+                        className="h-11 bg-default/10 rounded-2xl border-none font-bold px-4"
+                      />
+                    </TextField>
+                  </Card>
+                </div>
+
+                {/* Others */}
+                <Card className="p-6 bg-background/50 border-border">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1 mr-8">
+                      <Label className="text-sm font-bold">Read Chunk Streams</Label>
+                      <p className="text-xs text-muted mt-0.5">
+                        Number of parallel streams to use for reading chunks (0 to disable).
+                      </p>
+                    </div>
+                    
+                    <TextField className="w-48">
+                      <Input
+                        value={vfsReadChunkStreams}
+                        onChange={(e) => handleVfsChange("vfsReadChunkStreams", e.target.value)}
+                        className="h-11 bg-default/10 rounded-2xl border-none text-center font-bold"
+                      />
+                    </TextField>
+                  </div>
+                </Card>
+
+                <div className="p-4 bg-warning/10 border border-warning/20 rounded-2xl">
+                  <p className="text-xs text-warning font-bold uppercase tracking-wider">
+                    Restart Required
+                  </p>
+                  <p className="text-[11px] text-warning/80 mt-1">
+                    VFS configuration changes require a server restart to take effect.
+                  </p>
+                </div>
+              </div>
+            </section>
 					</div>
 				</ScrollShadow>
 			</div>

@@ -136,11 +136,18 @@ func New(ctx context.Context) (*App, error) {
 func (a *App) Handler() http.Handler {
 	ah := AssetsHandler()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("Request: %s %s", r.Method, r.URL.Path)
 		if strings.HasPrefix(r.URL.Path, "/api/v1") {
 			a.router.Handler().ServeHTTP(w, r)
 			return
 		}
+
+		// Check if it's a file request or if we should serve index.html
+		// This is important for SPA routing
+		path := r.URL.Path
+		if path == "/" || path == "" {
+			r.URL.Path = "/index.html"
+		}
+
 		ah.ServeHTTP(w, r)
 	})
 }
@@ -161,10 +168,17 @@ func (a *App) Start(ctx context.Context) error {
 }
 
 func (a *App) StartEngines(ctx context.Context) error {
+	// Load settings from DB
+	setr := store.NewSettingsRepo(a.store.GetDB())
+	settings, _ := setr.Get(ctx)
+
 	// Start engines
 	if err := a.downloadEngine.Start(ctx); err != nil {
 		return err
 	}
+
+	// Configure and start upload engine (Rclone VFS)
+	a.uploadEngine.Configure(ctx, settings)
 	if err := a.uploadEngine.Start(ctx); err != nil {
 		log.Printf("Warning: Upload engine failed to start: %v", err)
 	}

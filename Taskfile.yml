@@ -36,12 +36,14 @@ tasks:
 
   build:backend:
     dir: server
-    cmd: go build -o ../gravity cmd/gravity/main.go
+    cmd: go build -o ../bin/gravity cmd/gravity/main.go
 
   build:desktop:
     desc: Build desktop application (Wails v3)
     dir: server
-    cmd: go build -o ../gravity-desktop cmd/desktop/main.go
+    cmds:
+      - cd ../frontend && bun run build
+      - go build -o ../bin/gravity-desktop cmd/desktop/main.go
 
   test:
     desc: Run tests
@@ -60,5 +62,5 @@ tasks:
   clean:
     desc: Clean build artifacts
     cmds:
-      - rm -rf server/dist
-      - rm -f gravity
+      - rm -rf server/internal/app/dist
+      - rm -rf bin/

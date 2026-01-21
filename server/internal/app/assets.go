@@ -4,8 +4,6 @@ import (
 	"embed"
 	"io/fs"
 	"net/http"
-
-	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
 //go:embed all:dist
@@ -16,5 +14,5 @@ func AssetsHandler() http.Handler {
 	if err != nil {
 		panic(err)
 	}
-	return application.AssetFileServerFS(sub)
+	return http.FileServer(http.FS(sub))
 }

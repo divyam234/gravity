@@ -3,8 +3,10 @@ package rclone
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 	stdSync "sync"
 	"time"
@@ -52,6 +54,7 @@ func NewEngine(ctx context.Context) *Engine {
 }
 
 func (e *Engine) Start(ctx context.Context) error {
+	log.Printf("Rclone: Using config file: %s", rclConfig.GetConfigPath())
 	if err := SyncGravityRoot(); err != nil {
 		return fmt.Errorf("failed to sync gravity root: %w", err)
 	}
@@ -478,6 +481,72 @@ func (e *Engine) Cancel(ctx context.Context, jobID string) error {
 }
 
 func (e *Engine) Configure(ctx context.Context, options map[string]string) error {
+	// Helper for Booleans
+	parseBool := func(key string, target *bool) {
+		if val, ok := options[key]; ok {
+			*target = val == "true" || val == "1" || val == "yes"
+		}
+	}
+
+	// Helper for Durations
+	parseDuration := func(key string, target *fs.Duration) {
+		if val, ok := options[key]; ok {
+			if d, err := fs.ParseDuration(val); err == nil {
+				*target = fs.Duration(d)
+			}
+		}
+	}
+
+	// Helper for Sizes
+	parseSize := func(key string, target *fs.SizeSuffix) {
+		if val, ok := options[key]; ok {
+			var size fs.SizeSuffix
+			if err := size.Set(val); err == nil {
+				*target = size
+			}
+		}
+	}
+
+	// 1. Cache Mode
+	if val, ok := options["vfsCacheMode"]; ok {
+		var mode vfscommon.CacheMode
+		if err := mode.Set(val); err == nil {
+			vfscommon.Opt.CacheMode = mode
+		}
+	}
+
+	// 2. Flags / Booleans
+	parseBool("vfsNoChecksum", &vfscommon.Opt.NoChecksum)
+	parseBool("vfsRefresh", &vfscommon.Opt.Refresh)
+	parseBool("vfsCaseInsensitive", &vfscommon.Opt.CaseInsensitive)
+
+	// 3. Durations
+	parseDuration("vfsDirCacheTime", &vfscommon.Opt.DirCacheTime)
+	parseDuration("vfsPollInterval", &vfscommon.Opt.PollInterval)
+	parseDuration("vfsWriteBack", &vfscommon.Opt.WriteBack)
+	parseDuration("vfsCacheMaxAge", &vfscommon.Opt.CacheMaxAge)
+	parseDuration("vfsCachePollInterval", &vfscommon.Opt.CachePollInterval)
+	parseDuration("vfsWriteWait", &vfscommon.Opt.WriteWait)
+	parseDuration("vfsReadWait", &vfscommon.Opt.ReadWait)
+
+	// 4. Sizes
+	parseSize("vfsCacheMaxSize", &vfscommon.Opt.CacheMaxSize)
+	parseSize("vfsCacheMinFreeSpace", &vfscommon.Opt.CacheMinFreeSpace)
+	parseSize("vfsReadChunkSize", &vfscommon.Opt.ChunkSize)
+	parseSize("vfsReadChunkSizeLimit", &vfscommon.Opt.ChunkSizeLimit)
+	parseSize("vfsReadAhead", &vfscommon.Opt.ReadAhead)
+	parseSize("vfsDiskSpaceTotalSize", &vfscommon.Opt.DiskSpaceTotalSize)
+
+	// 5. Integers
+	if val, ok := options["vfsReadChunkStreams"]; ok {
+		if i, err := strconv.Atoi(val); err == nil {
+			vfscommon.Opt.ChunkStreams = i
+		}
+	}
+
+	log.Printf("Rclone: VFS configured (CacheMode=%v, WriteBack=%v, ReadAhead=%v)",
+		vfscommon.Opt.CacheMode, vfscommon.Opt.WriteBack, vfscommon.Opt.ReadAhead)
+
 	return nil
 }
 

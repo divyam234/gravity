@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 
 	"gravity/internal/app"
@@ -16,25 +17,20 @@ func main() {
 		log.Fatalf("Failed to initialize Gravity: %v", err)
 	}
 
-	// Start engines but NOT the HTTP server
-	if err := a.StartEngines(appCtx); err != nil {
+	// Start engines AND the HTTP server
+	if err := a.Start(appCtx); err != nil {
 		log.Fatal(err)
 	}
 
+	url := fmt.Sprintf("http://localhost:%d", a.Port())
 	wailsApp := application.New(application.Options{
 		Name:        "Gravity",
 		Description: "A modern download manager",
-		Services: []application.Service{
-			application.NewService(app.NewBridge(a)),
-		},
-		Assets: application.AssetOptions{
-			Handler: a.Handler(),
-		},
 	})
 
 	wailsApp.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:  "Gravity",
-		URL:    "/",
+		URL:    url,
 		Width:  1280,
 		Height: 800,
 	})
@@ -42,14 +38,6 @@ func main() {
 	wailsApp.OnShutdown(func() {
 		a.Stop()
 	})
-
-	// Forward events from Bus to Wails
-	go func() {
-		ch := a.Events().Subscribe()
-		for ev := range ch {
-			wailsApp.Event.Emit("gravity-event", ev)
-		}
-	}()
 
 	err = wailsApp.Run()
 	if err != nil {

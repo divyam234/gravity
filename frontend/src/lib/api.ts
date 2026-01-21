@@ -68,6 +68,7 @@ export interface IApiClient {
   
   // File Admin
   purgeFileCache(): Promise<void>;
+  request<T>(method: string, path: string, body?: any): Promise<T>;
 }
 
 class RestApiClient implements IApiClient {
@@ -77,7 +78,7 @@ class RestApiClient implements IApiClient {
   setApiKey(key: string) { this.apiKey = key; }
   setBaseUrl(url: string) { this.baseUrl = url.replace(/\/+$/, ""); }
 
-  private async request<T>(method: string, path: string, body?: any): Promise<T> {
+  async request<T>(method: string, path: string, body?: any): Promise<T> {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (this.apiKey) headers["X-API-Key"] = this.apiKey;
     const response = await fetch(`${this.baseUrl}${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined });
@@ -136,57 +137,4 @@ class RestApiClient implements IApiClient {
   purgeFileCache() { return this.request<void>('POST', '/files/purge-cache'); }
 }
 
-class WailsApiClient implements IApiClient {
-  private getBridge() {
-     return (window as any).go?.main?.Bridge || (window as any).wails?.bindings?.main?.Bridge;
-  }
-
-  setApiKey(_key: string) {}
-  setBaseUrl(_url: string) {}
-
-  async getDownloads(params?: any) { return this.getBridge().GetDownloads(params?.status || [], params?.limit || 100, params?.offset || 0); }
-  async getDownload(id: string) { return this.getBridge().GetDownload(id); }
-  async createDownload(url: string, destination?: string, filename?: string) { return this.getBridge().CreateDownload(url, destination || "", filename || ""); }
-  async pauseDownload(id: string) { return this.getBridge().PauseDownload(id); }
-  async resumeDownload(id: string) { return this.getBridge().ResumeDownload(id); }
-  async deleteDownload(id: string, deleteFiles = false) { return this.getBridge().DeleteDownload(id, deleteFiles); }
-  async getProviders() { return this.getBridge().GetProviders(); }
-  async configureProvider(name: string, config: any, enabled: boolean) { return this.getBridge().ConfigureProvider(name, config, enabled); }
-  async resolveUrl(url: string) { return this.getBridge().ResolveUrl(url); }
-  async getRemotes() { return this.getBridge().GetRemotes(); }
-  async getStats() { return this.getBridge().GetStats(); }
-  async getSettings() { return this.getBridge().GetSettings(); }
-  async updateSettings(settings: any) { return this.getBridge().UpdateSettings(settings); }
-  async listFiles(path: string) { return this.getBridge().ListFiles(path); }
-  async mkdir(path: string) { return this.getBridge().Mkdir(path); }
-  async deleteFile(path: string) { return this.getBridge().DeleteFile(path); }
-  async operateFile(op: any, src: string, dst: string) { return this.getBridge().OperateFile(op, src, dst); }
-  async search(q: string) { return this.getBridge().Search(q, 100, 0); }
-  async checkMagnet(magnet: string) { return this.getBridge().CheckMagnet(magnet); }
-  async checkTorrent(torrentBase64: string) { return this.getBridge().CheckTorrent(torrentBase64); }
-  async downloadMagnet(req: MagnetDownloadRequest) { return this.getBridge().DownloadMagnet(req); }
-  getFileUrl(path: string) { return `/api/v1/files/cat?path=${encodeURIComponent(path)}`; }
-
-  subscribeEvents(handler: (event: any) => void) {
-    const unsub = (window as any).wails?.events?.on("gravity-event", (evt: any) => {
-       handler(evt.data);
-    });
-    return () => unsub && unsub();
-  }
-
-  async getVersion() { return { version: "0.1.0", aria2: "unknown", rclone: "unknown" }; }
-  async restartAria2() {}
-  async restartRclone() {}
-  async restartServer() {}
-  async getSearchConfigs() { return { data: [] }; }
-  async updateSearchConfig(_remote: string, _config: any) {}
-  async updateSearchConfigs(_configs: any) {}
-  async triggerIndex(_remote: string) {}
-  async exportSettings() { return {}; }
-  async importSettings(_settings: Record<string, string>) {}
-  async resetSettings() {}
-  async purgeFileCache() {}
-}
-
-const isWails = typeof window !== 'undefined' && ((window as any).go || (window as any).wails);
-export const api: IApiClient = isWails ? new WailsApiClient() : new RestApiClient();
+export const api: IApiClient = new RestApiClient();
