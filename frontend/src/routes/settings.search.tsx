@@ -16,7 +16,7 @@ import { z } from "zod";
 import IconChevronLeft from "~icons/gravity-ui/chevron-left";
 import IconMagnifyingGlass from "~icons/gravity-ui/magnifier";
 import IconArrowsRotateRight from "~icons/gravity-ui/arrows-rotate-right";
-import IconCircleCheckFill from "~icons/gravity-ui/circle-check-fill";
+import IconCheck from "~icons/gravity-ui/check";
 import IconCloud from "~icons/gravity-ui/cloud";
 import IconFunnel from "~icons/gravity-ui/funnel";
 import IconGear from "~icons/gravity-ui/gear";
@@ -90,7 +90,7 @@ function SearchSettingsPage() {
       <div className="flex-1 bg-muted-background/40 rounded-3xl border border-border overflow-hidden min-h-0 mx-2">
         {configs.length === 0 ? (
           <div className="flex h-full items-center justify-center p-8 text-center">
-            <Card className="p-12 bg-surface border-border border-dashed max-w-md rounded-[2.5rem] shadow-none">
+            <Card className="p-12 bg-background/50 border-border border-dashed max-w-md rounded-2xl shadow-none">
               <div className="w-20 h-20 bg-default/10 rounded-full flex items-center justify-center mb-6 mx-auto">
                 <IconMagnifyingGlass className="w-10 h-10 text-muted" />
               </div>
@@ -141,14 +141,14 @@ function SearchSettingsLayout({
 
   return (
     <ScrollShadow className="h-full">
-      <div className="max-w-4xl mx-auto p-6 space-y-8">
+      <div className="max-w-4xl mx-auto p-8 space-y-10">
         {/* Remotes Section */}
         <section>
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
-              <div className="w-1.5 h-5 bg-accent rounded-full" />
-              <h3 className="text-base font-bold">Target Remotes</h3>
-              <span className="text-[10px] font-black text-muted bg-default/10 px-2 py-0.5 rounded-full">
+              <div className="w-1.5 h-6 bg-accent rounded-full" />
+              <h3 className="text-lg font-bold">Target Remotes</h3>
+              <span className="text-xs font-medium text-muted bg-default/10 px-2 py-0.5 rounded-full">
                 {configs.length}
               </span>
             </div>
@@ -156,7 +156,7 @@ function SearchSettingsLayout({
               <Button
                 size="sm"
                 variant="ghost"
-                className="rounded-lg font-bold text-[10px] h-7 px-3"
+                className="rounded-xl font-bold text-xs"
                 onPress={() => setSelectedRemotes("all")}
               >
                 Select All
@@ -164,7 +164,7 @@ function SearchSettingsLayout({
               <Button
                 size="sm"
                 variant="ghost"
-                className="rounded-lg font-bold text-[10px] h-7 px-3 text-danger"
+                className="rounded-xl font-bold text-xs text-danger"
                 isDisabled={
                   selectedRemotes !== "all" && selectedRemotes.size === 0
                 }
@@ -181,7 +181,7 @@ function SearchSettingsLayout({
             selectionMode="multiple"
             selectedKeys={selectedRemotes}
             onSelectionChange={setSelectedRemotes}
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 bg-transparent p-0"
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 bg-transparent p-0"
           >
             {(config) => {
               return (
@@ -189,8 +189,8 @@ function SearchSettingsLayout({
                   id={config.remote}
                   textValue={config.remote}
                   className={cn(
-                    "w-full text-left transition-all duration-200 border rounded-2xl overflow-hidden outline-none group bg-surface border-border/40",
-                    "data-[selected=true]:border-accent data-[selected=true]:bg-accent/10 data-[selected=true]:shadow-sm data-[selected=true]:shadow-accent/10",
+                    "w-full text-left transition-all duration-200 border rounded-2xl overflow-hidden outline-none group bg-background/50 border-border p-0",
+                    "data-[selected=true]:border-accent/30 data-[selected=true]:bg-accent/5",
                     "data-[hovered=true]:bg-default/10 data-[hovered=true]:border-border/60"
                   )}
                 >
@@ -213,20 +213,19 @@ function SearchSettingsLayout({
 
         {/* Configuration Section */}
         <section className="animate-in slide-in-from-bottom-4 duration-500">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-1.5 h-5 bg-accent rounded-full" />
-            <h3 className="text-base font-bold">Configuration</h3>
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-1.5 h-6 bg-accent rounded-full" />
+            <h3 className="text-lg font-bold">Configuration</h3>
             {selectedConfigs.length > 0 && (
-              <span className="text-[10px] font-black text-accent bg-accent/10 px-2 py-0.5 rounded-full">
-                Editing {selectedConfigs.length} Remote
-                {selectedConfigs.length !== 1 ? "s" : ""}
-              </span>
+              <Chip size="sm" color="accent" variant="soft" className="h-5 px-2 text-[10px] font-black uppercase tracking-widest">
+                {selectedConfigs.length} Remote{selectedConfigs.length !== 1 ? "s" : ""}
+              </Chip>
             )}
           </div>
 
           {selectedConfigs.length > 0 ? (
-            <Card className="bg-surface border-border overflow-hidden rounded-2xl">
-              <div className="p-6">
+            <Card className="bg-background/50 border-border overflow-hidden rounded-2xl">
+              <Card.Content className="p-8">
                 <SearchSettingsForm
                   key={selectedConfigs
                     .map((c) => c.remote)
@@ -235,15 +234,15 @@ function SearchSettingsLayout({
                   selectedConfigs={selectedConfigs}
                   updateConfigs={updateConfigs}
                 />
-              </div>
+              </Card.Content>
             </Card>
           ) : (
-            <Card className="bg-surface border-border border-dashed p-10 flex flex-col items-center justify-center text-center opacity-60 rounded-2xl">
-              <div className="w-12 h-12 bg-default/10 rounded-xl flex items-center justify-center mb-4">
-                <IconGear className="w-6 h-6 text-muted" />
+            <Card className="bg-background/50 border-border border-dashed p-12 flex flex-col items-center justify-center text-center rounded-2xl opacity-60">
+              <div className="w-16 h-16 bg-default/10 rounded-2xl flex items-center justify-center mb-4">
+                <IconGear className="w-8 h-8 text-muted" />
               </div>
-              <p className="font-bold text-sm text-muted">No Remotes Selected</p>
-              <p className="text-[10px] text-muted mt-1 max-w-[200px]">
+              <p className="font-bold text-muted">No Remotes Selected</p>
+              <p className="text-xs text-muted mt-2 max-w-xs">
                 Select one or more remotes from the list above to configure
                 their indexing rules.
               </p>
@@ -261,100 +260,105 @@ function RemoteCard({ config, isSelected, onIndex, isIndexing }: any) {
       ?.label || "Custom";
 
   return (
-    <div className="p-3 space-y-2.5">
+    <div className="p-5 space-y-5">
       {/* Header */}
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div
-              className={cn(
-                "w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-colors",
-                isSelected
-                  ? "bg-accent text-accent-foreground"
-                  : "bg-default/10 text-muted group-hover:bg-default/20",
-              )}
-            >
-              <IconCloud className="w-4.5 h-4.5" />
-            </div>
-            <div className="min-w-0">
-              <h4 className="font-bold text-sm truncate text-foreground leading-tight">
-                {config.remote}
-              </h4>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                {config.status === "indexing" ? (
-                  <div className="flex items-center gap-1 text-[9px] text-accent font-black uppercase tracking-wider">
-                    <span className="w-1 h-1 rounded-full bg-accent animate-pulse" />
-                    Indexing
-                  </div>
-                ) : config.lastIndexedAt ? (
-                  <div className="flex items-center gap-1 text-[9px] text-success font-black uppercase tracking-wider">
-                    <IconCircleCheckFill className="w-2.5 h-2.5" />
-                    Ready
-                  </div>
-                ) : (
-                  <div className="text-[9px] text-muted font-bold uppercase tracking-wider opacity-60">
-                    Idle
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <Checkbox
-            isSelected={isSelected}
-            className="pointer-events-none"
-            size="sm"
-            color="primary"
-          />
-        </div>
-
-        {/* Badges - Compact */}
-        <div className="flex flex-wrap gap-1">
-          <Chip size="sm" variant="soft" className="h-5 px-1.5 text-[9px] font-bold border-none bg-default/10">
-            <IconClock className="w-2.5 h-2.5 mr-1 opacity-60 text-muted" />
-            {intervalLabel}
-          </Chip>
-
-          {(config.minSizeBytes || 0) > 0 && (
-            <Chip size="sm" variant="soft" className="h-5 px-1.5 text-[9px] font-bold border-none bg-default/10">
-              <IconFunnel className="w-2.5 h-2.5 mr-1 opacity-60 text-muted" />
-              {formatBytes(config.minSizeBytes)}
-            </Chip>
-          )}
-
-          {config.includedExtensions && (
-            <Chip size="sm" variant="soft" className="h-5 px-1.5 text-[9px] font-bold border-none bg-default/10 max-w-[100px] truncate">
-              {config.includedExtensions}
-            </Chip>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="pt-2 flex items-center justify-between border-t border-border/10">
-          <div className="text-[9px] text-muted font-medium opacity-60 truncate pr-2">
-            {config.lastIndexedAt
-              ? `Sync: ${new Date(config.lastIndexedAt).toLocaleDateString()}`
-              : "Never synced"}
-          </div>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-5 min-w-0 px-2 gap-1 text-[9px] font-black uppercase tracking-widest rounded-md hover:bg-accent/10 hover:text-accent transition-colors"
-            isDisabled={config.status === "indexing"}
-            onPress={(e) => {
-              e.continuePropagation();
-              onIndex();
-            }}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-4 min-w-0">
+          <div
+            className={cn(
+              "w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 transition-all duration-200",
+              isSelected
+                ? "bg-accent/10 text-accent"
+                : "bg-default/10 text-muted group-hover:bg-accent/10 group-hover:text-accent",
+            )}
           >
-            <IconArrowsRotateRight
-              className={cn(
-                "w-2.5 h-2.5",
-                (config.status === "indexing" || isIndexing) && "animate-spin",
+            <IconCloud className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <h4 className="font-bold text-base truncate text-foreground leading-tight group-hover:text-accent transition-colors">
+              {config.remote}
+            </h4>
+            <div className="flex items-center gap-2 mt-1">
+              {config.status === "indexing" ? (
+                <div className="flex items-center gap-1.5 text-[10px] text-accent font-black uppercase tracking-widest">
+                  <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
+                  Indexing
+                </div>
+              ) : config.lastIndexedAt ? (
+                <Chip
+                  size="sm"
+                  variant="soft"
+                  color="success"
+                  className="h-4 px-1.5 text-[10px] font-black uppercase tracking-widest"
+                >
+                  <IconCheck className="w-3 h-3 mr-1" />
+                  Ready
+                </Chip>
+              ) : (
+                <div className="text-[10px] text-muted font-bold uppercase tracking-widest opacity-60">
+                  Idle
+                </div>
               )}
-            />
-            {config.lastIndexedAt ? "Sync" : "Start"}
-          </Button>
+            </div>
+          </div>
         </div>
+
+        <Checkbox
+          isSelected={isSelected}
+          className="pointer-events-none"
+          size="sm"
+          color="primary"
+        />
       </div>
+
+      {/* Badges - Compact */}
+      <div className="flex flex-wrap gap-1.5">
+        <Chip size="sm" variant="soft" className="h-6 px-2 text-[10px] font-bold border-none bg-default/10">
+          <IconClock className="w-3 h-3 mr-1.5 opacity-60" />
+          {intervalLabel}
+        </Chip>
+
+        {(config.minSizeBytes || 0) > 0 && (
+          <Chip size="sm" variant="soft" className="h-6 px-2 text-[10px] font-bold border-none bg-default/10">
+            <IconFunnel className="w-3 h-3 mr-1.5 opacity-60" />
+            {formatBytes(config.minSizeBytes)}
+          </Chip>
+        )}
+
+        {config.includedExtensions && (
+          <Chip size="sm" variant="soft" className="h-6 px-2 text-[10px] font-bold border-none bg-default/10 max-w-[120px] truncate">
+            {config.includedExtensions}
+          </Chip>
+        )}
+      </div>
+
+      {/* Footer */}
+      <div className="pt-3 flex items-center justify-between border-t border-border/10">
+        <div className="text-[10px] text-muted font-medium opacity-60 truncate pr-2">
+          {config.lastIndexedAt
+            ? `Sync: ${new Date(config.lastIndexedAt).toLocaleDateString()}`
+            : "Never synced"}
+        </div>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-7 min-w-0 px-3 gap-2 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-accent/10 hover:text-accent transition-all"
+          isDisabled={config.status === "indexing"}
+          onPress={(e) => {
+            e.continuePropagation();
+            onIndex();
+          }}
+        >
+          <IconArrowsRotateRight
+            className={cn(
+              "w-3 h-3",
+              (config.status === "indexing" || isIndexing) && "animate-spin",
+            )}
+          />
+          {config.lastIndexedAt ? "Sync" : "Start"}
+        </Button>
+      </div>
+    </div>
   );
 }
 
