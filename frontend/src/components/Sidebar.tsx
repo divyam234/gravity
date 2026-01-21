@@ -481,26 +481,6 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
 
       <div className="p-6 mt-auto shrink-0 space-y-4">
         <div className="p-4 rounded-3xl bg-default/10 border border-border flex flex-col gap-2">
-          <div className="flex items-center justify-between">
-            <p className="text-[10px] font-black uppercase text-muted tracking-widest">
-              Storage
-            </p>
-            <span className="text-[10px] font-bold text-muted">
-              {stats?.system?.diskUsage?.toFixed(0)}%
-            </span>
-          </div>
-          <div className="h-1.5 w-full bg-default/20 rounded-full overflow-hidden">
-            <div 
-              className="h-full bg-accent transition-all duration-500" 
-              style={{ width: `${stats?.system?.diskUsage || 0}%` }}
-            />
-          </div>
-          <p className="text-[10px] text-muted font-medium">
-            {formatBytes(stats?.system?.diskFree || 0)} free
-          </p>
-        </div>
-
-        <div className="p-4 rounded-3xl bg-default/10 border border-border flex flex-col gap-2">
           <p className="text-[10px] font-black uppercase text-muted tracking-widest">
             Session Speed
           </p>

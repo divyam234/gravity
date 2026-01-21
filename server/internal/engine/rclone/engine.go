@@ -17,9 +17,9 @@ import (
 	"github.com/rclone/rclone/fs"
 	"github.com/rclone/rclone/fs/accounting"
 	rclConfig "github.com/rclone/rclone/fs/config"
-	"github.com/rclone/rclone/fs/operations"
+	_ "github.com/rclone/rclone/fs/operations"
 	"github.com/rclone/rclone/fs/rc"
-	rclSync "github.com/rclone/rclone/fs/sync"
+	_ "github.com/rclone/rclone/fs/sync"
 	"github.com/rclone/rclone/vfs"
 	"github.com/rclone/rclone/vfs/vfscommon"
 
@@ -177,52 +177,28 @@ func (e *Engine) Rename(ctx context.Context, virtualPath, newName string) error 
 func (e *Engine) Upload(ctx context.Context, src, dst string, opts engine.UploadOptions) (string, error) {
 	dstTrim := strings.TrimPrefix(dst, "/")
 	parts := strings.SplitN(dstTrim, "/", 2)
-	remoteName := parts[0]
+	remoteName := strings.TrimSuffix(parts[0], ":")
 	remotePath := ""
 	if len(parts) > 1 {
 		remotePath = parts[1]
 	}
 
-	// Analyze source
 	info, err := os.Stat(src)
 	if err != nil {
 		return "", fmt.Errorf("stat src: %w", err)
 	}
 	isDir := info.IsDir()
 
-	// Prepare Source Fs
-	var srcFs fs.Fs
-	var srcRemote string
-
-	if isDir {
-		srcFs, err = fs.NewFs(e.appCtx, src)
-	} else {
-		// If file, open parent dir
-		srcFs, err = fs.NewFs(e.appCtx, filepath.Dir(src))
-		srcRemote = filepath.Base(src)
-	}
-	if err != nil {
-		return "", fmt.Errorf("src fs: %w", err)
-	}
-
-	// Prepare Dest Fs
-	dstFs, err := fs.NewFs(e.appCtx, remoteName+":"+remotePath)
-	if err != nil {
-		return "", fmt.Errorf("dst fs: %w", err)
-	}
-
 	jobID := fmt.Sprintf("job-%d", opts.JobID)
 	if opts.TrackingID != "" {
 		jobID = opts.TrackingID
 	}
 
-	size := info.Size()
-
 	jobCtx, cancel := context.WithCancel(e.appCtx)
 	j := &job{
 		id:      jobID,
 		trackID: opts.TrackingID,
-		size:    size,
+		size:    info.Size(),
 		done:    make(chan struct{}),
 		cancel:  cancel,
 	}
@@ -235,18 +211,24 @@ func (e *Engine) Upload(ctx context.Context, src, dst string, opts engine.Upload
 		defer close(j.done)
 		defer e.removeJob(jobID)
 
+		// Ensure stats are tracked for this group
 		jobCtx = accounting.WithStatsGroup(jobCtx, jobID)
+
 		var err error
+		params := rc.Params{
+			"_group": jobID,
+		}
 
 		if isDir {
-			err = rclSync.CopyDir(jobCtx, dstFs, srcFs, true)
+			params["srcFs"] = src
+			params["dstFs"] = remoteName + ":" + remotePath
+			_, err = e.Call(jobCtx, "sync/copy", params)
 		} else {
-			// Single file copy
-			var srcObj fs.Object
-			srcObj, err = srcFs.NewObject(jobCtx, srcRemote)
-			if err == nil {
-				_, err = operations.Copy(jobCtx, dstFs, nil, srcRemote, srcObj)
-			}
+			params["srcFs"] = filepath.Dir(src)
+			params["srcRemote"] = filepath.Base(src)
+			params["dstFs"] = remoteName + ":" + remotePath
+			params["dstRemote"] = filepath.Base(src)
+			_, err = e.Call(jobCtx, "operations/copyfile", params)
 		}
 
 		if err != nil {
@@ -433,28 +415,6 @@ func (e *Engine) TestRemote(ctx context.Context, name string) error {
 }
 
 func (e *Engine) Copy(ctx context.Context, srcPath, dstPath string) (string, error) {
-	_, _, srcPathPart, _, err := fs.ParseRemote(GravityRootRemote + ":" + srcPath)
-	if err != nil {
-		return "", err
-	}
-	fSrc, err := fs.NewFs(e.appCtx, GravityRootRemote+":"+path.Dir(srcPath))
-	if err != nil {
-		return "", err
-	}
-	srcObj, err := fSrc.NewObject(e.appCtx, srcPathPart)
-	if err != nil {
-		return "", err
-	}
-
-	fDst, err := fs.NewFs(e.appCtx, GravityRootRemote+":"+path.Dir(dstPath))
-	if err != nil {
-		return "", err
-	}
-	_, _, dstPathPart, _, err := fs.ParseRemote(GravityRootRemote + ":" + dstPath)
-	if err != nil {
-		return "", err
-	}
-
 	jobID := "copy-" + strings.ReplaceAll(srcPath, "/", "-") + "-" + fmt.Sprint(time.Now().Unix())
 	jobCtx, cancel := context.WithCancel(e.appCtx)
 	j := &job{
@@ -472,8 +432,36 @@ func (e *Engine) Copy(ctx context.Context, srcPath, dstPath string) (string, err
 		defer close(j.done)
 		defer e.removeJob(jobID)
 
+		// Ensure stats are tracked for this group
 		jobCtx = accounting.WithStatsGroup(jobCtx, jobID)
-		_, err := operations.Copy(jobCtx, fDst, nil, dstPathPart, srcObj)
+
+		// Parse paths
+		// srcPath: /remote/path/to/file -> remote, path/to/file
+		srcClean := strings.TrimPrefix(srcPath, "/")
+		srcParts := strings.SplitN(srcClean, "/", 2)
+		srcRemote := strings.TrimSuffix(srcParts[0], ":")
+		srcRPath := ""
+		if len(srcParts) > 1 {
+			srcRPath = srcParts[1]
+		}
+
+		dstClean := strings.TrimPrefix(dstPath, "/")
+		dstParts := strings.SplitN(dstClean, "/", 2)
+		dstRemote := strings.TrimSuffix(dstParts[0], ":")
+		dstRPath := ""
+		if len(dstParts) > 1 {
+			dstRPath = dstParts[1]
+		}
+
+		params := rc.Params{
+			"srcFs":     srcRemote + ":",
+			"srcRemote": srcRPath,
+			"dstFs":     dstRemote + ":",
+			"dstRemote": dstRPath,
+			"_group":    jobID,
+		}
+
+		_, err := e.Call(jobCtx, "operations/copyfile", params)
 
 		if err != nil {
 			if e.onError != nil {
@@ -490,28 +478,6 @@ func (e *Engine) Copy(ctx context.Context, srcPath, dstPath string) (string, err
 }
 
 func (e *Engine) Move(ctx context.Context, srcPath, dstPath string) (string, error) {
-	_, _, srcPathPart, _, err := fs.ParseRemote(GravityRootRemote + ":" + srcPath)
-	if err != nil {
-		return "", err
-	}
-	fSrc, err := fs.NewFs(e.appCtx, GravityRootRemote+":"+path.Dir(srcPath))
-	if err != nil {
-		return "", err
-	}
-	srcObj, err := fSrc.NewObject(e.appCtx, srcPathPart)
-	if err != nil {
-		return "", err
-	}
-
-	fDst, err := fs.NewFs(e.appCtx, GravityRootRemote+":"+path.Dir(dstPath))
-	if err != nil {
-		return "", err
-	}
-	_, _, dstPathPart, _, err := fs.ParseRemote(GravityRootRemote + ":" + dstPath)
-	if err != nil {
-		return "", err
-	}
-
 	jobID := "move-" + strings.ReplaceAll(srcPath, "/", "-") + "-" + fmt.Sprint(time.Now().Unix())
 	jobCtx, cancel := context.WithCancel(e.appCtx)
 	j := &job{
@@ -529,8 +495,35 @@ func (e *Engine) Move(ctx context.Context, srcPath, dstPath string) (string, err
 		defer close(j.done)
 		defer e.removeJob(jobID)
 
+		// Ensure stats are tracked for this group
 		jobCtx = accounting.WithStatsGroup(jobCtx, jobID)
-		_, err := operations.Move(jobCtx, fDst, nil, dstPathPart, srcObj)
+
+		// Parse paths
+		srcClean := strings.TrimPrefix(srcPath, "/")
+		srcParts := strings.SplitN(srcClean, "/", 2)
+		srcRemote := strings.TrimSuffix(srcParts[0], ":")
+		srcRPath := ""
+		if len(srcParts) > 1 {
+			srcRPath = srcParts[1]
+		}
+
+		dstClean := strings.TrimPrefix(dstPath, "/")
+		dstParts := strings.SplitN(dstClean, "/", 2)
+		dstRemote := strings.TrimSuffix(dstParts[0], ":")
+		dstRPath := ""
+		if len(dstParts) > 1 {
+			dstRPath = dstParts[1]
+		}
+
+		params := rc.Params{
+			"srcFs":     srcRemote + ":",
+			"srcRemote": srcRPath,
+			"dstFs":     dstRemote + ":",
+			"dstRemote": dstRPath,
+			"_group":    jobID,
+		}
+
+		_, err := e.Call(jobCtx, "operations/movefile", params)
 
 		if err != nil {
 			if e.onError != nil {

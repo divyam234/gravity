@@ -1,12 +1,8 @@
-import { Checkbox, Dropdown, ListBox, Label } from "@heroui/react";
-import React, { useId } from "react";
+import { Checkbox, ListBox } from "@heroui/react";
+import React from "react";
 import IconArchive from "~icons/gravity-ui/archive";
-import IconCopy from "~icons/gravity-ui/copy";
-import IconPause from "~icons/gravity-ui/pause";
-import IconPlay from "~icons/gravity-ui/play";
 import IconPulse from "~icons/gravity-ui/pulse";
-import IconTrashBin from "~icons/gravity-ui/trash-bin";
-import { useTasksByStatus, useEngineActions } from "../../hooks/useEngine";
+import { useTasksByStatus } from "../../hooks/useEngine";
 import { cn } from "../../lib/utils";
 import { useSettingsStore } from "../../store/useSettingsStore";
 import { DownloadCard } from "./DownloadCard";
@@ -18,8 +14,6 @@ interface TaskListProps {
 
 export const TaskList: React.FC<TaskListProps> = ({ status }) => {
   const { data: tasks = [], isLoading } = useTasksByStatus(status);
-  const { pause, unpause, remove } = useEngineActions();
-  const baseId = useId();
   const {
     viewMode,
     searchQuery,
@@ -77,74 +71,19 @@ export const TaskList: React.FC<TaskListProps> = ({ status }) => {
                 textValue={task.filename || task.id}
                 className="outline-none focus:outline-none bg-transparent p-0 w-full"
               >
-                <Dropdown trigger="longPress">
-                  <Dropdown.Trigger>
-                    <div className="flex items-center gap-4 group w-full cursor-default">
-                      {isSelectionMode && (
-                        <div className="pl-6">
-                          <Checkbox
-                            isSelected={selectedGids.has(task.id)}
-                            onChange={() => toggleGidSelection(task.id)}
-                          />
-                        </div>
-                      )}
-                      <div className="flex-1 min-w-0 w-full">
-                        <DownloadCard task={task} variant={viewMode} />
-                      </div>
+                <div className="flex items-center gap-4 group w-full cursor-default">
+                  {isSelectionMode && (
+                    <div className="pl-6">
+                      <Checkbox
+                        isSelected={selectedGids.has(task.id)}
+                        onChange={() => toggleGidSelection(task.id)}
+                      />
                     </div>
-                  </Dropdown.Trigger>
-
-                  <Dropdown.Popover className="min-w-[200px]">
-                    <Dropdown.Menu
-                      onAction={(key) => {
-                        const action = String(key).replace(`${baseId}-`, "");
-                        if (action === "pause") pause.mutate(task.id);
-                        if (action === "resume") unpause.mutate(task.id);
-                        if (action === "remove") remove.mutate(task.id);
-                        if (action === "copy") {
-                          navigator.clipboard.writeText(task.url);
-                        }
-                      }}
-                    >
-                      <Dropdown.Item
-                        id={
-                          task.status === "paused"
-                            ? `${baseId}-resume`
-                            : `${baseId}-pause`
-                        }
-                        textValue={
-                          task.status === "paused" ? "Resume" : "Pause"
-                        }
-                      >
-                        {task.status === "paused" ? (
-                          <IconPlay className="w-4 h-4 text-success" />
-                        ) : (
-                          <IconPause className="w-4 h-4 text-warning" />
-                        )}
-                        <Label>
-                          {task.status === "paused" ? "Resume" : "Pause"}
-                        </Label>
-                      </Dropdown.Item>
-
-                      <Dropdown.Item
-                        id={`${baseId}-copy`}
-                        textValue="Copy Link"
-                      >
-                        <IconCopy className="w-4 h-4 text-accent" />
-                        <Label>Copy Link</Label>
-                      </Dropdown.Item>
-
-                      <Dropdown.Item
-                        id={`${baseId}-remove`}
-                        textValue="Remove"
-                        variant="danger"
-                      >
-                        <IconTrashBin className="w-4 h-4" />
-                        <Label>Remove</Label>
-                      </Dropdown.Item>
-                    </Dropdown.Menu>
-                  </Dropdown.Popover>
-                </Dropdown>
+                  )}
+                  <div className="flex-1 min-w-0 w-full">
+                    <DownloadCard task={task} variant={viewMode} />
+                  </div>
+                </div>
               </ListBox.Item>
             )}
           </ListBox>
