@@ -175,6 +175,10 @@ func (s *DownloadService) Get(ctx context.Context, id string) (*model.Download, 
 	return d, nil
 }
 
+func (s *DownloadService) SettingsRepo() *store.SettingsRepo {
+	return s.settingsRepo
+}
+
 func (s *DownloadService) List(ctx context.Context, status []string, limit, offset int) ([]*model.Download, int, error) {
 	downloads, total, err := s.repo.List(ctx, status, limit, offset, false)
 	if err != nil {

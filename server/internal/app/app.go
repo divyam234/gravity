@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -41,9 +42,10 @@ type App struct {
 	searchService   *service.SearchService
 
 	httpServer *http.Server
+	router     *api.Router
 }
 
-func New() (*App, error) {
+func New(ctx context.Context) (*App, error) {
 	cfg := config.Load()
 
 	s, err := store.New(cfg.DataDir)
@@ -57,11 +59,10 @@ func New() (*App, error) {
 	dr := store.NewDownloadRepo(s.GetDB())
 	pr := store.NewProviderRepo(s.GetDB())
 	sr := store.NewStatsRepo(s.GetDB())
-	cr := store.NewCacheRepo(s.GetDB())
 
 	// Engines
 	de := aria2.NewEngine(cfg.Aria2RPCPort, cfg.DataDir)
-	ue := rclone.NewEngine(cfg.RcloneRPCPort, cr)
+	ue := rclone.NewEngine(ctx)
 
 	// Providers
 	registry := provider.NewRegistry()
@@ -89,7 +90,7 @@ func New() (*App, error) {
 	seth := api.NewSettingsHandler(setr, pr, de, ue)
 	sysh := api.NewSystemHandler(de, ue)
 	mh := api.NewMagnetHandler(ms)
-	fh := api.NewFileHandler(ue)
+	fh := api.NewFileHandler(ue, ue)
 	searchHandler := api.NewSearchHandler(searchService)
 	eh := api.NewEventHandler(bus, de, ss)
 
@@ -110,10 +111,6 @@ func New() (*App, error) {
 	// Mount V1 to root
 	router.Mount("/api/v1", v1)
 
-	// Frontend
-	fs := http.FileServer(http.Dir("./dist"))
-	router.Handle("/*", fs)
-
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.Port),
 		Handler: router.Handler(),
@@ -132,12 +129,38 @@ func New() (*App, error) {
 		statsService:    ss,
 		searchService:   searchService,
 		httpServer:      srv,
+		router:          router,
 	}, nil
 }
 
-func (a *App) Run() error {
-	ctx := context.Background()
+func (a *App) Handler() http.Handler {
+	ah := AssetsHandler()
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("Request: %s %s", r.Method, r.URL.Path)
+		if strings.HasPrefix(r.URL.Path, "/api/v1") {
+			a.router.Handler().ServeHTTP(w, r)
+			return
+		}
+		ah.ServeHTTP(w, r)
+	})
+}
 
+func (a *App) Events() *event.Bus {
+	return a.bus
+}
+
+func (a *App) Port() int {
+	return a.config.Port
+}
+
+func (a *App) Start(ctx context.Context) error {
+	if err := a.StartEngines(ctx); err != nil {
+		return err
+	}
+	return a.StartServer()
+}
+
+func (a *App) StartEngines(ctx context.Context) error {
 	// Start engines
 	if err := a.downloadEngine.Start(ctx); err != nil {
 		return err
@@ -160,19 +183,22 @@ func (a *App) Run() error {
 	a.statsService.Start()
 	a.searchService.Start()
 
+	return nil
+}
+
+func (a *App) StartServer() error {
 	// Start HTTP server
 	go func() {
 		log.Printf("Gravity listening on http://localhost%s", a.httpServer.Addr)
 		if err := a.httpServer.ListenAndServe(); err != http.ErrServerClosed {
-			log.Fatalf("HTTP server error: %v", err)
+			log.Printf("HTTP server closed: %v", err)
 		}
 	}()
 
-	// Graceful shutdown
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
+	return nil
+}
 
+func (a *App) Stop() {
 	log.Println("Shutting down Gravity...")
 
 	// Signal services to stop background routines
@@ -186,6 +212,19 @@ func (a *App) Run() error {
 	defer cancel()
 	a.httpServer.Shutdown(shutdownCtx)
 	a.store.Close()
+}
 
+func (a *App) Run() error {
+	ctx := context.Background()
+	if err := a.Start(ctx); err != nil {
+		return err
+	}
+
+	// Graceful shutdown
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	a.Stop()
 	return nil
 }

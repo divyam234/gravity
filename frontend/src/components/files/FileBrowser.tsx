@@ -4,6 +4,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { api } from "../../lib/api";
 import { formatBytes, cn } from "../../lib/utils";
 import { FileIcon } from "./FileIcon";
+import { FilePreview } from "./preview/FilePreview";
 import { useSettingsStore } from "../../store/useSettingsStore";
 import IconFolder from "~icons/gravity-ui/folder";
 import IconChevronRight from "~icons/gravity-ui/chevron-right";
@@ -61,6 +62,7 @@ export function FileBrowser({ path, query }: FileBrowserProps) {
   const [clipboard, setClipboard] = useState<ClipboardItem | null>(null);
   const [selectedKeys, setSelectedKeys] = useState<Selection>(new Set([]));
   const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [previewFile, setPreviewFile] = useState<any | null>(null);
   const { searchQuery, setSearchQuery } = useSettingsStore();
   const queryClient = useQueryClient();
 
@@ -413,11 +415,13 @@ export function FileBrowser({ path, query }: FileBrowserProps) {
                   });
                   return;
                 }
-                const file = files.find((f) => f.path === key);
-                if (file && file.isDir) {
-                  navigate(file.path);
-                }
-              }}
+                 const file = files.find((f) => f.path === key);
+                 if (file && file.isDir) {
+                   navigate(file.path);
+                 } else if (file) {
+                   setPreviewFile(file);
+                 }
+               }}
               className="p-0 gap-2 w-full"
             >
               {(file) => (
@@ -647,10 +651,15 @@ export function FileBrowser({ path, query }: FileBrowserProps) {
               >
                 {modalType === "create" ? "Create" : "Rename"}
               </Button>
-            </Modal.Footer>
-          </Modal.Dialog>
-        </Modal.Container>
-      </Modal.Backdrop>
-    </div>
-  );
-}
+             </Modal.Footer>
+           </Modal.Dialog>
+         </Modal.Container>
+       </Modal.Backdrop>
+
+       <FilePreview
+         file={previewFile}
+         onClose={() => setPreviewFile(null)}
+       />
+     </div>
+   );
+ }

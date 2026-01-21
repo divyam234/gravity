@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"path/filepath"
 
 	"gravity/internal/engine"
 	"gravity/internal/utils"
@@ -11,16 +12,21 @@ import (
 )
 
 type FileHandler struct {
-	engine engine.StorageEngine
+	storage engine.StorageEngine
+	upload  engine.UploadEngine
 }
 
-func NewFileHandler(e engine.StorageEngine) *FileHandler {
-	return &FileHandler{engine: e}
+func NewFileHandler(s engine.StorageEngine, u engine.UploadEngine) *FileHandler {
+	return &FileHandler{
+		storage: s,
+		upload:  u,
+	}
 }
 
 func (h *FileHandler) Routes() chi.Router {
 	r := chi.NewRouter()
 	r.Get("/list", h.List)
+	r.Get("/cat", h.Cat)
 	r.Post("/mkdir", h.Mkdir)
 	r.Post("/delete", h.Delete)
 	r.Post("/operate", h.Operate)
@@ -28,8 +34,38 @@ func (h *FileHandler) Routes() chi.Router {
 	return r
 }
 
+func (h *FileHandler) Cat(w http.ResponseWriter, r *http.Request) {
+	path := r.URL.Query().Get("path")
+	if path == "" {
+		http.Error(w, "path is required", http.StatusBadRequest)
+		return
+	}
+
+	cleanPath, err := utils.SanitizePath(path, "/")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	info, err := h.storage.Stat(r.Context(), cleanPath)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	rc, err := h.storage.Open(r.Context(), cleanPath)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer rc.Close()
+
+	// Use http.ServeContent to support Range requests (Seeking)
+	http.ServeContent(w, r, info.Name, info.ModTime, rc)
+}
+
 func (h *FileHandler) PurgeCache(w http.ResponseWriter, r *http.Request) {
-	if err := h.engine.ClearCache(r.Context()); err != nil {
+	if err := h.storage.ClearCache(r.Context()); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -43,17 +79,12 @@ func (h *FileHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 
 	cleanPath, err := utils.SanitizePath(path, "/")
-	// Special handling for remote paths like "remote:" which SanitizePath might mess up if treated as local
-	// But rclone handles remotes. Here we seem to be listing files via rclone engine.
-	// If the path is intended to be a remote path (e.g. "gdrive:folder"), filepath.Clean might not be appropriate if it thinks ':' is a volume separator on Windows, but on Linux it's fine.
-	// However, if the engine expects a remote path, we should probably allow ':' but sanitize traversal.
-	// Let's assume standard path sanitization is what we want for safety to prevent "../" traversal.
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	files, err := h.engine.List(r.Context(), cleanPath)
+	files, err := h.storage.List(r.Context(), cleanPath)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -76,7 +107,7 @@ func (h *FileHandler) Mkdir(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.engine.Mkdir(r.Context(), cleanPath); err != nil {
+	if err := h.storage.Mkdir(r.Context(), cleanPath); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -98,7 +129,7 @@ func (h *FileHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.engine.Delete(r.Context(), cleanPath); err != nil {
+	if err := h.storage.Delete(r.Context(), cleanPath); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -128,16 +159,15 @@ func (h *FileHandler) Operate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var jobID string
-
 	switch req.Op {
-	case "rename":
-		err = h.engine.Rename(r.Context(), cleanSrc, cleanDst)
 	case "copy":
-		jobID, err = h.engine.Copy(r.Context(), cleanSrc, cleanDst)
+		jobID, err = h.upload.Copy(r.Context(), cleanSrc, cleanDst)
 	case "move":
-		jobID, err = h.engine.Move(r.Context(), cleanSrc, cleanDst)
+		jobID, err = h.upload.Move(r.Context(), cleanSrc, cleanDst)
+	case "rename":
+		err = h.storage.Rename(r.Context(), cleanSrc, filepath.Base(cleanDst))
 	default:
-		http.Error(w, "unknown operation", http.StatusBadRequest)
+		http.Error(w, "invalid operation", http.StatusBadRequest)
 		return
 	}
 

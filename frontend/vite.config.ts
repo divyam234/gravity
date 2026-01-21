@@ -27,7 +27,7 @@ export default defineConfig({
     }),
   ],
   build: {
-    outDir: "../server/dist",
+    outDir: "../server/internal/app/dist",
     emptyOutDir: true,
   },
   resolve: {

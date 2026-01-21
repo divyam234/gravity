@@ -1,13 +1,15 @@
 package main
 
 import (
-	"log"
-
+	"context"
 	"gravity/internal/app"
+	"log"
 )
 
 func main() {
-	a, err := app.New()
+	// Ensure engines are initialized and HTTP server starts
+	ctx := context.Background()
+	a, err := app.New(ctx)
 	if err != nil {
 		log.Fatalf("Failed to initialize Gravity: %v", err)
 	}

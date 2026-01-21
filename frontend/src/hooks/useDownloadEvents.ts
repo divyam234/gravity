@@ -14,27 +14,12 @@ export function useDownloadEvents() {
   const eventSourceRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
-    const url = api.getEventSourceUrl();
-    const evtSource = new EventSource(url);
-    eventSourceRef.current = evtSource;
-
-    evtSource.onmessage = (event) => {
-      try {
-        const payload: DownloadEvent = JSON.parse(event.data);
-        handleEvent(queryClient, payload);
-      } catch (err) {
-        console.error('Failed to parse event data', err);
-      }
-    };
-
-    evtSource.onerror = (err) => {
-      console.error('EventSource error:', err);
-      // EventSource automatically retries, but we might want to log or handle specific errors
-    };
+    const unsubscribe = api.subscribeEvents((payload: DownloadEvent) => {
+      handleEvent(queryClient, payload);
+    });
 
     return () => {
-      evtSource.close();
-      eventSourceRef.current = null;
+      unsubscribe();
     };
   }, [queryClient]);
 }
