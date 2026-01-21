@@ -1,7 +1,7 @@
 import type React from "react";
 import { useMemo } from "react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip } from "recharts";
-import { cn, formatBytes } from "../../lib/utils";
+import { cn } from "../../lib/utils";
 
 interface SpeedGraphProps {
 	data: number[];
