@@ -79,7 +79,10 @@ export function FileBrowser({ path, query }: FileBrowserProps) {
 
   // Context Menu State
   const [menuOpen, setMenuOpen] = useState(false);
-  const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
   const [menuFile, setMenuFile] = useState<any | null>(null);
   const menuTriggerRef = useRef<HTMLDivElement>(null);
 
@@ -93,16 +96,16 @@ export function FileBrowser({ path, query }: FileBrowserProps) {
     enabled: !searchQuery,
   });
 
-  const {
-    data: searchResponse,
-  } = useQuery({
+  const { data: searchResponse } = useQuery({
     queryKey: ["files", "search", searchQuery],
     queryFn: () => api.search(searchQuery),
     enabled: !!searchQuery,
   });
 
   const files = useMemo(() => {
-    const list = searchQuery ? (searchResponse?.data || []) : (filesResponse?.data || []);
+    const list = searchQuery
+      ? searchResponse?.data || []
+      : filesResponse?.data || [];
     return [...list].sort((a, b) => {
       if (a.isDir && !b.isDir) return -1;
       if (!a.isDir && b.isDir) return 1;
@@ -279,21 +282,22 @@ export function FileBrowser({ path, query }: FileBrowserProps) {
             </div>
           ) : (
             breadcrumbs.map((b) => (
-            <React.Fragment key={b.path}>
-              <IconChevronRight className="w-4 h-4 text-muted/50" />
-              <Button
-                size="sm"
-                variant="ghost"
-                className={cn(
-                  "rounded-xl font-bold",
-                  b.path === path ? "text-accent bg-accent/10" : "text-muted",
-                )}
-                onPress={() => navigate(b.path)}
-              >
-                {b.name}
-              </Button>
-            </React.Fragment>
-          )))}
+              <React.Fragment key={b.path}>
+                <IconChevronRight className="w-4 h-4 text-muted/50" />
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className={cn(
+                    "rounded-xl font-bold",
+                    b.path === path ? "text-accent bg-accent/10" : "text-muted",
+                  )}
+                  onPress={() => navigate(b.path)}
+                >
+                  {b.name}
+                </Button>
+              </React.Fragment>
+            ))
+          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -445,7 +449,12 @@ export function FileBrowser({ path, query }: FileBrowserProps) {
                           {file.name}
                         </Label>
                         {searchQuery && file.remote && (
-                          <Chip size="sm" variant="soft" color="accent" className="h-4 text-[9px] px-1 font-black uppercase tracking-tighter shrink-0">
+                          <Chip
+                            size="sm"
+                            variant="soft"
+                            color="accent"
+                            className="h-4 text-[9px] px-1 font-black uppercase tracking-tighter shrink-0"
+                          >
                             {file.remote}
                           </Chip>
                         )}
@@ -517,7 +526,7 @@ export function FileBrowser({ path, query }: FileBrowserProps) {
             dependencies={[menuFile]}
             aria-label="File Actions"
             onAction={(key) => {
-              console.log("jfojdfaljflk", menuFile,key)
+              console.log("jfojdfaljflk", menuFile, key);
               if (!menuFile) return;
               const file = menuFile;
               setMenuOpen(false);
@@ -592,11 +601,7 @@ export function FileBrowser({ path, query }: FileBrowserProps) {
       </Dropdown>
 
       {/* Unified Modal for all Operations */}
-      <Modal.Backdrop
-        isOpen={modal.isOpen}
-        onOpenChange={modal.onOpenChange}
-        className="bg-background/80 backdrop-blur-sm"
-      >
+      <Modal.Backdrop isOpen={modal.isOpen} onOpenChange={modal.onOpenChange}>
         <Modal.Container>
           <Modal.Dialog className="bg-surface border border-border shadow-2xl rounded-2xl">
             <Modal.Header className="p-6 pb-2">
