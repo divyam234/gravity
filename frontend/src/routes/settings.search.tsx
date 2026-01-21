@@ -189,9 +189,9 @@ function SearchSettingsLayout({
                   id={config.remote}
                   textValue={config.remote}
                   className={cn(
-                    "w-full text-left transition-all duration-200 border rounded-2xl overflow-hidden outline-none group bg-surface/50 border-border/40",
-                    "data-[selected=true]:border-accent data-[selected=true]:bg-accent/5 data-[selected=true]:shadow-sm data-[selected=true]:shadow-accent/10",
-                    "data-[hovered=true]:bg-surface data-[hovered=true]:border-border/60"
+                    "w-full text-left transition-all duration-200 border rounded-2xl overflow-hidden outline-none group bg-surface border-border/40",
+                    "data-[selected=true]:border-accent data-[selected=true]:bg-accent/10 data-[selected=true]:shadow-sm data-[selected=true]:shadow-accent/10",
+                    "data-[hovered=true]:bg-default/10 data-[hovered=true]:border-border/60"
                   )}
                 >
                   {({ isSelected }) => (
@@ -225,7 +225,7 @@ function SearchSettingsLayout({
           </div>
 
           {selectedConfigs.length > 0 ? (
-            <Card className="bg-background/50 border-border overflow-hidden rounded-2xl">
+            <Card className="bg-surface border-border overflow-hidden rounded-2xl">
               <div className="p-6">
                 <SearchSettingsForm
                   key={selectedConfigs
@@ -238,7 +238,7 @@ function SearchSettingsLayout({
               </div>
             </Card>
           ) : (
-            <Card className="bg-background/50 border-border border-dashed p-10 flex flex-col items-center justify-center text-center opacity-60 rounded-2xl">
+            <Card className="bg-surface border-border border-dashed p-10 flex flex-col items-center justify-center text-center opacity-60 rounded-2xl">
               <div className="w-12 h-12 bg-default/10 rounded-xl flex items-center justify-center mb-4">
                 <IconGear className="w-6 h-6 text-muted" />
               </div>
@@ -431,48 +431,17 @@ function SearchSettingsForm({
   };
 
   return (
-    <div className="space-y-6">
-      {/* Interval */}
-      <div className="space-y-3">
-        <FormSelect
-          form={form}
-          name="interval"
-          label={
-            <span className="flex items-center gap-2 text-xs font-bold text-foreground/80">
-              Update Frequency
-              {isMixed.interval && (
-                <Chip
-                  size="sm"
-                  color="warning"
-                  variant="soft"
-                  className="h-3.5 text-[7px] font-black uppercase px-1"
-                >
-                  Mixed
-                </Chip>
-              )}
-            </span>
-          }
-          items={INTERVAL_OPTIONS}
-        />
-        {isMixed.interval && (
-          <p className="text-[9px] text-warning px-1 font-bold uppercase tracking-wider opacity-80">
-            Mixed frequencies. Saving will overwrite them.
-          </p>
-        )}
-      </div>
-
-      <div className="h-px bg-border/20" />
-
-      {/* Filters */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="md:col-span-2 space-y-4">
-          <FormTextField
+    <div className="space-y-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+        {/* Row 1: Frequency & Size */}
+        <div className="space-y-3">
+          <FormSelect
             form={form}
-            name="excludedPatterns"
+            name="interval"
             label={
               <span className="flex items-center gap-2 text-xs font-bold text-foreground/80">
-                Exclude Patterns (Regex)
-                {isMixed.patterns && (
+                Update Frequency
+                {isMixed.interval && (
                   <Chip
                     size="sm"
                     color="warning"
@@ -484,40 +453,16 @@ function SearchSettingsForm({
                 )}
               </span>
             }
-            placeholder={
-              isMixed.patterns
-                ? "Mixed values"
-                : "e.g. /node_modules/"
-            }
+            items={INTERVAL_OPTIONS}
           />
-
-          <FormTextField
-            form={form}
-            name="includedExtensions"
-            label={
-              <span className="flex items-center gap-2 text-xs font-bold text-foreground/80">
-                Include Extensions
-                {isMixed.extensions && (
-                  <Chip
-                    size="sm"
-                    color="warning"
-                    variant="soft"
-                    className="h-3.5 text-[7px] font-black uppercase px-1"
-                  >
-                    Mixed
-                  </Chip>
-                )}
-              </span>
-            }
-            placeholder={
-              isMixed.extensions
-                ? "Mixed values"
-                : "e.g. mp4, mkv"
-            }
-          />
+          {isMixed.interval && (
+            <p className="text-[9px] text-warning px-1 font-bold uppercase tracking-wider opacity-80">
+              Mixed frequencies. Overwriting...
+            </p>
+          )}
         </div>
 
-        <div className="md:col-span-1">
+        <div className="space-y-3">
           <FormTextField
             form={form}
             name="minSizeBytes"
@@ -547,24 +492,79 @@ function SearchSettingsForm({
             }
           />
         </div>
+
+        {/* Row 2: Patterns */}
+        <div className="md:col-span-2 h-px bg-border/20 my-2" />
+
+        <div className="md:col-span-1">
+          <FormTextField
+            form={form}
+            name="excludedPatterns"
+            label={
+              <span className="flex items-center gap-2 text-xs font-bold text-foreground/80">
+                Exclude Patterns (Regex)
+                {isMixed.patterns && (
+                  <Chip
+                    size="sm"
+                    color="warning"
+                    variant="soft"
+                    className="h-3.5 text-[7px] font-black uppercase px-1"
+                  >
+                    Mixed
+                  </Chip>
+                )}
+              </span>
+            }
+            placeholder={
+              isMixed.patterns
+                ? "Mixed values"
+                : "e.g. /node_modules/"
+            }
+          />
+        </div>
+
+        <div className="md:col-span-1">
+          <FormTextField
+            form={form}
+            name="includedExtensions"
+            label={
+              <span className="flex items-center gap-2 text-xs font-bold text-foreground/80">
+                Include Extensions
+                {isMixed.extensions && (
+                  <Chip
+                    size="sm"
+                    color="warning"
+                    variant="soft"
+                    className="h-3.5 text-[7px] font-black uppercase px-1"
+                  >
+                    Mixed
+                  </Chip>
+                )}
+              </span>
+            }
+            placeholder={
+              isMixed.extensions
+                ? "Mixed values"
+                : "e.g. mp4, mkv"
+            }
+          />
+        </div>
       </div>
 
-      <div className="pt-2">
+      <div className="pt-2 flex justify-end">
         <form.Subscribe
           selector={(state) => [state.canSubmit, state.isSubmitting]}
         >
           {([canSubmit, isSubmitting]) => (
-            <div className="flex justify-end">
-              <Button
-                variant="primary"
-                className="font-black text-xs rounded-xl h-10 px-8 uppercase tracking-widest"
-                onPress={() => form.handleSubmit()}
-                isDisabled={!canSubmit}
-                isPending={isSubmitting}
-              >
-                Save
-              </Button>
-            </div>
+            <Button
+              variant="primary"
+              className="font-black text-xs rounded-xl h-10 px-8 uppercase tracking-widest"
+              onPress={() => form.handleSubmit()}
+              isDisabled={!canSubmit}
+              isPending={isSubmitting}
+            >
+              Save Configuration
+            </Button>
           )}
         </form.Subscribe>
       </div>
