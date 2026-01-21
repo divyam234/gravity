@@ -387,7 +387,7 @@ function CloudSettingsPage() {
 				className="bg-background/80 backdrop-blur-sm"
 			>
 				<Modal.Container>
-					<Modal.Dialog className="bg-content1 border border-border shadow-2xl rounded-3xl w-full max-w-lg">
+					<Modal.Dialog className="bg-surface border border-border shadow-2xl rounded-3xl w-full max-w-lg">
 						<Modal.Header className="p-6 pb-2">
 							<Modal.Heading className="text-xl font-bold">
 								{wizard.step === "select" && "Add Cloud Remote"}

@@ -1,7 +1,6 @@
-import { Button, Card, ScrollShadow, Spinner, Chip, ListBox, Checkbox, Tooltip } from "@heroui/react";
-import type { Selection } from "@heroui/react";
+import { Button, Card, ScrollShadow, Spinner, Chip, Checkbox, cn } from "@heroui/react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useForm } from "@tanstack/react-form";
 import { z } from "zod";
 import IconChevronLeft from "~icons/gravity-ui/chevron-left";
@@ -9,9 +8,12 @@ import IconMagnifyingGlass from "~icons/gravity-ui/magnifier";
 import IconArrowsRotateRight from "~icons/gravity-ui/arrows-rotate-right";
 import IconCircleCheckFill from "~icons/gravity-ui/circle-check-fill";
 import IconGear from "~icons/gravity-ui/gear";
+import IconCloud from "~icons/gravity-ui/cloud";
+import IconFunnel from "~icons/gravity-ui/funnel";
+import IconClock from "~icons/gravity-ui/clock";
 import { useSearch } from "../hooks/useSearch";
-import { cn } from "../lib/utils";
 import { FormSelect, FormTextField } from "../components/ui/FormFields";
+import { formatBytes } from "../lib/utils";
 
 export const Route = createFileRoute("/settings/search")({
 	component: SearchSettingsPage,
@@ -41,7 +43,11 @@ function SearchSettingsPage() {
 		return (
 			<div className="flex flex-col h-full space-y-6">
 				<div className="flex items-center gap-4 px-2 shrink-0">
-					<Button variant="ghost" isIconOnly onPress={() => navigate({ to: "/settings" })}>
+					<Button
+						variant="ghost"
+						isIconOnly
+						onPress={() => navigate({ to: "/settings" })}
+					>
 						<IconChevronLeft className="w-5 h-5" />
 					</Button>
 					<h2 className="text-2xl font-bold tracking-tight">Search Indexing</h2>
@@ -70,72 +76,310 @@ function SearchSettingsPage() {
 			</div>
 
 			<div className="flex-1 bg-muted-background/40 rounded-3xl border border-border overflow-hidden min-h-0 mx-2">
-				<ScrollShadow className="h-full">
-					<div className="max-w-4xl mx-auto p-8 space-y-10">
-						{configs.length === 0 ? (
-							<Card className="p-8 bg-background/50 border-border border-dashed text-center">
-								<div className="w-16 h-16 bg-default/10 rounded-full flex items-center justify-center mb-4 mx-auto">
-									<IconMagnifyingGlass className="w-8 h-8 text-muted" />
-								</div>
-								<h4 className="font-bold text-lg mb-2">No remotes available</h4>
-								<p className="text-sm text-muted mb-6">
-									Configure cloud remotes first to enable indexing.
-								</p>
-								<Button
-									variant="primary"
-									className="rounded-xl font-bold"
-									onPress={() => navigate({ to: "/settings/cloud" })}
-								>
-									Go to Cloud Settings
-								</Button>
-							</Card>
-						) : (
-							<SearchSettingsForm
-								key={configs.map(c => c.remote).join(',')}
-								configs={configs}
-								updateConfigs={updateConfigs}
-								triggerIndex={triggerIndex}
-							/>
-						)}
+				{configs.length === 0 ? (
+					<div className="flex h-full items-center justify-center p-8">
+						<Card className="p-8 bg-background/50 border-border border-dashed text-center max-w-md">
+							<div className="w-16 h-16 bg-default/10 rounded-full flex items-center justify-center mb-4 mx-auto">
+								<IconMagnifyingGlass className="w-8 h-8 text-muted" />
+							</div>
+							<h4 className="font-bold text-lg mb-2">No remotes available</h4>
+							<p className="text-sm text-muted mb-6">
+								Configure cloud remotes first to enable indexing.
+							</p>
+							<Button
+								variant="primary"
+								className="rounded-xl font-bold"
+								onPress={() => navigate({ to: "/settings/cloud" })}
+							>
+								Go to Cloud Settings
+							</Button>
+						</Card>
 					</div>
+				) : (
+					<SearchSettingsLayout
+						configs={configs}
+						updateConfigs={updateConfigs}
+						triggerIndex={triggerIndex}
+					/>
+				)}
+			</div>
+		</div>
+	);
+}
+
+interface SearchSettingsLayoutProps {
+	configs: any[];
+	updateConfigs: any;
+	triggerIndex: any;
+}
+
+function SearchSettingsLayout({
+	configs,
+	updateConfigs,
+	triggerIndex,
+}: SearchSettingsLayoutProps) {
+	const [selectedRemotes, setSelectedRemotes] = useState<Set<string>>(new Set());
+
+	const toggleSelection = (remote: string) => {
+		const next = new Set(selectedRemotes);
+		if (next.has(remote)) {
+			next.delete(remote);
+		} else {
+			next.add(remote);
+		}
+		setSelectedRemotes(next);
+	};
+
+	const selectAll = () => {
+		setSelectedRemotes(new Set(configs.map((c) => c.remote)));
+	};
+
+	const deselectAll = () => {
+		setSelectedRemotes(new Set());
+	};
+
+	const selectedConfigs = useMemo(() => {
+		return configs.filter((c) => selectedRemotes.has(c.remote));
+	}, [configs, selectedRemotes]);
+
+	return (
+		<div className="flex flex-col lg:flex-row h-full">
+			{/* Left: Remote Grid */}
+			<div className="flex-1 flex flex-col min-h-0 border-r border-border/50">
+				<div className="p-4 border-b border-border/50 flex items-center justify-between bg-background/30 backdrop-blur-sm sticky top-0 z-10">
+					<div className="flex items-center gap-2">
+						<h3 className="font-bold text-sm uppercase tracking-wider text-muted">
+							Remotes ({configs.length})
+						</h3>
+					</div>
+					<div className="flex gap-2">
+						<Button size="sm" variant="ghost" className="h-8 text-xs font-bold" onPress={selectAll}>
+							All
+						</Button>
+						<Button
+							size="sm"
+							variant="ghost"
+							className="h-8 text-xs font-bold"
+							onPress={deselectAll}
+						>
+							None
+						</Button>
+					</div>
+				</div>
+
+				<ScrollShadow className="flex-1 p-4">
+					<div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+						{configs.map((config) => (
+							<RemoteCard
+								key={config.remote}
+								config={config}
+								isSelected={selectedRemotes.has(config.remote)}
+								onToggle={() => toggleSelection(config.remote)}
+								onIndex={() => triggerIndex.mutate(config.remote)}
+								isIndexing={
+									triggerIndex.isPending && triggerIndex.variables === config.remote
+								}
+							/>
+						))}
+					</div>
+				</ScrollShadow>
+			</div>
+
+			{/* Right: Config Panel */}
+			<div className="w-full lg:w-[400px] flex flex-col bg-background/50 backdrop-blur-md">
+				<div className="p-6 border-b border-border/50">
+					<div className="flex items-center gap-3 mb-1">
+						<div className="w-1.5 h-6 bg-accent rounded-full" />
+						<h3 className="text-lg font-bold">Configuration</h3>
+					</div>
+					<p className="text-xs text-muted">
+						{selectedRemotes.size === 0
+							? "Select remotes to edit settings"
+							: selectedRemotes.size === 1
+								? `Editing ${Array.from(selectedRemotes)[0]}`
+								: `Editing ${selectedRemotes.size} remotes`}
+					</p>
+				</div>
+
+				<ScrollShadow className="flex-1 p-6">
+					{selectedRemotes.size > 0 ? (
+						<SearchSettingsForm
+							key={Array.from(selectedRemotes).sort().join(",")}
+							selectedConfigs={selectedConfigs}
+							updateConfigs={updateConfigs}
+						/>
+					) : (
+						<div className="h-full flex flex-col items-center justify-center text-center opacity-50 p-8">
+							<IconGear className="w-12 h-12 mb-4 text-muted" />
+							<p className="font-bold text-muted">No remotes selected</p>
+							<p className="text-xs text-muted mt-2">
+								Click on a remote card to view and edit its indexing settings.
+							</p>
+						</div>
+					)}
 				</ScrollShadow>
 			</div>
 		</div>
 	);
 }
 
-interface SearchSettingsFormProps {
-  configs: any[];
-  updateConfigs: any;
-  triggerIndex: any;
+function RemoteCard({ config, isSelected, onToggle, onIndex, isIndexing }: any) {
+	const intervalLabel =
+		INTERVAL_OPTIONS.find((o) => o.value === config.autoIndexIntervalMin)?.label ||
+		"Custom";
+
+	return (
+		<button
+			type="button"
+			className={cn(
+				"w-full text-left relative transition-all duration-200 border-2 cursor-pointer group hover:-translate-y-0.5 rounded-3xl overflow-hidden",
+				isSelected
+					? "border-accent bg-accent/5 shadow-lg shadow-accent/10"
+					: "border-transparent bg-surface hover:bg-default/10 hover:shadow-md",
+			)}
+			onClick={onToggle}
+			onKeyDown={(e) => {
+				if (e.key === "Enter" || e.key === " ") {
+					e.preventDefault();
+					onToggle();
+				}
+			}}
+		>
+			<div className="p-5 space-y-4">
+				{/* Header */}
+				<div className="flex items-start justify-between gap-3">
+					<div className="flex items-center gap-3 overflow-hidden">
+						<div
+							className={cn(
+								"w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 transition-colors",
+								isSelected ? "bg-accent text-accent-foreground" : "bg-default/10 text-muted",
+							)}
+						>
+							<IconCloud className="w-5 h-5" />
+						</div>
+						<div className="min-w-0">
+							<h4 className="font-bold text-base truncate">{config.remote}</h4>
+							<div className="flex items-center gap-2 mt-0.5">
+								{config.status === "indexing" ? (
+									<Chip
+										color="accent"
+										size="sm"
+										variant="soft"
+										className="h-5 text-[9px] font-black uppercase px-1"
+									>
+										Indexing...
+									</Chip>
+								) : config.lastIndexedAt ? (
+									<span className="text-[10px] text-success font-bold flex items-center gap-1">
+										<IconCircleCheckFill className="w-3 h-3" /> Indexed
+									</span>
+								) : (
+									<span className="text-[10px] text-warning font-bold">Never Indexed</span>
+								)}
+							</div>
+						</div>
+					</div>
+
+					<Checkbox
+						isSelected={isSelected}
+						className="pointer-events-none"
+					/>
+				</div>
+
+				{/* Config Badges */}
+				<div className="flex flex-wrap gap-1.5">
+					<Chip size="sm" variant="soft" color="accent" className="h-6 gap-1 pl-1">
+						<IconClock className="w-3 h-3" />
+						<span className="text-[10px] font-bold">{intervalLabel}</span>
+					</Chip>
+
+					{(config.minSizeBytes || 0) > 0 && (
+						<Chip size="sm" variant="soft" color="warning" className="h-6 gap-1 pl-1">
+							<IconFunnel className="w-3 h-3" />
+							<span className="text-[10px] font-bold">
+								{">"}
+								{formatBytes(config.minSizeBytes)}
+							</span>
+						</Chip>
+					)}
+
+					{config.includedExtensions && (
+						<Chip size="sm" variant="soft" color="success" className="h-6 gap-1 pl-1">
+							<span className="text-[10px] font-bold">Ext: {config.includedExtensions}</span>
+						</Chip>
+					)}
+				</div>
+
+				{/* Action Bar */}
+				<div className="pt-2 flex justify-end border-t border-divider">
+					<Button
+						size="sm"
+						variant="ghost"
+						className="h-8 text-xs font-bold rounded-xl text-accent"
+						isDisabled={config.status === "indexing" || isIndexing}
+						onPress={(e) => {
+							e.continuePropagation();
+							onIndex();
+						}}
+					>
+						<IconArrowsRotateRight
+							className={cn(
+								"w-3 h-3 mr-1",
+								(config.status === "indexing" || isIndexing) && "animate-spin",
+							)}
+						/>
+						{config.lastIndexedAt ? "Rebuild" : "Start"}
+					</Button>
+				</div>
+			</div>
+		</button>
+	);
 }
 
-function SearchSettingsForm({ configs, updateConfigs, triggerIndex }: SearchSettingsFormProps) {
-	const [includedRemotes, setIncludedRemotes] = useState<Selection>(() => {
-    const included = new Set(
-      configs
-        .filter((c) => c.autoIndexIntervalMin > 0 || c.lastIndexedAt)
-        .map((c) => c.remote),
-    );
-    // Default to all if nothing configured yet
-    if (configs.every((c) => c.autoIndexIntervalMin === 0 && !c.lastIndexedAt)) {
-      return "all";
-    }
-    return included;
-  });
+function SearchSettingsForm({
+	selectedConfigs,
+	updateConfigs,
+}: { selectedConfigs: any[]; updateConfigs: any }) {
+	// Determine common values
+	const commonValues = useMemo(() => {
+		if (selectedConfigs.length === 0) return null;
 
-	const [isExpanded, setIsExpanded] = useState(false);
+		const first = selectedConfigs[0];
+		const common = {
+			interval: first.autoIndexIntervalMin,
+			excludedPatterns: first.excludedPatterns || "",
+			includedExtensions: first.includedExtensions || "",
+			minSizeBytes: first.minSizeBytes || 0,
+		};
 
-  // Derive global defaults from the best available template in the server data
-  const defaultValues = useState(() => {
-    const template = configs.find(c => c.autoIndexIntervalMin > 0 || c.excludedPatterns || c.includedExtensions || (c.minSizeBytes ?? 0) > 0) || configs[0];
-    return {
-      interval: template.autoIndexIntervalMin || 1440,
-      excludedPatterns: template.excludedPatterns || "",
-      includedExtensions: template.includedExtensions || "",
-      minSizeBytes: template.minSizeBytes || 0,
-    };
-  })[0];
+		// Check consistency
+		for (let i = 1; i < selectedConfigs.length; i++) {
+			const c = selectedConfigs[i];
+			if (c.autoIndexIntervalMin !== common.interval) common.interval = -1; // -1 indicates mixed
+			if ((c.excludedPatterns || "") !== common.excludedPatterns)
+				common.excludedPatterns = "__mixed__";
+			if ((c.includedExtensions || "") !== common.includedExtensions)
+				common.includedExtensions = "__mixed__";
+			if ((c.minSizeBytes || 0) !== common.minSizeBytes) common.minSizeBytes = -1;
+		}
+
+		return common;
+	}, [selectedConfigs]);
+
+	const defaultValues = {
+		interval:
+			commonValues?.interval === -1 ? 0 : (commonValues?.interval ?? 1440),
+		excludedPatterns:
+			commonValues?.excludedPatterns === "__mixed__"
+				? ""
+				: (commonValues?.excludedPatterns ?? ""),
+		includedExtensions:
+			commonValues?.includedExtensions === "__mixed__"
+				? ""
+				: (commonValues?.includedExtensions ?? ""),
+		minSizeBytes:
+			commonValues?.minSizeBytes === -1 ? 0 : (commonValues?.minSizeBytes ?? 0),
+	};
 
 	const form = useForm({
 		defaultValues,
@@ -144,251 +388,135 @@ function SearchSettingsForm({ configs, updateConfigs, triggerIndex }: SearchSett
 		},
 		onSubmit: async ({ value }) => {
 			const batch: Record<string, any> = {};
-			configs.forEach((config) => {
-				const isIncluded =
-					includedRemotes === "all" || includedRemotes.has(config.remote);
+
+			selectedConfigs.forEach((config) => {
 				batch[config.remote] = {
 					...value,
-					interval: isIncluded ? value.interval : 0,
 				};
 			});
+
 			await updateConfigs.mutateAsync(batch);
 		},
 	});
 
+	// Track mixed states for UI hints
+	const isMixed = {
+		interval: commonValues?.interval === -1,
+		patterns: commonValues?.excludedPatterns === "__mixed__",
+		extensions: commonValues?.includedExtensions === "__mixed__",
+		size: commonValues?.minSizeBytes === -1,
+	};
+
 	return (
-    <>
-      <section className="space-y-6">
-        <div className="flex items-center gap-3">
-          <div className="w-1.5 h-6 bg-accent rounded-full" />
-          <h3 className="text-lg font-bold">Global Configuration</h3>
-        </div>
+		<div className="space-y-8 animate-in slide-in-from-right-4 duration-300">
+			{/* Interval */}
+			<div className="space-y-4">
+				<FormSelect
+					form={form}
+					name="interval"
+					label={
+						<span className="flex items-center justify-between w-full">
+							Update Frequency
+							{isMixed.interval && (
+								<Chip size="sm" color="warning" variant="soft" className="h-4 text-[9px] px-1">
+									Mixed
+								</Chip>
+							)}
+						</span>
+					}
+					items={INTERVAL_OPTIONS}
+				/>
+				{isMixed.interval && (
+					<p className="text-[10px] text-warning px-1 font-bold uppercase tracking-wider">
+						Mixed frequencies. Saving will overwrite them.
+					</p>
+				)}
+			</div>
 
-        <Card className="bg-background/50 border-border overflow-hidden">
-          <div className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div className="flex-1">
-              <h4 className="font-bold text-lg">Indexing Rules</h4>
-              <p className="text-sm text-muted">
-                Settings applied to all selected remotes below
-              </p>
-            </div>
+			<div className="h-px bg-border/50" />
 
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
-              <div className="flex flex-col gap-1.5">
-                <FormSelect
-                  form={form}
-                  name="interval"
-                  label="Update Frequency"
-                  items={INTERVAL_OPTIONS}
-                />
-              </div>
+			{/* Filters */}
+			<div className="space-y-6">
+				<div>
+					<FormTextField
+						form={form}
+						name="excludedPatterns"
+						label={
+							<span className="flex items-center justify-between w-full">
+								Exclude Patterns (Regex)
+								{isMixed.patterns && (
+									<Chip size="sm" color="warning" variant="soft" className="h-4 text-[9px] px-1">
+										Mixed
+									</Chip>
+								)}
+							</span>
+						}
+						placeholder={
+							isMixed.patterns ? "Mixed values (leave empty to clear)" : "e.g. /node_modules/"
+						}
+					/>
+				</div>
 
-              <div className="flex items-end h-full pt-5 md:pt-0 gap-2">
-                <Button
-                  variant="ghost"
-                  isIconOnly
-                  className={cn(
-                    "h-[38px] w-[38px] rounded-xl",
-                    isExpanded && "bg-accent/10 text-accent",
-                  )}
-                  onPress={() => setIsExpanded(!isExpanded)}
-                >
-                  <IconGear className="w-4 h-4" />
-                </Button>
-                <form.Subscribe
-                  selector={(state) => [state.canSubmit, state.isSubmitting]}
-                >
-                  {([canSubmit, isSubmitting]) => (
-                    <Button
-                      variant="primary"
-                      className="rounded-xl font-bold h-[38px] px-6 shadow-lg shadow-primary/20"
-                      onPress={() => form.handleSubmit()}
-                      isDisabled={!canSubmit}
-                      isPending={isSubmitting}
-                    >
-                      Apply Rules
-                    </Button>
-                  )}
-                </form.Subscribe>
-              </div>
-            </div>
-          </div>
+				<div>
+					<FormTextField
+						form={form}
+						name="includedExtensions"
+						label={
+							<span className="flex items-center justify-between w-full">
+								Include Extensions
+								{isMixed.extensions && (
+									<Chip size="sm" color="warning" variant="soft" className="h-4 text-[9px] px-1">
+										Mixed
+									</Chip>
+								)}
+							</span>
+						}
+						placeholder={
+							isMixed.extensions ? "Mixed values (leave empty to clear)" : "e.g. mp4, mkv"
+						}
+					/>
+				</div>
 
-          {isExpanded && (
-            <div className="px-6 pb-8 pt-2 border-t border-border/50 animate-in slide-in-from-top-2 duration-200">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-4">
-                <div className="space-y-6">
-                  <FormTextField
-                    form={form}
-                    name="excludedPatterns"
-                    label="Exclude Patterns (Regex)"
-                    placeholder="e.g. /node_modules/|/\.git/"
-                  />
-                  <FormTextField
-                    form={form}
-                    name="includedExtensions"
-                    label="Include Extensions"
-                    placeholder="e.g. mp4, mkv, iso"
-                  />
-                </div>
-                <div className="space-y-6">
-                  <FormTextField
-                    form={form}
-                    name="minSizeBytes"
-                    label="Minimum File Size (MB)"
-                    placeholder="0"
-                    type="number"
-                    className="font-bold text-center"
-                    format={(val) => String(Math.floor((val || 0) / (1024 * 1024)))}
-                    parse={(val) => (parseInt(val || "0") * 1024 * 1024)}
-                  />
-                  <div className="pt-7">
-                    <p className="text-xs text-muted leading-relaxed italic">
-                      These filters will skip matching files during
-                      the recursive cloud scan. Click "Apply Rules" to
-                      update all selected remotes below.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </Card>
-      </section>
+				<div>
+					<FormTextField
+						form={form}
+						name="minSizeBytes"
+						label={
+							<span className="flex items-center justify-between w-full">
+								Minimum File Size (MB)
+								{isMixed.size && (
+									<Chip size="sm" color="warning" variant="soft" className="h-4 text-[9px] px-1">
+										Mixed
+									</Chip>
+								)}
+							</span>
+						}
+						type="number"
+						placeholder={isMixed.size ? "Mixed" : "0"}
+						format={(val) => String(Math.floor((val || 0) / (1024 * 1024)))}
+						parse={(val) => parseInt(val || "0") * 1024 * 1024}
+						endContent={<span className="text-xs text-muted font-bold px-2">MB</span>}
+					/>
+				</div>
+			</div>
 
-      <section className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-1.5 h-6 bg-accent rounded-full" />
-            <h3 className="text-lg font-bold">Target Remotes</h3>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              variant="ghost"
-              className="rounded-xl font-bold text-[10px] uppercase tracking-widest"
-              onPress={() => setIncludedRemotes("all")}
-            >
-              Select All
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="rounded-xl font-bold text-[10px] uppercase tracking-widest"
-              onPress={() => setIncludedRemotes(new Set())}
-            >
-              Deselect All
-            </Button>
-          </div>
-        </div>
-
-        <ListBox
-          aria-label="Target Remotes"
-          items={configs}
-          selectionMode="multiple"
-          selectedKeys={includedRemotes}
-          onSelectionChange={setIncludedRemotes}
-          className="p-0 gap-3"
-        >
-          {(config) => (
-            <ListBox.Item
-              id={config.remote}
-              textValue={config.remote}
-              className={cn(
-                "p-0 rounded-3xl transition-all duration-200 border border-border outline-none cursor-pointer",
-                "bg-background/50 hover:bg-default/5",
-                "data-[selected=true]:bg-accent/5 data-[selected=true]:border-accent/20",
-              )}
-            >
-              <div className="p-5 flex items-center justify-between gap-4 w-full">
-                <div className="flex items-center gap-5 flex-1 min-w-0">
-                  <ListBox.ItemIndicator>
-                    {({ isSelected }) => (
-                      <Checkbox isSelected={isSelected} isReadOnly className="pointer-events-none" />
-                    )}
-                  </ListBox.ItemIndicator>
-                  <div className="min-w-0">
-                    <h4 className="font-bold text-base capitalize">
-                      {config.remote}
-                    </h4>
-                    <div className="flex items-center gap-3 mt-1">
-                      {config.status === "indexing" ? (
-                        <Chip
-                          color="accent"
-                          size="sm"
-                          variant="soft"
-                          className="animate-pulse h-5 text-[9px] font-black uppercase"
-                        >
-                          Indexing...
-                        </Chip>
-                      ) : config.lastIndexedAt ? (
-                        <span className="text-[10px] text-muted flex items-center gap-1.5 whitespace-nowrap">
-                          <IconCircleCheckFill className="w-3 h-3 text-success" />
-                          Last indexed:{" "}
-                          {new Date(
-                            config.lastIndexedAt,
-                          ).toLocaleString()}
-                        </span>
-                      ) : (
-                        <span className="text-[10px] text-warning font-bold uppercase tracking-tight">
-                          Never indexed
-                        </span>
-                      )}
-                      {config.status === "error" && (
-                        <Tooltip>
-                          <Tooltip.Trigger>
-                            <Chip
-                              color="danger"
-                              size="sm"
-                              variant="soft"
-                              className="h-5 text-[9px] font-black uppercase"
-                            >
-                              Error
-                            </Chip>
-                          </Tooltip.Trigger>
-                          <Tooltip.Content className="p-2 text-xs max-w-xs">
-                            {config.errorMsg}
-                          </Tooltip.Content>
-                        </Tooltip>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="shrink-0">
-                  <Button
-                    size="sm"
-                    variant={
-                      config.status === "indexing"
-                        ? "secondary"
-                        : "ghost"
-                    }
-                    className="rounded-xl font-bold h-10 px-5"
-                    isDisabled={config.status === "indexing"}
-                    isPending={
-                      triggerIndex.isPending &&
-                      triggerIndex.variables === config.remote
-                    }
-                    onPress={() => {
-                      triggerIndex.mutate(config.remote);
-                    }}
-                  >
-                    <IconArrowsRotateRight
-                      className={cn(
-                        "w-4 h-4 mr-2",
-                        config.status === "indexing" && "animate-spin",
-                      )}
-                    />
-                    {config.lastIndexedAt
-                      ? "Rebuild Index"
-                      : "Start Indexing"}
-                  </Button>
-                </div>
-              </div>
-            </ListBox.Item>
-          )}
-        </ListBox>
-      </section>
-    </>
+			<div className="pt-4">
+				<form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting]}>
+					{([canSubmit, isSubmitting]) => (
+						<Button
+							fullWidth
+							variant="primary"
+							className="font-bold shadow-lg shadow-primary/20 rounded-2xl h-12"
+							onPress={() => form.handleSubmit()}
+							isDisabled={!canSubmit}
+							isPending={isSubmitting}
+						>
+							Apply to {selectedConfigs.length} Remote
+							{selectedConfigs.length !== 1 ? "s" : ""}
+						</Button>
+					)}
+				</form.Subscribe>
+			</div>
+		</div>
 	);
 }

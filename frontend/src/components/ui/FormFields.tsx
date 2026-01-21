@@ -1,17 +1,17 @@
-import { Input, Label, TextField, Select, ListBox, InputGroup, FieldError, type TextFieldProps, type SelectProps, cn } from "@heroui/react";
-import type { FormApi, Validator } from "@tanstack/react-form";
+import { Label, TextField, Select, ListBox, InputGroup, FieldError, type TextFieldProps, type SelectRootProps, cn } from "@heroui/react";
+import type { ReactFormApi } from "@tanstack/react-form";
 import IconChevronDown from "~icons/gravity-ui/chevron-down";
 import React from "react";
 
 // Generic FormTextField component
-interface FormTextFieldProps<TData, TName> extends Omit<TextFieldProps, "name" | "form" | "children" | "onChange" | "value" | "defaultValue"> {
-  form: FormApi<TData, any, any, any>;
+interface FormTextFieldProps<TName> extends Omit<TextFieldProps, "name" | "form" | "children" | "onChange" | "value" | "defaultValue"> {
+  form: ReactFormApi<any, any, any, any, any, any, any, any, any, any, any, any>;
   name: TName;
   label?: React.ReactNode;
   placeholder?: string;
   validators?: {
-    onChange?: Validator<any, any>;
-    onBlur?: Validator<any, any>;
+    onChange?: any;
+    onBlur?: any;
   };
   // transform for display (e.g. bytes -> MB)
   format?: (value: any) => string;
@@ -21,7 +21,7 @@ interface FormTextFieldProps<TData, TName> extends Omit<TextFieldProps, "name" |
   endContent?: React.ReactNode;
 }
 
-export function FormTextField<TData, TName>({
+export function FormTextField<TName>({
   form,
   name,
   label,
@@ -33,13 +33,13 @@ export function FormTextField<TData, TName>({
   startContent,
   endContent,
   ...props
-}: FormTextFieldProps<TData, TName>) {
+}: FormTextFieldProps<TName>) {
   return (
     <form.Field
       name={name as any}
       validators={validators}
     >
-      {(field) => {
+      {(field: any) => {
         // Handle value conversion
         const displayValue = format ? format(field.state.value) : String(field.state.value ?? "");
         
@@ -91,18 +91,18 @@ interface FormSelectOption {
   label: string;
 }
 
-interface FormSelectProps<TData, TName> extends Omit<SelectProps, "name" | "form" | "children" | "onChange" | "selectedKey" | "onSelectionChange" | "items"> {
-  form: FormApi<TData, any, any, any>;
+interface FormSelectProps<TName> extends Omit<SelectRootProps<any>, "name" | "form" | "children" | "onChange" | "selectedKey" | "onSelectionChange" | "items"> {
+  form: ReactFormApi<any, any, any, any, any, any, any, any, any, any, any, any>;
   name: TName;
   label?: React.ReactNode;
   items: FormSelectOption[];
   validators?: {
-    onChange?: Validator<any, any>;
-    onBlur?: Validator<any, any>;
+    onChange?: any;
+    onBlur?: any;
   };
 }
 
-export function FormSelect<TData, TName>({
+export function FormSelect<TName>({
   form,
   name,
   label,
@@ -110,13 +110,13 @@ export function FormSelect<TData, TName>({
   validators,
   className,
   ...props
-}: FormSelectProps<TData, TName>) {
+}: FormSelectProps<TName>) {
   return (
     <form.Field
       name={name as any}
       validators={validators}
     >
-      {(field) => (
+      {(field: any) => (
         <Select
           className={cn("w-full", className)}
           selectedKey={String(field.state.value)}

@@ -13,8 +13,8 @@ interface SpeedGraphProps {
 const CustomTooltip = ({ active, payload }: any) => {
 	if (active && payload && payload.length) {
 		return (
-			<div className="bg-content1/80 backdrop-blur-md border border-border px-2 py-1 rounded-lg shadow-xl text-[10px] font-bold text-foreground/90">
-				{formatBytes(payload[0].value ?? 0)}/s
+			<div className="bg-surface/80 backdrop-blur-md border border-border px-2 py-1 rounded-lg shadow-xl text-[10px] font-bold text-foreground/90">
+				<p>{`${payload[0].value} MB/s`}</p>
 			</div>
 		);
 	}

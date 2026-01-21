@@ -341,7 +341,7 @@ function PremiumServicesPage() {
 				className="bg-background/80 backdrop-blur-sm"
 			>
 				<Modal.Container>
-					<Modal.Dialog className="bg-content1 border border-border shadow-2xl rounded-3xl w-full max-w-md">
+					<Modal.Dialog className="bg-surface border border-border shadow-2xl rounded-3xl w-full max-w-md">
 						<Modal.Header className="p-6 pb-2">
 							<Modal.Heading className="text-xl font-bold">
 								Connect {connectModal.provider?.name}

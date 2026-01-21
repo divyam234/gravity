@@ -511,7 +511,7 @@ export function FileBrowser({ path, query }: FileBrowserProps) {
           triggerRef={menuTriggerRef}
           offset={0}
           placement="bottom start"
-          className="min-w-[200px] bg-content1 border border-border shadow-2xl rounded-2xl p-1"
+          className="min-w-[200px] bg-surface border border-border shadow-2xl rounded-2xl p-1"
         >
           <Dropdown.Menu
             dependencies={[menuFile]}
@@ -598,7 +598,7 @@ export function FileBrowser({ path, query }: FileBrowserProps) {
         className="bg-background/80 backdrop-blur-sm"
       >
         <Modal.Container>
-          <Modal.Dialog className="bg-content1 border border-border shadow-2xl rounded-2xl">
+          <Modal.Dialog className="bg-surface border border-border shadow-2xl rounded-2xl">
             <Modal.Header className="p-6 pb-2">
               <Modal.Heading className="text-xl font-bold">
                 {modalType === "create" ? "Create New Folder" : "Rename Item"}
