@@ -1,101 +1,48 @@
 import { Button, Card, Input, Label, ListBox, ScrollShadow, Select, Switch, TextField } from "@heroui/react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState, useEffect } from "react";
 import IconChevronLeft from "~icons/gravity-ui/chevron-left";
 import IconChevronDown from "~icons/gravity-ui/chevron-down";
-import { useGlobalOption, useEngineActions, globalOptionOptions } from "../hooks/useEngine";
+import { useSettingsStore } from "../store/useSettingsStore";
 
 export const Route = createFileRoute("/settings/network")({
 	component: NetworkSettingsPage,
-	loader: async ({ context: { queryClient } }) => {
-		queryClient.prefetchQuery(globalOptionOptions());
-	},
 });
 
 function NetworkSettingsPage() {
 	const navigate = useNavigate();
-	const { data: options } = useGlobalOption();
-	const { changeGlobalOption } = useEngineActions();
+    const { serverSettings, updateServerSettings } = useSettingsStore();
 
-	// Proxy settings
-	const [proxyType, setProxyType] = useState<"none" | "http" | "socks5">("none");
-	const [proxyHost, setProxyHost] = useState("");
-	const [proxyPort, setProxyPort] = useState("1080");
-	const [proxyAuth, setProxyAuth] = useState(false);
-	const [proxyUser, setProxyUser] = useState("");
-	const [proxyPass, setProxyPass] = useState("");
+    if (!serverSettings) {
+        return <div className="p-8">Loading settings...</div>;
+    }
 
-	// Connection settings
-	const [maxConnections, setMaxConnections] = useState(16);
-	const [timeout, setTimeout] = useState(60);
-	const [maxRetries, setMaxRetries] = useState(5);
+    const { network, download } = serverSettings;
 
-	// Security
-	const [verifyCerts, setVerifyCerts] = useState(true);
+    const parseProxyUrl = (url: string) => {
+        if (!url) return { type: "none" as const, host: "", port: "1080" };
+        const match = url.match(/^(socks5|http):\/\/([^:]+):(\d+)/);
+        if (match) {
+            return { type: match[1] as "http" | "socks5", host: match[2], port: match[3] };
+        }
+        return { type: "none" as const, host: "", port: "1080" };
+    };
 
-	// Advanced
-	const [userAgent, setUserAgent] = useState("gravity/1.0");
+    const proxyInfo = parseProxyUrl(network.proxyUrl);
 
-	// Sync from engine options
-	useEffect(() => {
-		if (options) {
-			// Parse proxy URL if set
-			const proxyUrl = options.proxyUrl || "";
-			if (proxyUrl) {
-				if (proxyUrl.startsWith("socks5://")) {
-					setProxyType("socks5");
-					const match = proxyUrl.match(/socks5:\/\/([^:]+):(\d+)/);
-					if (match) {
-						setProxyHost(match[1]);
-						setProxyPort(match[2]);
-					}
-				} else if (proxyUrl.startsWith("http://")) {
-					setProxyType("http");
-					const match = proxyUrl.match(/http:\/\/([^:]+):(\d+)/);
-					if (match) {
-						setProxyHost(match[1]);
-						setProxyPort(match[2]);
-					}
-				}
-			}
+	const handleProxyChange = (updates: Partial<{ type: "none" | "http" | "socks5", host: string, port: string }>) => {
+		const type = updates.type || proxyInfo.type;
+        const host = updates.host !== undefined ? updates.host : proxyInfo.host;
+        const port = updates.port !== undefined ? updates.port : proxyInfo.port;
 
-			if (options.proxyUser) {
-				setProxyAuth(true);
-				setProxyUser(options.proxyUser);
-			}
+        let url = "";
+        if (type !== "none" && host) {
+            url = `${type}://${host}:${port}`;
+        }
 
-			const conns = parseInt(options.maxConnectionsPerServer || "16");
-			setMaxConnections(isNaN(conns) ? 16 : conns);
-
-			const to = parseInt(options.connectTimeout || "60");
-			setTimeout(isNaN(to) ? 60 : to);
-
-			const retries = parseInt(options.maxRetries || "5");
-			setMaxRetries(isNaN(retries) ? 5 : retries);
-
-			setVerifyCerts(options.checkCertificate !== "false");
-
-			if (options.userAgent) {
-				setUserAgent(options.userAgent);
-			}
-		}
-	}, [options]);
-
-	const handleProxyChange = () => {
-		if (proxyType === "none") {
-			changeGlobalOption.mutate({ proxyUrl: "" });
-		} else {
-			const url = `${proxyType}://${proxyHost}:${proxyPort}`;
-			changeGlobalOption.mutate({ proxyUrl: url });
-		}
-	};
-
-	const handleProxyAuthChange = () => {
-		if (proxyAuth && proxyUser) {
-			changeGlobalOption.mutate({ proxyUser, proxyPassword: proxyPass });
-		} else {
-			changeGlobalOption.mutate({ proxyUser: "", proxyPassword: "" });
-		}
+        updateServerSettings(prev => ({
+            ...prev,
+            network: { ...prev.network, proxyUrl: url, proxyEnabled: type !== "none" }
+        }));
 	};
 
 	return (
@@ -132,13 +79,8 @@ function NetworkSettingsPage() {
 												<Button
 													key={type}
 													size="sm"
-													variant={proxyType === type ? "primary" : "secondary"}
-													onPress={() => {
-														setProxyType(type);
-														if (type === "none") {
-															changeGlobalOption.mutate({ proxyUrl: "" });
-														}
-													}}
+													variant={proxyInfo.type === type ? "primary" : "secondary"}
+													onPress={() => handleProxyChange({ type })}
 													className="rounded-xl font-bold capitalize"
 												>
 													{type === "none" ? "No Proxy" : type.toUpperCase()}
@@ -147,15 +89,14 @@ function NetworkSettingsPage() {
 										</div>
 									</div>
 
-									{proxyType !== "none" && (
+									{proxyInfo.type !== "none" && (
 										<>
 											<div className="grid grid-cols-3 gap-4 animate-in slide-in-from-top-2 duration-200">
 												<TextField className="col-span-2">
 													<Label className="text-sm font-bold mb-2 block">Host</Label>
 													<Input
-														value={proxyHost}
-														onChange={(e) => setProxyHost(e.target.value)}
-														onBlur={handleProxyChange}
+														value={proxyInfo.host}
+														onChange={(e) => handleProxyChange({ host: e.target.value })}
 														placeholder="proxy.example.com"
 														className="h-11 bg-default/10 rounded-xl border-none"
 													/>
@@ -163,9 +104,8 @@ function NetworkSettingsPage() {
 												<TextField>
 													<Label className="text-sm font-bold mb-2 block">Port</Label>
 													<Input
-														value={proxyPort}
-														onChange={(e) => setProxyPort(e.target.value)}
-														onBlur={handleProxyChange}
+														value={proxyInfo.port}
+														onChange={(e) => handleProxyChange({ port: e.target.value })}
 														placeholder="1080"
 														className="h-11 bg-default/10 rounded-xl border-none"
 													/>
@@ -179,17 +119,26 @@ function NetworkSettingsPage() {
 													<Label className="text-sm font-bold">Proxy Authentication</Label>
 													<p className="text-xs text-muted mt-0.5">Proxy requires username and password</p>
 												</div>
-												<Switch isSelected={proxyAuth} onChange={setProxyAuth} />
+												<Switch 
+                                                    isSelected={!!network.proxyUser} 
+                                                    onChange={(selected) => {
+                                                        if (!selected) {
+                                                            updateServerSettings(prev => ({ 
+                                                                ...prev, 
+                                                                network: { ...prev.network, proxyUser: "", proxyPassword: "" } 
+                                                            }));
+                                                        }
+                                                    }} 
+                                                />
 											</div>
 
-											{proxyAuth && (
+											{(!!network.proxyUser || true) && (
 												<div className="grid grid-cols-2 gap-4 animate-in slide-in-from-top-2 duration-200">
 													<TextField>
 														<Label className="text-sm font-bold mb-2 block">Username</Label>
 														<Input
-															value={proxyUser}
-															onChange={(e) => setProxyUser(e.target.value)}
-															onBlur={handleProxyAuthChange}
+															value={network.proxyUser}
+															onChange={(e) => updateServerSettings(prev => ({ ...prev, network: { ...prev.network, proxyUser: e.target.value } }))}
 															placeholder="username"
 															className="h-11 bg-default/10 rounded-xl border-none"
 														/>
@@ -198,9 +147,8 @@ function NetworkSettingsPage() {
 														<Label className="text-sm font-bold mb-2 block">Password</Label>
 														<Input
 															type="password"
-															value={proxyPass}
-															onChange={(e) => setProxyPass(e.target.value)}
-															onBlur={handleProxyAuthChange}
+															value={network.proxyPassword}
+															onChange={(e) => updateServerSettings(prev => ({ ...prev, network: { ...prev.network, proxyPassword: e.target.value } }))}
 															placeholder="password"
 															className="h-11 bg-default/10 rounded-xl border-none"
 														/>
@@ -227,12 +175,8 @@ function NetworkSettingsPage() {
 											<p className="text-xs text-muted mt-0.5">Parallel connections to each server</p>
 										</div>
 										<Select
-											selectedKey={String(maxConnections)}
-											onSelectionChange={(key) => {
-												const val = Number(key);
-												setMaxConnections(val);
-												changeGlobalOption.mutate({ maxConnectionsPerServer: String(val) });
-											}}
+											selectedKey={String(download.maxConnectionPerServer)}
+											onSelectionChange={(key) => updateServerSettings(prev => ({ ...prev, download: { ...prev.download, maxConnectionPerServer: Number(key) } }))}
 											className="w-24"
 										>
 											<Select.Trigger className="h-10 px-4 bg-default/10 rounded-xl border-none">
@@ -265,12 +209,8 @@ function NetworkSettingsPage() {
 											<p className="text-xs text-muted mt-0.5">Seconds to wait before giving up</p>
 										</div>
 										<Select
-											selectedKey={String(timeout)}
-											onSelectionChange={(key) => {
-												const val = Number(key);
-												setTimeout(val);
-												changeGlobalOption.mutate({ connectTimeout: String(val) });
-											}}
+											selectedKey={String(download.connectTimeout)}
+											onSelectionChange={(key) => updateServerSettings(prev => ({ ...prev, download: { ...prev.download, connectTimeout: Number(key) } }))}
 											className="w-28"
 										>
 											<Select.Trigger className="h-10 px-4 bg-default/10 rounded-xl border-none">
@@ -303,12 +243,8 @@ function NetworkSettingsPage() {
 											<p className="text-xs text-muted mt-0.5">Number of retry attempts on failure</p>
 										</div>
 										<Select
-											selectedKey={String(maxRetries)}
-											onSelectionChange={(key) => {
-												const val = Number(key);
-												setMaxRetries(val);
-												changeGlobalOption.mutate({ maxRetries: String(val) });
-											}}
+											selectedKey={String(download.maxTries)}
+											onSelectionChange={(key) => updateServerSettings(prev => ({ ...prev, download: { ...prev.download, maxTries: Number(key) } }))}
 											className="w-24"
 										>
 											<Select.Trigger className="h-10 px-4 bg-default/10 rounded-xl border-none">
@@ -350,11 +286,8 @@ function NetworkSettingsPage() {
 											<p className="text-xs text-muted mt-0.5">Reject connections with invalid certificates</p>
 										</div>
 										<Switch
-											isSelected={verifyCerts}
-											onChange={(selected) => {
-												setVerifyCerts(selected);
-												changeGlobalOption.mutate({ checkCertificate: selected ? "true" : "false" });
-											}}
+											isSelected={download.checkCertificate}
+											onChange={(selected) => updateServerSettings(prev => ({ ...prev, download: { ...prev.download, checkCertificate: selected } }))}
 										/>
 									</div>
 								</Card.Content>
@@ -372,9 +305,8 @@ function NetworkSettingsPage() {
 									<TextField className="space-y-3">
 										<Label className="text-sm font-bold">User-Agent</Label>
 										<Input
-											value={userAgent}
-											onChange={(e) => setUserAgent(e.target.value)}
-											onBlur={() => changeGlobalOption.mutate({ userAgent })}
+											value={download.userAgent}
+											onChange={(e) => updateServerSettings(prev => ({ ...prev, download: { ...prev.download, userAgent: e.target.value } }))}
 											placeholder="gravity/1.0"
 											className="h-11 bg-default/10 rounded-xl border-none"
 										/>

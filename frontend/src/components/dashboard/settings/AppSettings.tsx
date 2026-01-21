@@ -1,9 +1,7 @@
 import { Input, Label, ListBox, Select, Slider, Switch, TextField } from "@heroui/react";
 import type React from "react";
-import { useEffect, useState } from "react";
 import IconChevronDown from "~icons/gravity-ui/chevron-down";
 import IconFolder from "~icons/gravity-ui/folder";
-import { useServerSettings, useUpdateServerSettings } from "../../../hooks/useServerSettings";
 import { useSettingsStore } from "../../../store/useSettingsStore";
 
 export const AppSettings: React.FC = () => {
@@ -14,22 +12,18 @@ export const AppSettings: React.FC = () => {
 		setTheme,
 		enableNotifications,
 		setEnableNotifications,
+        serverSettings,
+        updateServerSettings,
 	} = useSettingsStore();
 
-	const { data: serverSettings } = useServerSettings();
-	const updateSettings = useUpdateServerSettings();
-	const [downloadDir, setDownloadDir] = useState("");
-
-	useEffect(() => {
-		if (serverSettings?.download_dir) {
-			setDownloadDir(serverSettings.download_dir);
-		}
-	}, [serverSettings]);
-
-	const handleDownloadDirBlur = () => {
-		if (downloadDir && downloadDir !== serverSettings?.download_dir) {
-			updateSettings.mutate({ download_dir: downloadDir });
-		}
+	const handleDownloadDirChange = (val: string) => {
+		updateServerSettings((prev) => ({
+            ...prev,
+            download: {
+                ...prev.download,
+                downloadDir: val,
+            }
+        }));
 	};
 
 	return (
@@ -47,10 +41,8 @@ export const AppSettings: React.FC = () => {
 					<div className="relative">
 						<IconFolder className="absolute left-3 top-1/2 -translate-y-1/2 text-muted z-10 w-4 h-4" />
 						<Input
-							value={downloadDir}
-							onChange={(e) => setDownloadDir(e.target.value)}
-							onBlur={handleDownloadDirBlur}
-							onKeyDown={(e) => e.key === "Enter" && handleDownloadDirBlur()}
+							value={serverSettings?.download.downloadDir || ""}
+							onChange={(e) => handleDownloadDirChange(e.target.value)}
 							placeholder="/downloads"
 							className="pl-10 h-10 bg-default/10 rounded-xl border-none focus:bg-default/20 transition-all outline-none"
 							fullWidth
@@ -151,3 +143,4 @@ export const AppSettings: React.FC = () => {
 		</div>
 	);
 };
+

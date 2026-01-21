@@ -9,62 +9,30 @@ import {
   ListBox,
 } from "@heroui/react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState, useEffect } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  useEngineActions,
-  globalOptionOptions,
-  useGlobalOption,
-} from "../hooks/useEngine";
+import { useMutation } from "@tanstack/react-query";
 import IconChevronLeft from "~icons/gravity-ui/chevron-left";
 import IconArrowsRotate from "~icons/gravity-ui/arrows-rotate-right";
-import type { Key } from "react-aria-components";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
+import { useSettingsStore } from "../store/useSettingsStore";
 
 export const Route = createFileRoute("/settings/browser")({
   component: BrowserSettingsPage,
-  loader: async ({ context: { queryClient } }) => {
-    queryClient.prefetchQuery(globalOptionOptions());
-  },
 });
 
 function BrowserSettingsPage() {
   const navigate = useNavigate();
-  const { data: options } = useGlobalOption();
-  const { changeGlobalOption } = useEngineActions();
+  const { serverSettings, updateServerSettings } = useSettingsStore();
 
-  // VFS States
-  const [vfsCacheMode, setVfsCacheMode] = useState<Key>("off");
-  const [vfsCacheMaxSize, setVfsCacheMaxSize] = useState("10G");
-  const [vfsCacheMaxAge, setVfsCacheMaxAge] = useState("1h");
-  const [vfsWriteBack, setVfsWriteBack] = useState("5s");
-  const [vfsReadChunkSize, setVfsReadChunkSize] = useState("128M");
-  const [vfsReadChunkSizeLimit, setVfsReadChunkSizeLimit] = useState("off");
-  const [vfsReadAhead, setVfsReadAhead] = useState("128M");
-  const [vfsDirCacheTime, setVfsDirCacheTime] = useState("5m");
-  const [vfsPollInterval, setVfsPollInterval] = useState("1m");
-  const [vfsReadChunkStreams, setVfsReadChunkStreams] = useState("0");
+  if (!serverSettings) {
+    return <div className="p-8">Loading settings...</div>;
+  }
 
-  // VFS Flags
-  const [isValid, setIsValid] = useState(true);
+  const { vfs } = serverSettings;
 
-  useEffect(() => {
-    // Load VFS Options
-    if (options?.vfsCacheMode) setVfsCacheMode(options.vfsCacheMode);
-    if (options?.vfsCacheMaxSize) setVfsCacheMaxSize(options.vfsCacheMaxSize);
-    if (options?.vfsCacheMaxAge) setVfsCacheMaxAge(options.vfsCacheMaxAge);
-    if (options?.vfsWriteBack) setVfsWriteBack(options.vfsWriteBack);
-    if (options?.vfsReadChunkSize)
-      setVfsReadChunkSize(options.vfsReadChunkSize);
-    if (options?.vfsReadChunkSizeLimit)
-      setVfsReadChunkSizeLimit(options.vfsReadChunkSizeLimit);
-    if (options?.vfsReadAhead) setVfsReadAhead(options.vfsReadAhead);
-    if (options?.vfsDirCacheTime) setVfsDirCacheTime(options.vfsDirCacheTime);
-    if (options?.vfsPollInterval) setVfsPollInterval(options.vfsPollInterval);
-    if (options?.vfsReadChunkStreams)
-      setVfsReadChunkStreams(options.vfsReadChunkStreams);
-  }, [options]);
+  if (!vfs) {
+    return <div className="p-8">VFS settings not found.</div>;
+  }
 
   const validateDuration = (val: string) => {
     if (val.toLowerCase() === "unlimited" || val === "off" || val === "0")
@@ -78,32 +46,18 @@ function BrowserSettingsPage() {
   };
 
   const handleVfsChange = (
-    key: string,
-    val: string | boolean,
+    key: keyof typeof vfs,
+    val: string | number,
     validator?: (v: string) => boolean,
   ) => {
     const stringVal = val.toString();
-    const valid =
-      typeof val === "boolean" ? true : validator ? validator(stringVal) : true;
+    const isValid = validator ? validator(stringVal) : true;
 
-    // Update Local State
-    const setters: Record<string, Function> = {
-      vfsCacheMode: setVfsCacheMode,
-      vfsCacheMaxSize: setVfsCacheMaxSize,
-      vfsCacheMaxAge: setVfsCacheMaxAge,
-      vfsWriteBack: setVfsWriteBack,
-      vfsReadChunkSize: setVfsReadChunkSize,
-      vfsReadChunkSizeLimit: setVfsReadChunkSizeLimit,
-      vfsReadAhead: setVfsReadAhead,
-      vfsDirCacheTime: setVfsDirCacheTime,
-      vfsPollInterval: setVfsPollInterval,
-      vfsReadChunkStreams: setVfsReadChunkStreams,
-    };
-
-    if (setters[key]) setters[key](val);
-
-    if (valid) {
-      changeGlobalOption.mutate({ [key]: stringVal });
+    if (isValid) {
+        updateServerSettings(prev => ({
+            ...prev,
+            vfs: { ...prev.vfs, [key]: val }
+        }));
     }
   };
 
@@ -181,9 +135,9 @@ function BrowserSettingsPage() {
 
                     <Select
                       className="w-48"
-                      value={vfsCacheMode}
+                      value={vfs.cacheMode}
                       onChange={(key) =>
-                        handleVfsChange("vfsCacheMode", key as string)
+                        handleVfsChange("cacheMode", key as string)
                       }
                     >
                       <Select.Trigger>
@@ -219,10 +173,10 @@ function BrowserSettingsPage() {
                     </p>
                     <TextField>
                       <Input
-                        value={vfsCacheMaxSize}
+                        value={vfs.cacheMaxSize}
                         onChange={(e) =>
                           handleVfsChange(
-                            "vfsCacheMaxSize",
+                            "cacheMaxSize",
                             e.target.value,
                             validateSize,
                           )
@@ -239,10 +193,10 @@ function BrowserSettingsPage() {
                     </p>
                     <TextField>
                       <Input
-                        value={vfsReadAhead}
+                        value={vfs.readAhead}
                         onChange={(e) =>
                           handleVfsChange(
-                            "vfsReadAhead",
+                            "readAhead",
                             e.target.value,
                             validateSize,
                           )
@@ -259,10 +213,10 @@ function BrowserSettingsPage() {
                     </p>
                     <TextField>
                       <Input
-                        value={vfsReadChunkSize}
+                        value={vfs.readChunkSize}
                         onChange={(e) =>
                           handleVfsChange(
-                            "vfsReadChunkSize",
+                            "readChunkSize",
                             e.target.value,
                             validateSize,
                           )
@@ -281,10 +235,10 @@ function BrowserSettingsPage() {
                     </p>
                     <TextField>
                       <Input
-                        value={vfsReadChunkSizeLimit}
+                        value={vfs.readChunkSizeLimit}
                         onChange={(e) =>
                           handleVfsChange(
-                            "vfsReadChunkSizeLimit",
+                            "readChunkSizeLimit",
                             e.target.value,
                             validateSize,
                           )
@@ -304,10 +258,10 @@ function BrowserSettingsPage() {
                     </p>
                     <TextField>
                       <Input
-                        value={vfsDirCacheTime}
+                        value={vfs.dirCacheTime}
                         onChange={(e) =>
                           handleVfsChange(
-                            "vfsDirCacheTime",
+                            "dirCacheTime",
                             e.target.value,
                             validateDuration,
                           )
@@ -324,10 +278,10 @@ function BrowserSettingsPage() {
                     </p>
                     <TextField>
                       <Input
-                        value={vfsCacheMaxAge}
+                        value={vfs.cacheMaxAge}
                         onChange={(e) =>
                           handleVfsChange(
-                            "vfsCacheMaxAge",
+                            "cacheMaxAge",
                             e.target.value,
                             validateDuration,
                           )
@@ -346,10 +300,10 @@ function BrowserSettingsPage() {
                     </p>
                     <TextField>
                       <Input
-                        value={vfsWriteBack}
+                        value={vfs.writeBack}
                         onChange={(e) =>
                           handleVfsChange(
-                            "vfsWriteBack",
+                            "writeBack",
                             e.target.value,
                             validateDuration,
                           )
@@ -366,10 +320,10 @@ function BrowserSettingsPage() {
                     </p>
                     <TextField>
                       <Input
-                        value={vfsPollInterval}
+                        value={vfs.pollInterval}
                         onChange={(e) =>
                           handleVfsChange(
-                            "vfsPollInterval",
+                            "pollInterval",
                             e.target.value,
                             validateDuration,
                           )
@@ -395,9 +349,9 @@ function BrowserSettingsPage() {
 
                     <TextField className="w-48">
                       <Input
-                        value={vfsReadChunkStreams}
+                        value={String(vfs.readChunkStreams)}
                         onChange={(e) =>
-                          handleVfsChange("vfsReadChunkStreams", e.target.value)
+                          handleVfsChange("readChunkStreams", Number(e.target.value) || 0)
                         }
                         className="h-11 bg-default/10 rounded-2xl border-none text-center font-bold"
                       />

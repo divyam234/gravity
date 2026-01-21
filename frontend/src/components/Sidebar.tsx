@@ -1,5 +1,5 @@
 import { Button, ListBox, ScrollShadow, Label, Accordion } from "@heroui/react";
-import { useLocation } from "@tanstack/react-router";
+import { useLocation, useSearch } from "@tanstack/react-router";
 import React from "react";
 import IconChevronRight from "~icons/gravity-ui/chevron-right";
 import IconArrowDown from "~icons/gravity-ui/arrow-down";
@@ -39,15 +39,16 @@ interface SidebarContentProps {
 
 export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
   const location = useLocation();
+  const search: any = useSearch({ from: "__root__" });
   const queryClient = useQueryClient();
   const { data: stats } = useGlobalStat();
 
-  const activeCount = stats?.active?.downloads ?? 0;
-  const pendingCount = stats?.queue?.pending ?? 0;
-  const pausedCount = stats?.queue?.paused ?? 0;
-  const completeCount = stats?.totals?.tasksFinished ?? 0;
-  const uploadingCount = stats?.active?.uploads ?? 0;
-  const errorCount = stats?.totals?.tasksFailed ?? 0;
+  const activeCount = stats?.tasks?.active ?? 0;
+  const pendingCount = stats?.tasks?.waiting ?? 0;
+  const pausedCount = stats?.tasks?.paused ?? 0;
+  const completeCount = stats?.tasks?.completed ?? 0;
+  const uploadingCount = stats?.tasks?.uploading ?? 0;
+  const errorCount = stats?.tasks?.failed ?? 0;
 
   const topNavItems = React.useMemo<NavItem[]>(
     () => [
@@ -201,7 +202,6 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
 
   const selectedKey = React.useMemo(() => {
     const path = location.pathname;
-    const search = location.search;
 
     if (path === "/tasks") {
       return search.status || "active";
@@ -216,10 +216,10 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
 
     if (path === "/") return "dashboard";
     return null;
-  }, [location.pathname, location.search, settingsNavItems]);
+  }, [location.pathname, search.status, settingsNavItems]);
 
   const isDownloadsHeaderActive =
-    location.pathname === "/tasks" && !location.search.status;
+    location.pathname === "/tasks" && !search.status;
   const isSettingsHeaderActive =
     location.pathname === "/settings" || location.pathname === "/settings/";
 
@@ -479,17 +479,37 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
         </Accordion>
       </ScrollShadow>
 
-      <div className="p-6 mt-auto shrink-0">
+      <div className="p-6 mt-auto shrink-0 space-y-4">
+        <div className="p-4 rounded-3xl bg-default/10 border border-border flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] font-black uppercase text-muted tracking-widest">
+              Storage
+            </p>
+            <span className="text-[10px] font-bold text-muted">
+              {stats?.system?.diskUsage?.toFixed(0)}%
+            </span>
+          </div>
+          <div className="h-1.5 w-full bg-default/20 rounded-full overflow-hidden">
+            <div 
+              className="h-full bg-accent transition-all duration-500" 
+              style={{ width: `${stats?.system?.diskUsage || 0}%` }}
+            />
+          </div>
+          <p className="text-[10px] text-muted font-medium">
+            {formatBytes(stats?.system?.diskFree || 0)} free
+          </p>
+        </div>
+
         <div className="p-4 rounded-3xl bg-default/10 border border-border flex flex-col gap-2">
           <p className="text-[10px] font-black uppercase text-muted tracking-widest">
             Session Speed
           </p>
           <div className="flex flex-col">
             <span className="text-xs font-bold text-success">
-              DL: {formatBytes(stats?.active?.downloadSpeed || 0)}/s
+              DL: {formatBytes(stats?.speeds?.download || 0)}/s
             </span>
             <span className="text-xs font-bold text-accent">
-              UL: {formatBytes(stats?.active?.uploadSpeed || 0)}/s
+              UL: {formatBytes(stats?.speeds?.upload || 0)}/s
             </span>
           </div>
         </div>

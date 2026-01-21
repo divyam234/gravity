@@ -67,7 +67,8 @@ func (s *DownloadService) Create(ctx context.Context, url string, filename strin
 	settings, _ := s.settingsRepo.Get(ctx)
 	defaultDir := settings["download_dir"]
 	if defaultDir == "" {
-		defaultDir = "/downloads"
+		home, _ := os.UserHomeDir()
+		defaultDir = filepath.Join(home, ".gravity", "downloads")
 	}
 
 	var localPath, uploadDest string

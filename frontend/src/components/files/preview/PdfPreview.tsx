@@ -1,4 +1,4 @@
-import React from "react";
+
 import { api } from "../../../lib/api";
 
 interface PreviewProps {

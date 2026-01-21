@@ -109,21 +109,29 @@ export interface Remote {
 }
 
 export interface Stats {
-  active: {
-    downloads: number;
-    downloadSpeed: number;
-    uploads: number;
-    uploadSpeed: number;
+  speeds: {
+    download: number;
+    upload: number;
   };
-  queue: {
-    pending: number;
+  tasks: {
+    active: number;
+    uploading: number;
+    waiting: number;
     paused: number;
+    completed: number;
+    failed: number;
   };
-  totals: {
+  usage: {
     totalDownloaded: number;
     totalUploaded: number;
-    tasksFinished: number;
-    tasksFailed: number;
+    sessionDownloaded: number;
+    sessionUploaded: number;
+  };
+  system: {
+    diskFree: number;
+    diskTotal: number;
+    diskUsage: number;
+    uptime: number;
   };
 }
 
@@ -145,6 +153,64 @@ export interface FileInfo {
   type: 'file' | 'folder';
   isDir: boolean;
   remote?: string;
+}
+
+export interface Settings {
+  download: DownloadSettings;
+  upload: UploadSettings;
+  network: NetworkSettings;
+  torrent: TorrentSettings;
+  vfs: VfsSettings;
+}
+
+export interface DownloadSettings {
+  downloadDir: string;
+  maxConcurrentDownloads: number;
+  maxDownloadSpeed: string;
+  maxUploadSpeed: string;
+  maxConnectionPerServer: number;
+  split: number;
+  userAgent: string;
+  connectTimeout: number;
+  maxTries: number;
+  checkCertificate: boolean;
+}
+
+export interface UploadSettings {
+  defaultRemote: string;
+  autoUpload: boolean;
+  removeLocal: boolean;
+}
+
+export interface NetworkSettings {
+  proxyEnabled: boolean;
+  proxyUrl: string;
+  proxyUser: string;
+  proxyPassword: string;
+}
+
+export interface TorrentSettings {
+  seedRatio: string;
+  seedTime: number;
+  listenPort: number;
+  forceSave: boolean;
+  enablePex: boolean;
+  enableDht: boolean;
+  enableLpd: boolean;
+  encryption: string;
+}
+
+export interface VfsSettings {
+  cacheMode: string;
+  cacheMaxSize: string;
+  cacheMaxAge: string;
+  writeBack: string;
+  readChunkSize: string;
+  readChunkSizeLimit: string;
+  readAhead: string;
+  dirCacheTime: string;
+  pollInterval: string;
+  readChunkStreams: number;
 }
 
 export interface SearchConfig {

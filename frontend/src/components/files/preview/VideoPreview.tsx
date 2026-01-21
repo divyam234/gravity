@@ -1,4 +1,4 @@
-import React from "react";
+
 import { MediaPlayer, MediaProvider } from "@vidstack/react";
 import { defaultLayoutIcons, DefaultVideoLayout } from "@vidstack/react/player/layouts/default";
 import "@vidstack/react/player/styles/default/theme.css";

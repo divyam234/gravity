@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -114,7 +115,8 @@ func (s *MagnetService) DownloadMagnet(ctx context.Context, req MagnetDownloadRe
 	settings, _ := s.settingsRepo.Get(ctx)
 	defaultDir := settings["download_dir"]
 	if defaultDir == "" {
-		defaultDir = "/downloads"
+		home, _ := os.UserHomeDir()
+		defaultDir = filepath.Join(home, ".gravity", "downloads")
 	}
 
 	var localPath, uploadDest string

@@ -3,7 +3,10 @@ package service
 import (
 	"context"
 	"log"
+	"os"
+	"path/filepath"
 	"sync"
+	"syscall"
 	"time"
 
 	"gravity/internal/engine"
@@ -14,10 +17,16 @@ import (
 
 type StatsService struct {
 	repo           *store.StatsRepo
+	settingsRepo   *store.SettingsRepo
 	downloadRepo   *store.DownloadRepo
 	downloadEngine engine.DownloadEngine
 	uploadEngine   engine.UploadEngine
 	bus            *event.Bus
+
+	// Session tracking
+	startTime       time.Time
+	startDownloaded int64
+	startUploaded   int64
 
 	mu            sync.Mutex
 	pollingPaused bool
@@ -26,14 +35,16 @@ type StatsService struct {
 	trigger       chan struct{}
 }
 
-func NewStatsService(repo *store.StatsRepo, dr *store.DownloadRepo, de engine.DownloadEngine, ue engine.UploadEngine, bus *event.Bus) *StatsService {
+func NewStatsService(repo *store.StatsRepo, setr *store.SettingsRepo, dr *store.DownloadRepo, de engine.DownloadEngine, ue engine.UploadEngine, bus *event.Bus) *StatsService {
 	s := &StatsService{
 		repo:           repo,
+		settingsRepo:   setr,
 		downloadRepo:   dr,
 		downloadEngine: de,
 		uploadEngine:   ue,
 		bus:            bus,
 		pollingPaused:  true,
+		startTime:      time.Now(),
 		done:           make(chan struct{}),
 		trigger:        make(chan struct{}, 1),
 	}
@@ -42,6 +53,13 @@ func NewStatsService(repo *store.StatsRepo, dr *store.DownloadRepo, de engine.Do
 }
 
 func (s *StatsService) Start() {
+	// Initialize session baselines
+	ctx := context.Background()
+	if historical, err := s.repo.Get(ctx); err == nil {
+		s.startDownloaded = historical["total_downloaded"]
+		s.startUploaded = historical["total_uploaded"]
+	}
+
 	// 1. Listen for completion events to update totals
 	ch := s.bus.Subscribe()
 	go func() {
@@ -156,72 +174,98 @@ func (s *StatsService) GetCurrent(ctx context.Context) (*model.Stats, error) {
 		return nil, err
 	}
 
-	downloads, _ := s.downloadEngine.List(ctx)
+	// Fetch all counts from SQLite in one go
+	counts, _ := s.downloadRepo.GetStatusCounts(ctx)
 
-	activeDownloads := 0
+	activeDownloads := counts[model.StatusActive]
+	uploadingTasks := counts[model.StatusUploading]
+	pendingDownloads := counts[model.StatusWaiting]
+	pausedDownloads := counts[model.StatusPaused]
+	currentCompleted := counts[model.StatusComplete]
+	currentFailed := counts[model.StatusError]
+
+	// Fetch real-time speeds from engines
 	downloadSpeed := int64(0)
-	for _, d := range downloads {
-		status := model.DownloadStatus(d.Status)
-		if status == model.StatusActive {
-			activeDownloads++
-			downloadSpeed += d.Speed
+	if activeDownloads > 0 {
+		downloads, _ := s.downloadEngine.List(ctx)
+		for _, d := range downloads {
+			if model.DownloadStatus(d.Status) == model.StatusActive {
+				downloadSpeed += d.Speed
+			}
 		}
 	}
 
-	// Fetch paused/waiting from DB as they might not be in engine
-	pendingDownloads, _ := s.downloadRepo.Count(ctx, []string{string(model.StatusWaiting)})
-	pausedDownloads, _ := s.downloadRepo.Count(ctx, []string{string(model.StatusPaused)})
-
-	activeUploads := 0
 	uploadSpeed := int64(0)
-	uploadStats, _ := s.uploadEngine.GetGlobalStats(ctx)
-	if uploadStats != nil {
-		activeUploads = uploadStats.ActiveTransfers
-		if activeUploads > 0 {
+	if uploadingTasks > 0 {
+		uploadStats, _ := s.uploadEngine.GetGlobalStats(ctx)
+		if uploadStats != nil {
 			uploadSpeed = uploadStats.Speed
 		}
 	}
 
-	// Fetch current counts from DB to reflect deletions
-	currentCompleted, _ := s.downloadRepo.Count(ctx, []string{string(model.StatusComplete)})
-	currentFailed, _ := s.downloadRepo.Count(ctx, []string{string(model.StatusError)})
-
-	// Override activeUploads with DB count for accurate queue representation
-	uploadingCount, _ := s.downloadRepo.Count(ctx, []string{string(model.StatusUploading)})
-	if uploadingCount > 0 {
-		activeUploads = uploadingCount
+	// Disk stats
+	settings, _ := s.settingsRepo.Get(ctx)
+	downloadDir := settings["download_dir"]
+	if downloadDir == "" {
+		home, _ := os.UserHomeDir()
+		downloadDir = filepath.Join(home, ".gravity", "downloads")
 	}
+	
+	disk := s.getDiskStats(downloadDir)
 
 	return &model.Stats{
-
-		Active: model.ActiveStats{
-
-			Downloads: activeDownloads,
-
-			DownloadSpeed: downloadSpeed,
-
-			Uploads: activeUploads,
-
-			UploadSpeed: uploadSpeed,
+		Speeds: model.Speeds{
+			Download: downloadSpeed,
+			Upload:   uploadSpeed,
 		},
-
-		Queue: model.QueueStats{
-
-			Pending: pendingDownloads,
-
-			Paused: pausedDownloads,
+		Tasks: model.TaskCounts{
+			Active:    activeDownloads,
+			Uploading: uploadingTasks,
+			Waiting:   pendingDownloads,
+			Paused:    pausedDownloads,
+			Completed: currentCompleted,
+			Failed:    currentFailed,
 		},
-
-		Totals: model.TotalStats{
-
-			TotalDownloaded: historical["total_downloaded"],
-
-			TotalUploaded: historical["total_uploaded"],
-
-			TasksFinished: int64(currentCompleted),
-
-			TasksFailed: int64(currentFailed),
+		Usage: model.UsageStats{
+			TotalDownloaded:   historical["total_downloaded"],
+			TotalUploaded:     historical["total_uploaded"],
+			SessionDownloaded: historical["total_downloaded"] - s.startDownloaded,
+			SessionUploaded:   historical["total_uploaded"] - s.startUploaded,
+		},
+		System: model.SystemStats{
+			DiskFree:  disk.Free,
+			DiskTotal: disk.Total,
+			DiskUsage: disk.Usage,
+			Uptime:    int64(time.Since(s.startTime).Seconds()),
 		},
 	}, nil
+}
 
+type diskInfo struct {
+	Free  uint64
+	Total uint64
+	Usage float64
+}
+
+func (s *StatsService) getDiskStats(path string) diskInfo {
+	fs := syscall.Statfs_t{}
+	err := syscall.Statfs(path, &fs)
+	if err != nil {
+		return diskInfo{}
+	}
+
+	total := fs.Blocks * uint64(fs.Bsize)
+	free := fs.Bfree * uint64(fs.Bsize)
+	used := total - free
+
+	usage := 0.0
+	if total > 0 {
+		usage = (float64(used) / float64(total)) * 100
+	}
+
+	return diskInfo{
+		Total: total,
+		Free:  free,
+		Usage: usage,
+	}
 }

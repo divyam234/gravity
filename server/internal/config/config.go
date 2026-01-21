@@ -16,7 +16,7 @@ type Config struct {
 
 func Load() *Config {
 	home, _ := os.UserHomeDir()
-	defaultDataDir := filepath.Join(home, ".config", "gravity")
+	defaultDataDir := filepath.Join(home, ".gravity")
 
 	return &Config{
 		Port:          getEnvInt("PORT", 8080),

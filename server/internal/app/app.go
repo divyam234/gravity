@@ -77,7 +77,7 @@ func New(ctx context.Context) (*App, error) {
 	ds := service.NewDownloadService(dr, setr, de, ue, bus, ps)
 	us := service.NewUploadService(dr, setr, ue, bus)
 	ms := service.NewMagnetService(dr, setr, de, ad, ue)
-	ss := service.NewStatsService(sr, dr, de, ue, bus)
+	ss := service.NewStatsService(sr, setr, dr, de, ue, bus)
 	searchService := service.NewSearchService(store.NewSearchRepo(s.GetDB()), ue)
 
 	// API

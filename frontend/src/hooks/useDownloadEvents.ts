@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import type { Download } from '../lib/types';
@@ -11,7 +11,6 @@ interface DownloadEvent {
 
 export function useDownloadEvents() {
   const queryClient = useQueryClient();
-  const eventSourceRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
     const unsubscribe = api.subscribeEvents((payload: DownloadEvent) => {

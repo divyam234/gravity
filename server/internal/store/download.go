@@ -175,6 +175,26 @@ func (r *DownloadRepo) Count(ctx context.Context, status []string) (int, error) 
 	return total, nil
 }
 
+func (r *DownloadRepo) GetStatusCounts(ctx context.Context) (map[model.DownloadStatus]int, error) {
+	query := `SELECT status, COUNT(*) FROM downloads GROUP BY status`
+	rows, err := r.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	counts := make(map[model.DownloadStatus]int)
+	for rows.Next() {
+		var status model.DownloadStatus
+		var count int
+		if err := rows.Scan(&status, &count); err != nil {
+			return nil, err
+		}
+		counts[status] = count
+	}
+	return counts, nil
+}
+
 func (r *DownloadRepo) scanDownload(scanner interface {
 	Scan(dest ...interface{}) error
 }) (*model.Download, error) {

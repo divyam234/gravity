@@ -1,4 +1,4 @@
-import React from "react";
+
 import { Modal, Button } from "@heroui/react";
 import IconX from "~icons/gravity-ui/xmark";
 import { CodePreview } from "./CodePreview";

@@ -127,7 +127,7 @@ func setupTest(t *testing.T) (*store.Store, *event.Bus, *service.DownloadService
 	setr := store.NewSettingsRepo(s.GetDB())
 	ds := service.NewDownloadService(dr, setr, me, mue, bus, ps)
 	us := service.NewUploadService(dr, setr, mue, bus)
-	ss := service.NewStatsService(store.NewStatsRepo(s.GetDB()), dr, me, mue, bus)
+	ss := service.NewStatsService(store.NewStatsRepo(s.GetDB()), setr, dr, me, mue, bus)
 
 	us.Start()
 	ss.Start()
@@ -270,9 +270,9 @@ func TestStats(t *testing.T) {
 	var res map[string]interface{}
 	json.Unmarshal(w.Body.Bytes(), &res)
 
-	totals := res["totals"].(map[string]interface{})
-	if totals["tasksFinished"].(float64) != 1 {
-		t.Errorf("expected 1 completed, got %v", totals["tasksFinished"])
+	tasks := res["tasks"].(map[string]interface{})
+	if tasks["completed"].(float64) != 1 {
+		t.Errorf("expected 1 completed, got %v", tasks["completed"])
 	}
 }
 

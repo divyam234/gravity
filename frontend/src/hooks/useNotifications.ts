@@ -6,8 +6,9 @@ import { useActiveTasks, useUploadingTasks, useGlobalStat } from "./useEngine";
 export function useNotifications() {
 	const { enableNotifications } = useSettingsStore();
 	const { data: stats } = useGlobalStat();
+    
 	// Only poll active tasks if notifications are enabled AND there are active tasks
-	const hasActive = enableNotifications && ((stats?.active.downloads ?? 0) + (stats?.active.uploads ?? 0) > 0);
+	const hasActive = enableNotifications && ((stats?.tasks?.active ?? 0) + (stats?.tasks?.uploading ?? 0) > 0);
 
 	const { data: activeTasks } = useActiveTasks({ enabled: hasActive });
 	const { data: uploadingTasks } = useUploadingTasks({ enabled: hasActive });
@@ -27,7 +28,9 @@ export function useNotifications() {
 		if (!enableNotifications) return;
 
 		// If we have no active tasks and no history, nothing to do
-		if (!activeTasks && !uploadingTasks && previousActiveGids.current.size === 0) return;
+		if (!activeTasks && !uploadingTasks && previousActiveGids.current.size === 0) {
+            return;
+        }
 
 		const currentActiveGids = new Set([
             ...(activeTasks?.map((t: any) => t.id) || []),
@@ -65,12 +68,6 @@ export function useNotifications() {
 			previousActiveGids.current = currentActiveGids;
 		};
 
-						checkFinishedTasks();
-
-					}, [activeTasks, uploadingTasks, enableNotifications]);
-
-				}
-
-				
-
-		
+		checkFinishedTasks();
+	}, [activeTasks, uploadingTasks, enableNotifications]);
+}

@@ -1,69 +1,39 @@
 import { Button, Card, Input, Label, ListBox, ScrollShadow, Select, Slider, Switch } from "@heroui/react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState, useEffect } from "react";
 import IconChevronLeft from "~icons/gravity-ui/chevron-left";
 import IconChevronDown from "~icons/gravity-ui/chevron-down";
-import { useGlobalOption, useEngineActions, globalOptionOptions } from "../hooks/useEngine";
+import { useSettingsStore } from "../store/useSettingsStore";
 
 export const Route = createFileRoute("/settings/torrents")({
 	component: TorrentsSettingsPage,
-	loader: async ({ context: { queryClient } }) => {
-		queryClient.prefetchQuery(globalOptionOptions());
-	},
 });
 
 function TorrentsSettingsPage() {
 	const navigate = useNavigate();
-	const { data: options } = useGlobalOption();
-	const { changeGlobalOption } = useEngineActions();
+    const { serverSettings, updateServerSettings } = useSettingsStore();
 
-	// Seeding
-	const [seedEnabled, setSeedEnabled] = useState(true);
-	const [seedRatio, setSeedRatio] = useState(1.0);
-	const [seedTime, setSeedTime] = useState(24); // hours
+    if (!serverSettings) {
+        return <div className="p-8">Loading settings...</div>;
+    }
 
-	// Privacy
-	const [encryption, setEncryption] = useState<"disabled" | "prefer" | "require">("prefer");
-	const [enableDht, setEnableDht] = useState(true);
-	const [enablePex, setEnablePex] = useState(true);
-	const [enableLpd, setEnableLpd] = useState(true);
+    const { torrent } = serverSettings;
 
-	// Network
-	const [listenPort, setListenPort] = useState("6881");
-	const [enableUpnp, setEnableUpnp] = useState(true);
-	const [enableNatPmp, setEnableNatPmp] = useState(true);
-
-	// Sync from engine options
-	useEffect(() => {
-		if (options) {
-			const ratio = parseFloat(options.seedRatio || "1.0");
-			setSeedRatio(isNaN(ratio) ? 1.0 : ratio);
-			setSeedEnabled(ratio > 0);
-
-			const time = parseFloat(options.seedTimeLimit || "0");
-			if (time > 0) {
-				setSeedTime(time / 60); // Convert minutes to hours
-			}
-			
-			if (options.listenPort) setListenPort(options.listenPort);
-			// UPnP/NAT-PMP not directly supported by Aria2 options, so we manage state locally or via custom settings
-		}
-	}, [options]);
+    const seedRatio = parseFloat(torrent.seedRatio);
+    const seedEnabled = seedRatio > 0;
 
 	const handleSeedRatioChange = (enabled: boolean, ratio?: number) => {
-		setSeedEnabled(enabled);
-		if (ratio !== undefined) setSeedRatio(ratio);
-		const finalRatio = enabled ? (ratio ?? seedRatio) : 0;
-		changeGlobalOption.mutate({ seedRatio: String(finalRatio) });
+		const finalRatio = enabled ? (ratio ?? (seedRatio || 1.0)) : 0;
+        updateServerSettings(prev => ({
+            ...prev,
+            torrent: { ...prev.torrent, seedRatio: String(finalRatio) }
+        }));
 	};
 
 	const handleSeedTimeChange = (hours: number) => {
-		setSeedTime(hours);
-		changeGlobalOption.mutate({ seedTimeLimit: String(hours * 60) }); // Convert to minutes
-	};
-
-	const handleListenPortChange = () => {
-		changeGlobalOption.mutate({ listenPort });
+		updateServerSettings(prev => ({
+            ...prev,
+            torrent: { ...prev.torrent, seedTime: hours }
+        }));
 	};
 
 	return (
@@ -153,7 +123,7 @@ function TorrentsSettingsPage() {
 												<p className="text-xs text-muted mt-0.5">Stop seeding after this duration</p>
 											</div>
 											<Select
-												selectedKey={String(seedTime)}
+												selectedKey={String(torrent.seedTime)}
 												onSelectionChange={(key) => handleSeedTimeChange(Number(key))}
 												className="w-32"
 											>
@@ -202,14 +172,14 @@ function TorrentsSettingsPage() {
 									<div className="flex gap-2">
 										{([
 											{ id: "disabled", label: "Disabled" },
-											{ id: "prefer", label: "Prefer Encrypted" },
-											{ id: "require", label: "Require Encrypted" },
+											{ id: "plain", label: "Prefer Encrypted" },
+											{ id: "required", label: "Require Encrypted" },
 										] as const).map((opt) => (
 											<Button
 												key={opt.id}
 												size="sm"
-												variant={encryption === opt.id ? "primary" : "secondary"}
-												onPress={() => setEncryption(opt.id)}
+												variant={torrent.encryption === opt.id ? "primary" : "secondary"}
+												onPress={() => updateServerSettings(prev => ({ ...prev, torrent: { ...prev.torrent, encryption: opt.id } }))}
 												className="rounded-xl font-bold"
 											>
 												{opt.label}
@@ -228,11 +198,10 @@ function TorrentsSettingsPage() {
 										<Label className="text-sm font-bold">DHT (Distributed Hash Table)</Label>
 										<p className="text-xs text-muted mt-0.5">Find peers without relying on trackers</p>
 									</div>
-									<Switch isSelected={enableDht} onChange={setEnableDht}>
-										<Switch.Control>
-											<Switch.Thumb />
-										</Switch.Control>
-									</Switch>
+									<Switch 
+                                        isSelected={torrent.enableDht} 
+                                        onChange={(selected) => updateServerSettings(prev => ({ ...prev, torrent: { ...prev.torrent, enableDht: selected } }))}
+                                    />
 								</div>
 
 								<div className="h-px bg-border" />
@@ -242,11 +211,10 @@ function TorrentsSettingsPage() {
 										<Label className="text-sm font-bold">PEX (Peer Exchange)</Label>
 										<p className="text-xs text-muted mt-0.5">Share peer lists with connected peers</p>
 									</div>
-									<Switch isSelected={enablePex} onChange={setEnablePex}>
-										<Switch.Control>
-											<Switch.Thumb />
-										</Switch.Control>
-									</Switch>
+									<Switch 
+                                        isSelected={torrent.enablePex} 
+                                        onChange={(selected) => updateServerSettings(prev => ({ ...prev, torrent: { ...prev.torrent, enablePex: selected } }))}
+                                    />
 								</div>
 
 								<div className="h-px bg-border" />
@@ -256,11 +224,10 @@ function TorrentsSettingsPage() {
 										<Label className="text-sm font-bold">LPD (Local Peer Discovery)</Label>
 										<p className="text-xs text-muted mt-0.5">Find peers on your local network</p>
 									</div>
-									<Switch isSelected={enableLpd} onChange={setEnableLpd}>
-										<Switch.Control>
-											<Switch.Thumb />
-										</Switch.Control>
-									</Switch>
+									<Switch 
+                                        isSelected={torrent.enableLpd} 
+                                        onChange={(selected) => updateServerSettings(prev => ({ ...prev, torrent: { ...prev.torrent, enableLpd: selected } }))}
+                                    />
 								</div>
 							</Card>
 						</section>
@@ -276,60 +243,13 @@ function TorrentsSettingsPage() {
 									<Label className="text-sm font-bold">Listen Port</Label>
 									<div className="flex items-center gap-3">
 										<Input
-											value={listenPort}
-											onChange={(e) => setListenPort(e.target.value)}
-											onBlur={handleListenPortChange}
+											value={String(torrent.listenPort)}
+											onChange={(e) => updateServerSettings(prev => ({ ...prev, torrent: { ...prev.torrent, listenPort: Number(e.target.value) } }))}
 											placeholder="6881"
 											className="w-32 h-11 bg-default/10 rounded-xl border-none"
 										/>
-										<div className="flex items-center gap-2 px-3 py-1.5 bg-success/10 rounded-lg">
-											<div className="w-2 h-2 rounded-full bg-success animate-pulse" />
-											<span className="text-xs font-bold text-success uppercase tracking-wider">Port Open</span>
-										</div>
 									</div>
 								</div>
-
-								<div className="h-px bg-border" />
-
-								<div className="flex items-center justify-between">
-									<div>
-										<Label className="text-sm font-bold">Enable UPnP Port Mapping</Label>
-										<p className="text-xs text-muted mt-0.5">Automatically forward ports on your router</p>
-									</div>
-									<Switch isSelected={enableUpnp} onChange={setEnableUpnp}>
-										<Switch.Control>
-											<Switch.Thumb />
-										</Switch.Control>
-									</Switch>
-								</div>
-
-								<div className="h-px bg-border" />
-
-								<div className="flex items-center justify-between">
-									<div>
-										<Label className="text-sm font-bold">Enable NAT-PMP Port Mapping</Label>
-										<p className="text-xs text-muted mt-0.5">Alternative port mapping protocol</p>
-									</div>
-									<Switch isSelected={enableNatPmp} onChange={setEnableNatPmp}>
-										<Switch.Control>
-											<Switch.Thumb />
-										</Switch.Control>
-									</Switch>
-								</div>
-							</Card>
-						</section>
-
-						{/* Trackers */}
-						<section>
-							<div className="flex items-center gap-3 mb-6">
-								<div className="w-1.5 h-6 bg-accent rounded-full" />
-								<h3 className="text-lg font-bold">Trackers</h3>
-							</div>
-							<Card className="p-6 bg-background/50 border-border space-y-6">
-								<p className="text-sm text-muted">
-									Tracker settings are managed by Aria2 automatically. Additional trackers can be added
-									when creating individual downloads.
-								</p>
 							</Card>
 						</section>
 					</div>

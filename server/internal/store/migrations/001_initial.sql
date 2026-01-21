@@ -83,7 +83,7 @@ CREATE TABLE IF NOT EXISTS settings (
 
 -- Initialize default settings
 INSERT OR IGNORE INTO settings (key, value) VALUES
-    ('download_dir', '/downloads'),
+    ('download_dir', ''),
     ('max_concurrent_downloads', '5'),
     ('max_concurrent_uploads', '2'),
     ('default_destination', ''),

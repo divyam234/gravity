@@ -8,6 +8,7 @@ import type {
   MagnetDownloadRequest,
   FileInfo,
   SearchConfig,
+  Settings,
 } from "./types";
 
 export type { ApiResponse };
@@ -48,8 +49,8 @@ export interface IApiClient {
   resolveUrl(url: string): Promise<any>;
   getRemotes(): Promise<ApiResponse<Remote[]>>;
   getStats(): Promise<Stats>;
-  getSettings(): Promise<Record<string, string>>;
-  updateSettings(settings: Record<string, string>): Promise<void>;
+  getSettings(): Promise<Settings>;
+  updateSettings(settings: any): Promise<void>;
   listFiles(path: string): Promise<ApiResponse<FileInfo[]>>;
   mkdir(path: string): Promise<void>;
   deleteFile(path: string): Promise<void>;
@@ -166,7 +167,7 @@ class RestApiClient implements IApiClient {
     return this.request<Stats>("GET", "/stats");
   }
   getSettings() {
-    return this.request<Record<string, string>>("GET", "/settings");
+    return this.request<Settings>("GET", "/settings");
   }
   updateSettings(settings: any) {
     return this.request<void>("PATCH", "/settings", settings);

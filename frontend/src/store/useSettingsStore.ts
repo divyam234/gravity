@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { api } from "../lib/api";
+import type { Settings } from "../lib/types";
 
 export interface ServerConfig {
 	id: string;
@@ -18,6 +19,9 @@ interface SettingsState {
 	isSelectionMode: boolean;
 	selectedGids: Set<string>;
 	defaultRemote: string;
+
+    // Server-side settings
+    serverSettings: Settings | null;
 
     // Multi-server state
     servers: ServerConfig[];
@@ -38,11 +42,15 @@ interface SettingsState {
 
 	setPollingInterval: (ms: number) => void;
 	setTheme: (theme: "light" | "dark" | "system") => void;
+
+    // Server settings actions
+    fetchServerSettings: () => Promise<void>;
+    updateServerSettings: (updates: Partial<Settings> | ((prev: Settings) => Settings)) => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
 	persist(
-		(set) => ({
+		(set, get) => ({
 			pollingInterval: 1000,
 			theme: "dark",
 			viewMode: "list",
@@ -52,6 +60,8 @@ export const useSettingsStore = create<SettingsState>()(
 			selectedGids: new Set(),
 			defaultRemote: "",
             
+            serverSettings: null,
+
             servers: [],
             activeServerId: null,
 
@@ -106,6 +116,31 @@ export const useSettingsStore = create<SettingsState>()(
 
 			setPollingInterval: (pollingInterval) => set({ pollingInterval }),
 			setTheme: (theme) => set({ theme }),
+
+            fetchServerSettings: async () => {
+                try {
+                    const settings = await api.getSettings();
+                    set({ serverSettings: settings as any });
+                } catch (err) {
+                    console.error("Failed to fetch server settings", err);
+                }
+            },
+
+            updateServerSettings: (updates) => {
+                const current = get().serverSettings;
+                if (!current) return;
+
+                if (typeof updates === "function") {
+                    set({ serverSettings: updates(current) });
+                } else {
+                    set({ 
+                        serverSettings: {
+                            ...current,
+                            ...updates,
+                        }
+                    });
+                }
+            },
 		}),
 		{
 			name: "gravity-settings",
@@ -139,6 +174,9 @@ export const useSettingsStore = create<SettingsState>()(
                     api.setBaseUrl(active.serverUrl);
                     api.setApiKey(active.apiKey);
                 }
+
+                // Initial fetch of server settings
+                state.fetchServerSettings();
             }
 		},
 	),
@@ -155,8 +193,24 @@ const syncApi = (state: SettingsState) => {
 
 useSettingsStore.subscribe(syncApi);
 
+// Debounced server settings sync
+let syncTimeout: any = null;
+useSettingsStore.subscribe((state, prevState) => {
+    if (!state.serverSettings || state.serverSettings === prevState.serverSettings) return;
+
+    if (syncTimeout) clearTimeout(syncTimeout);
+    syncTimeout = setTimeout(() => {
+        if (state.serverSettings) {
+            api.updateSettings(state.serverSettings).catch(err => {
+                console.error("Failed to sync settings to server", err);
+            });
+        }
+    }, 1000);
+});
+
 // Initial sync
-// We need to wait for rehydration? persist middleware handles it.
-// But we can try to sync initially if state exists.
 const initialState = useSettingsStore.getState();
 syncApi(initialState);
+if (!initialState.serverSettings) {
+    initialState.fetchServerSettings();
+}

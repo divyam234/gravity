@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	stdSync "sync"
@@ -182,11 +183,29 @@ func (e *Engine) Upload(ctx context.Context, src, dst string, opts engine.Upload
 		remotePath = parts[1]
 	}
 
-	srcFs, err := fs.NewFs(e.appCtx, src)
+	// Analyze source
+	info, err := os.Stat(src)
+	if err != nil {
+		return "", fmt.Errorf("stat src: %w", err)
+	}
+	isDir := info.IsDir()
+
+	// Prepare Source Fs
+	var srcFs fs.Fs
+	var srcRemote string
+
+	if isDir {
+		srcFs, err = fs.NewFs(e.appCtx, src)
+	} else {
+		// If file, open parent dir
+		srcFs, err = fs.NewFs(e.appCtx, filepath.Dir(src))
+		srcRemote = filepath.Base(src)
+	}
 	if err != nil {
 		return "", fmt.Errorf("src fs: %w", err)
 	}
 
+	// Prepare Dest Fs
 	dstFs, err := fs.NewFs(e.appCtx, remoteName+":"+remotePath)
 	if err != nil {
 		return "", fmt.Errorf("dst fs: %w", err)
@@ -197,10 +216,7 @@ func (e *Engine) Upload(ctx context.Context, src, dst string, opts engine.Upload
 		jobID = opts.TrackingID
 	}
 
-	var size int64
-	if info, err := os.Stat(src); err == nil {
-		size = info.Size()
-	}
+	size := info.Size()
 
 	jobCtx, cancel := context.WithCancel(e.appCtx)
 	j := &job{
@@ -220,7 +236,18 @@ func (e *Engine) Upload(ctx context.Context, src, dst string, opts engine.Upload
 		defer e.removeJob(jobID)
 
 		jobCtx = accounting.WithStatsGroup(jobCtx, jobID)
-		err := rclSync.CopyDir(jobCtx, dstFs, srcFs, true)
+		var err error
+
+		if isDir {
+			err = rclSync.CopyDir(jobCtx, dstFs, srcFs, true)
+		} else {
+			// Single file copy
+			var srcObj fs.Object
+			srcObj, err = srcFs.NewObject(jobCtx, srcRemote)
+			if err == nil {
+				_, err = operations.Copy(jobCtx, dstFs, nil, srcRemote, srcObj)
+			}
+		}
 
 		if err != nil {
 			if e.onError != nil {
@@ -251,19 +278,50 @@ func (e *Engine) pollAccounting() {
 			continue
 		}
 
-		for id, j := range e.activeJobs {
-			stats := accounting.StatsGroup(e.appCtx, id)
-			if stats != nil {
-				if e.onProgress != nil {
-					e.onProgress(j.trackID, engine.UploadProgress{
-						Uploaded: stats.GetBytes(),
-						Size:     j.size,
-						Speed:    0,
-					})
-				}
-			}
+		jobs := make([]*job, 0, len(e.activeJobs))
+		for _, j := range e.activeJobs {
+			jobs = append(jobs, j)
 		}
 		e.mu.RUnlock()
+
+		// Get core/stats function
+		call := rc.Calls.Get("core/stats")
+		if call == nil {
+			log.Println("Rclone: core/stats RC command not found")
+			continue
+		}
+
+		for _, j := range jobs {
+			params := rc.Params{"group": j.id}
+			res, err := call.Fn(e.appCtx, params)
+			if err != nil {
+				// Job might have finished or group not found
+				continue
+			}
+
+			// Helper to get number from params
+			getNumber := func(key string) int64 {
+				if v, ok := res[key]; ok {
+					switch val := v.(type) {
+					case int64:
+						return val
+					case float64:
+						return int64(val)
+					case int:
+						return int64(val)
+					}
+				}
+				return 0
+			}
+
+			if e.onProgress != nil {
+				e.onProgress(j.trackID, engine.UploadProgress{
+					Uploaded: getNumber("bytes"),
+					Size:     j.size,
+					Speed:    getNumber("speed"),
+				})
+			}
+		}
 	}
 }
 
@@ -291,10 +349,33 @@ func (e *Engine) Status(ctx context.Context, jobID string) (*engine.UploadStatus
 }
 
 func (e *Engine) GetGlobalStats(ctx context.Context) (*engine.GlobalStats, error) {
-	stats := accounting.GlobalStats()
+	call := rc.Calls.Get("core/stats")
+	if call == nil {
+		return nil, fmt.Errorf("core/stats command not found")
+	}
+
+	res, err := call.Fn(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	getNumber := func(key string) int64 {
+		if v, ok := res[key]; ok {
+			switch val := v.(type) {
+			case int64:
+				return val
+			case float64:
+				return int64(val)
+			case int:
+				return int64(val)
+			}
+		}
+		return 0
+	}
+
 	return &engine.GlobalStats{
-		Speed:           0,
-		ActiveTransfers: int(stats.GetTransfers()),
+		Speed:           getNumber("speed"),
+		ActiveTransfers: int(getNumber("transfers")),
 	}, nil
 }
 

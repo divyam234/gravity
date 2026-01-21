@@ -6,7 +6,7 @@ import { useRemoteActions, useRemotes } from "../../../hooks/useRemotes";
 import { useSettingsStore } from "../../../store/useSettingsStore";
 
 export const RemoteSettings: React.FC = () => {
-	const { defaultRemote, setDefaultRemote } = useSettingsStore();
+	const { serverSettings, updateServerSettings } = useSettingsStore();
 	const { data: remotes, isLoading } = useRemotes();
 	const { deleteRemote, createRemote } = useRemoteActions();
 
@@ -14,6 +14,14 @@ export const RemoteSettings: React.FC = () => {
 	const [newName, setNewName] = useState("");
 	const [newType, setNewType] = useState("");
 	const [newParams, setNewParams] = useState("{}");
+
+    const defaultRemote = serverSettings?.upload.defaultRemote || "";
+    const setDefaultRemote = (val: string) => {
+        updateServerSettings(prev => ({
+            ...prev,
+            upload: { ...prev.upload, defaultRemote: val }
+        }));
+    };
 
 	const handleCreate = async () => {
 		try {
