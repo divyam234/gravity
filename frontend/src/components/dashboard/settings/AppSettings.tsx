@@ -1,4 +1,4 @@
-import { Input, Label, ListBox, Select, Slider, Switch } from "@heroui/react";
+import { Input, Label, ListBox, Select, Slider, Switch, TextField } from "@heroui/react";
 import type React from "react";
 import { useEffect, useState } from "react";
 import IconChevronDown from "~icons/gravity-ui/chevron-down";
@@ -40,7 +40,7 @@ export const AppSettings: React.FC = () => {
 			</div>
 
 			<div className="space-y-6">
-				<div className="flex flex-col gap-2">
+				<TextField className="flex flex-col gap-2">
 					<Label className="text-sm font-bold tracking-tight">
 						Download Directory
 					</Label>
@@ -59,7 +59,7 @@ export const AppSettings: React.FC = () => {
 					<p className="text-[10px] text-muted uppercase font-black tracking-widest">
 						Default directory for downloaded files on the server.
 					</p>
-				</div>
+				</TextField>
 			</div>
 
 			<div className="border-b border-border pb-2">
@@ -115,40 +115,38 @@ export const AppSettings: React.FC = () => {
 					</p>
 				</div>
 
-				<div className="flex flex-col gap-2">
+				<Select
+					value={theme}
+					onChange={(key) => setTheme(key as any)}
+					className="flex flex-col gap-2"
+				>
 					<Label className="text-sm font-bold tracking-tight">Appearance</Label>
-					<Select
-						selectedKey={theme}
-						onSelectionChange={(key) => setTheme(key as any)}
-						className="max-w-[240px]"
-					>
-						<Select.Trigger className="h-11 px-4 bg-default/10 rounded-2xl hover:bg-default/20 transition-colors border-none outline-none">
-							<Select.Value className="text-sm font-medium" />
-							<Select.Indicator className="text-muted">
-								<IconChevronDown className="w-4 h-4" />
-							</Select.Indicator>
-						</Select.Trigger>
-						<Select.Popover className="min-w-[240px] p-2 bg-background border border-border rounded-3xl shadow-xl">
-							<ListBox
-								items={[
-									{ id: "light", name: "Light" },
-									{ id: "dark", name: "Dark" },
-									{ id: "system", name: "System" },
-								]}
-							>
-								{(item) => (
-									<ListBox.Item
-										id={item.id}
-										textValue={item.name}
-										className="px-4 py-2.5 rounded-xl data-[hover=true]:bg-default/15 text-sm cursor-pointer outline-none"
-									>
-										<Label>{item.name}</Label>
-									</ListBox.Item>
-								)}
-							</ListBox>
-						</Select.Popover>
-					</Select>
-				</div>
+					<Select.Trigger className="h-11 px-4 bg-default/10 rounded-2xl hover:bg-default/20 transition-colors border-none outline-none max-w-[240px]">
+						<Select.Value className="text-sm font-medium" />
+						<Select.Indicator className="text-muted">
+							<IconChevronDown className="w-4 h-4" />
+						</Select.Indicator>
+					</Select.Trigger>
+					<Select.Popover className="min-w-[240px] p-2 bg-background border border-border rounded-3xl shadow-xl">
+						<ListBox
+							items={[
+								{ id: "light", name: "Light" },
+								{ id: "dark", name: "Dark" },
+								{ id: "system", name: "System" },
+							]}
+						>
+							{(item) => (
+								<ListBox.Item
+									id={item.id}
+									textValue={item.name}
+									className="px-4 py-2.5 rounded-xl data-[hover=true]:bg-default/15 text-sm cursor-pointer outline-none"
+								>
+									<Label>{item.name}</Label>
+								</ListBox.Item>
+							)}
+						</ListBox>
+					</Select.Popover>
+				</Select>
 			</div>
 		</div>
 	);

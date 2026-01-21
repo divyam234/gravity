@@ -1,4 +1,4 @@
-import { Button, Card, Input, Label, ScrollShadow, Select, Slider, Switch, ListBox } from "@heroui/react";
+import { Button, Card, Input, Label, ScrollShadow, Select, Slider, Switch, ListBox, TextField } from "@heroui/react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import IconChevronLeft from "~icons/gravity-ui/chevron-left";
@@ -161,82 +161,76 @@ function DownloadsSettingsPage() {
 								<div className="w-1.5 h-6 bg-accent rounded-full" />
 								<h3 className="text-lg font-bold">Storage</h3>
 							</div>
-							<Card className="p-6 bg-background/50 border-border space-y-6">
-								<div className="space-y-3">
-									<Label className="text-sm font-bold">Download Folder</Label>
-									<div className="relative">
-										<IconFolder className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
-										<Input
-											value={downloadDir}
-											onChange={(e) => setDownloadDir(e.target.value)}
-											onBlur={handleDownloadDirSave}
-											onKeyDown={(e) => e.key === "Enter" && handleDownloadDirSave()}
-											placeholder="/downloads"
-											className="pl-11 h-12 bg-default/10 rounded-2xl border-none"
-											fullWidth
-										/>
-									</div>
-									<p className="text-[10px] text-muted uppercase font-black tracking-widest">
-										Where files are saved on the server
-									</p>
-								</div>
-
-								<div className="h-px bg-border" />
-
-								<div className="space-y-4">
-									<div className="flex items-center justify-between">
-										<div>
-											<Label className="text-sm font-bold">Auto-Upload to Cloud</Label>
-											<p className="text-xs text-muted mt-0.5">
-												Automatically upload completed downloads to cloud storage
-											</p>
+							<Card className="bg-background/50 border-border overflow-hidden">
+								<Card.Content className="p-6 space-y-6">
+									<TextField className="space-y-3">
+										<Label className="text-sm font-bold">Download Folder</Label>
+										<div className="relative group">
+											<IconFolder className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted z-10 group-focus-within:text-accent transition-colors" />
+											<Input
+												value={downloadDir}
+												onChange={(e) => setDownloadDir(e.target.value)}
+												onBlur={handleDownloadDirSave}
+												onKeyDown={(e) => e.key === "Enter" && handleDownloadDirSave()}
+												placeholder="/downloads"
+												className="pl-11 h-12 bg-default/10 rounded-2xl border-none"
+												fullWidth
+											/>
 										</div>
-										<Switch
-											isSelected={autoUpload}
-											onChange={(selected) => {
-												setAutoUpload(selected);
-												if (!selected) setDefaultRemote("");
-											}}
-										>
-											<Switch.Control>
-												<Switch.Thumb />
-											</Switch.Control>
-										</Switch>
-									</div>
+										<p className="text-[10px] text-muted uppercase font-black tracking-widest">
+											Where files are saved on the server
+										</p>
+									</TextField>
 
-									{autoUpload && (
-										<div className="pl-0 space-y-3 animate-in slide-in-from-top-2 duration-200">
-											<div className="relative">
-												<IconCloudArrowUpIn className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
-												<Input
-													value={defaultRemote}
-													onChange={(e) => setDefaultRemote(e.target.value)}
-													placeholder="gdrive:/downloads"
-													className="pl-11 h-12 bg-default/10 rounded-2xl border-none"
-													fullWidth
-												/>
+									<div className="h-px bg-border" />
+
+									<div className="space-y-4">
+										<div className="flex items-center justify-between">
+											<div>
+												<Label className="text-sm font-bold">Auto-Upload to Cloud</Label>
+												<p className="text-xs text-muted mt-0.5">
+													Automatically upload completed downloads to cloud storage
+												</p>
 											</div>
-											<p className="text-[10px] text-muted uppercase font-black tracking-widest">
-												Use "remote:" or "remote:/path" syntax
-											</p>
+											<Switch
+												isSelected={autoUpload}
+												onChange={(selected) => {
+													setAutoUpload(selected);
+													if (!selected) setDefaultRemote("");
+												}}
+											/>
+										</div>
 
-											<div className="flex items-center justify-between pt-2">
-												<div>
-													<Label className="text-sm font-medium">Delete local copy after upload</Label>
+										{autoUpload && (
+											<div className="pl-0 space-y-3 animate-in slide-in-from-top-2 duration-200">
+												<TextField className="relative group">
+													<IconCloudArrowUpIn className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted z-10 group-focus-within:text-accent transition-colors" />
+													<Input
+														value={defaultRemote}
+														onChange={(e) => setDefaultRemote(e.target.value)}
+														placeholder="gdrive:/downloads"
+														className="pl-11 h-12 bg-default/10 rounded-2xl border-none"
+														fullWidth
+													/>
+												</TextField>
+												<p className="text-[10px] text-muted uppercase font-black tracking-widest">
+													Use "remote:" or "remote:/path" syntax
+												</p>
+
+												<div className="flex items-center justify-between pt-2">
+													<div>
+														<Label className="text-sm font-medium">Delete local copy after upload</Label>
+													</div>
+													<Switch
+														isSelected={deleteAfterUpload}
+														onChange={setDeleteAfterUpload}
+														size="sm"
+													/>
 												</div>
-												<Switch
-													isSelected={deleteAfterUpload}
-													onChange={setDeleteAfterUpload}
-													size="sm"
-												>
-													<Switch.Control>
-														<Switch.Thumb />
-													</Switch.Control>
-												</Switch>
 											</div>
-										</div>
-									)}
-								</div>
+										)}
+									</div>
+								</Card.Content>
 							</Card>
 						</section>
 
@@ -246,78 +240,72 @@ function DownloadsSettingsPage() {
 								<div className="w-1.5 h-6 bg-accent rounded-full" />
 								<h3 className="text-lg font-bold">Speed Limits</h3>
 							</div>
-							<Card className="p-6 bg-background/50 border-border space-y-6">
-								<div className="space-y-4">
-									<div className="flex items-center justify-between">
-										<Label className="text-sm font-bold">Limit Download Speed</Label>
-										<Switch
-											isSelected={downloadLimited}
-											onChange={(selected) => handleDownloadLimitChange(selected)}
-										>
-											<Switch.Control>
-												<Switch.Thumb />
-											</Switch.Control>
-										</Switch>
-									</div>
-									{downloadLimited && (
-										<div className="space-y-3 animate-in slide-in-from-top-2 duration-200">
-											<div className="flex items-center justify-between">
-												<span className="text-xs text-muted">0 MB/s</span>
-												<span className="text-sm font-bold text-accent">{downloadLimit} MB/s</span>
-												<span className="text-xs text-muted">100 MB/s</span>
-											</div>
-											<Slider
-												value={downloadLimit}
-												onChange={(val) => handleDownloadLimitChange(true, val as number)}
-												minValue={1}
-												maxValue={100}
-												step={1}
-											>
-												<Slider.Track className="h-2 bg-default/10">
-													<Slider.Fill className="bg-accent" />
-													<Slider.Thumb className="w-5 h-5 border-2 border-accent bg-background" />
-												</Slider.Track>
-											</Slider>
+							<Card className="bg-background/50 border-border overflow-hidden">
+								<Card.Content className="p-6 space-y-6">
+									<div className="space-y-4">
+										<div className="flex items-center justify-between">
+											<Label className="text-sm font-bold">Limit Download Speed</Label>
+											<Switch
+												isSelected={downloadLimited}
+												onChange={(selected) => handleDownloadLimitChange(selected)}
+											/>
 										</div>
-									)}
-								</div>
-
-								<div className="h-px bg-border" />
-
-								<div className="space-y-4">
-									<div className="flex items-center justify-between">
-										<Label className="text-sm font-bold">Limit Upload Speed</Label>
-										<Switch
-											isSelected={uploadLimited}
-											onChange={(selected) => handleUploadLimitChange(selected)}
-										>
-											<Switch.Control>
-												<Switch.Thumb />
-											</Switch.Control>
-										</Switch>
-									</div>
-									{uploadLimited && (
-										<div className="space-y-3 animate-in slide-in-from-top-2 duration-200">
-											<div className="flex items-center justify-between">
-												<span className="text-xs text-muted">0 MB/s</span>
-												<span className="text-sm font-bold text-cyan-500">{uploadLimit} MB/s</span>
-												<span className="text-xs text-muted">100 MB/s</span>
+										{downloadLimited && (
+											<div className="space-y-3 animate-in slide-in-from-top-2 duration-200">
+												<div className="flex items-center justify-between">
+													<span className="text-xs text-muted">0 MB/s</span>
+													<span className="text-sm font-bold text-accent">{downloadLimit} MB/s</span>
+													<span className="text-xs text-muted">100 MB/s</span>
+												</div>
+												<Slider
+													value={downloadLimit}
+													onChange={(val) => handleDownloadLimitChange(true, val as number)}
+													minValue={1}
+													maxValue={100}
+													step={1}
+												>
+													<Slider.Track className="h-2 bg-default/10">
+														<Slider.Fill className="bg-accent" />
+														<Slider.Thumb className="w-5 h-5 border-2 border-accent bg-background" />
+													</Slider.Track>
+												</Slider>
 											</div>
-											<Slider
-												value={uploadLimit}
-												onChange={(val) => handleUploadLimitChange(true, val as number)}
-												minValue={1}
-												maxValue={100}
-												step={1}
-											>
-												<Slider.Track className="h-2 bg-default/10">
-													<Slider.Fill className="bg-cyan-500" />
-													<Slider.Thumb className="w-5 h-5 border-2 border-cyan-500 bg-background" />
-												</Slider.Track>
-											</Slider>
+										)}
+									</div>
+
+									<div className="h-px bg-border" />
+
+									<div className="space-y-4">
+										<div className="flex items-center justify-between">
+											<Label className="text-sm font-bold">Limit Upload Speed</Label>
+											<Switch
+												isSelected={uploadLimited}
+												onChange={(selected) => handleUploadLimitChange(selected)}
+											/>
 										</div>
-									)}
-								</div>
+										{uploadLimited && (
+											<div className="space-y-3 animate-in slide-in-from-top-2 duration-200">
+												<div className="flex items-center justify-between">
+													<span className="text-xs text-muted">0 MB/s</span>
+													<span className="text-sm font-bold text-cyan-500">{uploadLimit} MB/s</span>
+													<span className="text-xs text-muted">100 MB/s</span>
+												</div>
+												<Slider
+													value={uploadLimit}
+													onChange={(val) => handleUploadLimitChange(true, val as number)}
+													minValue={1}
+													maxValue={100}
+													step={1}
+												>
+													<Slider.Track className="h-2 bg-default/10">
+														<Slider.Fill className="bg-cyan-500" />
+														<Slider.Thumb className="w-5 h-5 border-2 border-cyan-500 bg-background" />
+													</Slider.Track>
+												</Slider>
+											</div>
+										)}
+									</div>
+								</Card.Content>
 							</Card>
 						</section>
 
@@ -327,57 +315,55 @@ function DownloadsSettingsPage() {
 								<div className="w-1.5 h-6 bg-accent rounded-full" />
 								<h3 className="text-lg font-bold">Queue Management</h3>
 							</div>
-							<Card className="p-6 bg-background/50 border-border space-y-6">
-								<div className="space-y-4">
+							<Card className="bg-background/50 border-border overflow-hidden">
+								<Card.Content className="p-6 space-y-6">
+									<div className="space-y-4">
+										<div className="flex items-center justify-between">
+											<div>
+												<Label className="text-sm font-bold">Simultaneous Downloads</Label>
+												<p className="text-xs text-muted mt-0.5">Maximum parallel downloads</p>
+											</div>
+											<Select
+												selectedKey={String(maxConcurrent)}
+												onSelectionChange={(key) => handleMaxConcurrentChange(Number(key))}
+												className="w-24"
+											>
+												<Select.Trigger className="h-10 px-4 bg-default/10 rounded-xl border-none">
+													<Select.Value className="text-sm font-bold" />
+													<Select.Indicator className="text-muted">
+														<IconChevronDown className="w-4 h-4" />
+													</Select.Indicator>
+												</Select.Trigger>
+												<Select.Popover className="min-w-[100px] p-2 bg-background border border-border rounded-2xl shadow-xl">
+													<ListBox items={[1, 2, 3, 4, 5, 6, 8, 10].map(n => ({ id: String(n), name: String(n) }))}>
+														{(item) => (
+															<ListBox.Item
+																id={item.id}
+																textValue={item.name}
+																className="px-3 py-2 rounded-lg data-[hover=true]:bg-default/15 text-sm cursor-pointer outline-none"
+															>
+																<Label>{item.name}</Label>
+															</ListBox.Item>
+														)}
+													</ListBox>
+												</Select.Popover>
+											</Select>
+										</div>
+									</div>
+
+									<div className="h-px bg-border" />
+
 									<div className="flex items-center justify-between">
 										<div>
-											<Label className="text-sm font-bold">Simultaneous Downloads</Label>
-											<p className="text-xs text-muted mt-0.5">Maximum parallel downloads</p>
+											<Label className="text-sm font-bold">Auto-start Downloads</Label>
+											<p className="text-xs text-muted mt-0.5">Start downloads immediately when added</p>
 										</div>
-										<Select
-											selectedKey={String(maxConcurrent)}
-											onSelectionChange={(key) => handleMaxConcurrentChange(Number(key))}
-											className="w-24"
-										>
-											<Select.Trigger className="h-10 px-4 bg-default/10 rounded-xl border-none">
-												<Select.Value className="text-sm font-bold" />
-												<Select.Indicator className="text-muted">
-													<IconChevronDown className="w-4 h-4" />
-												</Select.Indicator>
-											</Select.Trigger>
-											<Select.Popover className="min-w-[100px] p-2 bg-background border border-border rounded-2xl shadow-xl">
-												<ListBox items={[1, 2, 3, 4, 5, 6, 8, 10].map(n => ({ id: String(n), name: String(n) }))}>
-													{(item) => (
-														<ListBox.Item
-															id={item.id}
-															textValue={item.name}
-															className="px-3 py-2 rounded-lg data-[hover=true]:bg-default/15 text-sm cursor-pointer outline-none"
-														>
-															<Label>{item.name}</Label>
-														</ListBox.Item>
-													)}
-												</ListBox>
-											</Select.Popover>
-										</Select>
+										<Switch
+											isSelected={autoStart}
+											onChange={setAutoStart}
+										/>
 									</div>
-								</div>
-
-								<div className="h-px bg-border" />
-
-								<div className="flex items-center justify-between">
-									<div>
-										<Label className="text-sm font-bold">Auto-start Downloads</Label>
-										<p className="text-xs text-muted mt-0.5">Start downloads immediately when added</p>
-									</div>
-									<Switch
-										isSelected={autoStart}
-										onChange={setAutoStart}
-									>
-										<Switch.Control>
-											<Switch.Thumb />
-										</Switch.Control>
-									</Switch>
-								</div>
+								</Card.Content>
 							</Card>
 						</section>
 
@@ -387,67 +373,61 @@ function DownloadsSettingsPage() {
 								<div className="w-1.5 h-6 bg-accent rounded-full" />
 								<h3 className="text-lg font-bold">Automation</h3>
 							</div>
-							<Card className="p-6 bg-background/50 border-border space-y-6">
-								<div className="flex items-center justify-between">
-									<div className="flex-1">
-										<Label className="text-sm font-bold">Retry Failed Downloads</Label>
-										<p className="text-xs text-muted mt-0.5">Automatically retry when downloads fail</p>
+							<Card className="bg-background/50 border-border overflow-hidden">
+								<Card.Content className="p-6 space-y-6">
+									<div className="flex items-center justify-between">
+										<div className="flex-1">
+											<Label className="text-sm font-bold">Retry Failed Downloads</Label>
+											<p className="text-xs text-muted mt-0.5">Automatically retry when downloads fail</p>
+										</div>
+										<div className="flex items-center gap-3">
+											{retryFailed && (
+												<Select
+													selectedKey={String(retryAttempts)}
+													onSelectionChange={(key) => handleRetryChange(true, Number(key))}
+													className="w-20"
+												>
+													<Select.Trigger className="h-9 px-3 bg-default/10 rounded-xl border-none">
+														<Select.Value className="text-sm font-bold" />
+														<Select.Indicator className="text-muted">
+															<IconChevronDown className="w-3 h-3" />
+														</Select.Indicator>
+													</Select.Trigger>
+													<Select.Popover className="min-w-[80px] p-2 bg-background border border-border rounded-2xl shadow-xl">
+														<ListBox items={[1, 2, 3, 5, 10].map(n => ({ id: String(n), name: String(n) }))}>
+															{(item) => (
+																<ListBox.Item
+																	id={item.id}
+																	textValue={item.name}
+																	className="px-3 py-2 rounded-lg data-[hover=true]:bg-default/15 text-sm cursor-pointer outline-none"
+																>
+																	<Label>{item.name}x</Label>
+																</ListBox.Item>
+															)}
+														</ListBox>
+													</Select.Popover>
+												</Select>
+											)}
+											<Switch
+												isSelected={retryFailed}
+												onChange={(selected) => handleRetryChange(selected)}
+											/>
+										</div>
 									</div>
-									<div className="flex items-center gap-3">
-										{retryFailed && (
-											<Select
-												selectedKey={String(retryAttempts)}
-												onSelectionChange={(key) => handleRetryChange(true, Number(key))}
-												className="w-20"
-											>
-												<Select.Trigger className="h-9 px-3 bg-default/10 rounded-xl border-none">
-													<Select.Value className="text-sm font-bold" />
-													<Select.Indicator className="text-muted">
-														<IconChevronDown className="w-3 h-3" />
-													</Select.Indicator>
-												</Select.Trigger>
-												<Select.Popover className="min-w-[80px] p-2 bg-background border border-border rounded-2xl shadow-xl">
-													<ListBox items={[1, 2, 3, 5, 10].map(n => ({ id: String(n), name: String(n) }))}>
-														{(item) => (
-															<ListBox.Item
-																id={item.id}
-																textValue={item.name}
-																className="px-3 py-2 rounded-lg data-[hover=true]:bg-default/15 text-sm cursor-pointer outline-none"
-															>
-																<Label>{item.name}x</Label>
-															</ListBox.Item>
-														)}
-													</ListBox>
-												</Select.Popover>
-											</Select>
-										)}
+
+									<div className="h-px bg-border" />
+
+									<div className="flex items-center justify-between">
+										<div>
+											<Label className="text-sm font-bold">Resume Incomplete Downloads</Label>
+											<p className="text-xs text-muted mt-0.5">Continue partially downloaded files</p>
+										</div>
 										<Switch
-											isSelected={retryFailed}
-											onChange={(selected) => handleRetryChange(selected)}
-										>
-											<Switch.Control>
-												<Switch.Thumb />
-											</Switch.Control>
-										</Switch>
+											isSelected={resumeIncomplete}
+											onChange={handleResumeChange}
+										/>
 									</div>
-								</div>
-
-								<div className="h-px bg-border" />
-
-								<div className="flex items-center justify-between">
-									<div>
-										<Label className="text-sm font-bold">Resume Incomplete Downloads</Label>
-										<p className="text-xs text-muted mt-0.5">Continue partially downloaded files</p>
-									</div>
-									<Switch
-										isSelected={resumeIncomplete}
-										onChange={handleResumeChange}
-									>
-										<Switch.Control>
-											<Switch.Thumb />
-										</Switch.Control>
-									</Switch>
-								</div>
+								</Card.Content>
 							</Card>
 						</section>
 
@@ -469,44 +449,46 @@ function DownloadsSettingsPage() {
 							</button>
 							
 							{showAdvanced && (
-								<Card className="p-6 bg-background/50 border-border space-y-6 animate-in slide-in-from-top-2 duration-200">
-									<div className="space-y-4">
-										<div className="flex items-center justify-between">
-											<div>
-												<Label className="text-sm font-bold">Connections per Download</Label>
-												<p className="text-xs text-muted mt-0.5">Split downloads into multiple connections</p>
+								<Card className="bg-background/50 border-border overflow-hidden animate-in slide-in-from-top-2 duration-200">
+									<Card.Content className="p-6 space-y-6">
+										<div className="space-y-4">
+											<div className="flex items-center justify-between">
+												<div>
+													<Label className="text-sm font-bold">Connections per Download</Label>
+													<p className="text-xs text-muted mt-0.5">Split downloads into multiple connections</p>
+												</div>
+												<Select
+													selectedKey={String(connectionsPerDownload)}
+													onSelectionChange={(key) => handleConnectionsChange(Number(key))}
+													className="w-24"
+												>
+													<Select.Trigger className="h-10 px-4 bg-default/10 rounded-xl border-none">
+														<Select.Value className="text-sm font-bold" />
+														<Select.Indicator className="text-muted">
+															<IconChevronDown className="w-4 h-4" />
+														</Select.Indicator>
+													</Select.Trigger>
+													<Select.Popover className="min-w-[100px] p-2 bg-background border border-border rounded-2xl shadow-xl">
+														<ListBox items={[1, 2, 4, 8, 16].map(n => ({ id: String(n), name: String(n) }))}>
+															{(item) => (
+																<ListBox.Item
+																	id={item.id}
+																	textValue={item.name}
+																	className="px-3 py-2 rounded-lg data-[hover=true]:bg-default/15 text-sm cursor-pointer outline-none"
+																>
+																	<Label>{item.name}</Label>
+																</ListBox.Item>
+															)}
+														</ListBox>
+													</Select.Popover>
+												</Select>
 											</div>
-											<Select
-												selectedKey={String(connectionsPerDownload)}
-												onSelectionChange={(key) => handleConnectionsChange(Number(key))}
-												className="w-24"
-											>
-												<Select.Trigger className="h-10 px-4 bg-default/10 rounded-xl border-none">
-													<Select.Value className="text-sm font-bold" />
-													<Select.Indicator className="text-muted">
-														<IconChevronDown className="w-4 h-4" />
-													</Select.Indicator>
-												</Select.Trigger>
-												<Select.Popover className="min-w-[100px] p-2 bg-background border border-border rounded-2xl shadow-xl">
-													<ListBox items={[1, 2, 4, 8, 16].map(n => ({ id: String(n), name: String(n) }))}>
-														{(item) => (
-															<ListBox.Item
-																id={item.id}
-																textValue={item.name}
-																className="px-3 py-2 rounded-lg data-[hover=true]:bg-default/15 text-sm cursor-pointer outline-none"
-															>
-																<Label>{item.name}</Label>
-															</ListBox.Item>
-														)}
-													</ListBox>
-												</Select.Popover>
-											</Select>
 										</div>
-									</div>
 
-									<p className="text-xs text-muted italic">
-										More advanced options (file allocation, disk cache, etc.) are available in the server configuration.
-									</p>
+										<p className="text-xs text-muted italic">
+											More advanced options (file allocation, disk cache, etc.) are available in the server configuration.
+										</p>
+									</Card.Content>
 								</Card>
 							)}
 						</section>

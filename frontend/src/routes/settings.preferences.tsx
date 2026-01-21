@@ -1,4 +1,4 @@
-import { Button, Card, Label, ListBox, ScrollShadow, Select, Switch } from "@heroui/react";
+import { Button, Card, Label, ListBox, ScrollShadow, Select, Switch, Checkbox } from "@heroui/react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useRef } from "react";
 import IconChevronLeft from "~icons/gravity-ui/chevron-left";
@@ -93,77 +93,79 @@ function PreferencesSettingsPage() {
 								<div className="w-1.5 h-6 bg-accent rounded-full" />
 								<h3 className="text-lg font-bold">Appearance</h3>
 							</div>
-							<Card className="p-6 bg-background/50 border-border space-y-6">
-								<div className="space-y-3">
-									<Label className="text-sm font-bold">Theme</Label>
-									<div className="flex gap-2">
-										{themes.map((t) => (
+							<Card className="bg-background/50 border-border overflow-hidden">
+								<Card.Content className="p-6 space-y-6">
+									<div className="space-y-3">
+										<Label className="text-sm font-bold">Theme</Label>
+										<div className="flex gap-2">
+											{themes.map((t) => (
+												<Button
+													key={t.id}
+													size="sm"
+													variant={theme === t.id ? "primary" : "secondary"}
+													onPress={() => setTheme(t.id)}
+													className="rounded-xl font-bold flex items-center gap-2"
+												>
+													{t.icon}
+													{t.label}
+												</Button>
+											))}
+										</div>
+									</div>
+
+									<div className="h-px bg-border" />
+
+									<div className="space-y-3">
+										<Label className="text-sm font-bold">Accent Color</Label>
+										<div className="flex gap-3">
+											{accentColors.map((color) => (
+												<button
+													key={color.id}
+													type="button"
+													onClick={() => {
+														// TODO: Implement accent color switching
+													}}
+													className={cn(
+														"w-10 h-10 rounded-xl transition-all",
+														color.color,
+														color.id === "purple" && "ring-2 ring-offset-2 ring-offset-background ring-accent"
+													)}
+													title={color.label}
+												/>
+											))}
+										</div>
+										<p className="text-xs text-muted">
+											Accent color customization coming soon
+										</p>
+									</div>
+
+									<div className="h-px bg-border" />
+
+									<div className="flex items-center justify-between">
+										<div>
+											<Label className="text-sm font-bold">Default View Mode</Label>
+											<p className="text-xs text-muted mt-0.5">How tasks are displayed in lists</p>
+										</div>
+										<div className="flex gap-2">
 											<Button
-												key={t.id}
 												size="sm"
-												variant={theme === t.id ? "primary" : "secondary"}
-												onPress={() => setTheme(t.id)}
-												className="rounded-xl font-bold flex items-center gap-2"
+												variant={viewMode === "list" ? "primary" : "secondary"}
+												onPress={() => setViewMode("list")}
+												className="rounded-xl font-bold"
 											>
-												{t.icon}
-												{t.label}
+												List
 											</Button>
-										))}
+											<Button
+												size="sm"
+												variant={viewMode === "grid" ? "primary" : "secondary"}
+												onPress={() => setViewMode("grid")}
+												className="rounded-xl font-bold"
+											>
+												Grid
+											</Button>
+										</div>
 									</div>
-								</div>
-
-								<div className="h-px bg-border" />
-
-								<div className="space-y-3">
-									<Label className="text-sm font-bold">Accent Color</Label>
-									<div className="flex gap-3">
-										{accentColors.map((color) => (
-											<button
-												key={color.id}
-												type="button"
-												onClick={() => {
-													// TODO: Implement accent color switching
-												}}
-												className={cn(
-													"w-10 h-10 rounded-xl transition-all",
-													color.color,
-													color.id === "purple" && "ring-2 ring-offset-2 ring-offset-background ring-accent"
-												)}
-												title={color.label}
-											/>
-										))}
-									</div>
-									<p className="text-xs text-muted">
-										Accent color customization coming soon
-									</p>
-								</div>
-
-								<div className="h-px bg-border" />
-
-								<div className="flex items-center justify-between">
-									<div>
-										<Label className="text-sm font-bold">Default View Mode</Label>
-										<p className="text-xs text-muted mt-0.5">How tasks are displayed in lists</p>
-									</div>
-									<div className="flex gap-2">
-										<Button
-											size="sm"
-											variant={viewMode === "list" ? "primary" : "secondary"}
-											onPress={() => setViewMode("list")}
-											className="rounded-xl font-bold"
-										>
-											List
-										</Button>
-										<Button
-											size="sm"
-											variant={viewMode === "grid" ? "primary" : "secondary"}
-											onPress={() => setViewMode("grid")}
-											className="rounded-xl font-bold"
-										>
-											Grid
-										</Button>
-									</div>
-								</div>
+								</Card.Content>
 							</Card>
 						</section>
 
@@ -173,51 +175,49 @@ function PreferencesSettingsPage() {
 								<div className="w-1.5 h-6 bg-accent rounded-full" />
 								<h3 className="text-lg font-bold">Notifications</h3>
 							</div>
-							<Card className="p-6 bg-background/50 border-border space-y-6">
-								<div className="flex items-center justify-between">
-									<div>
-										<Label className="text-sm font-bold">Desktop Notifications</Label>
-										<p className="text-xs text-muted mt-0.5">Get notified when downloads complete or fail</p>
-									</div>
-									<Switch
-										isSelected={enableNotifications}
-										onChange={setEnableNotifications}
-									>
-										<Switch.Control>
-											<Switch.Thumb />
-										</Switch.Control>
-									</Switch>
-								</div>
-
-								{enableNotifications && (
-									<>
-										<div className="h-px bg-border" />
-										
-										<div className="space-y-4 animate-in slide-in-from-top-2 duration-200">
-											<p className="text-xs text-muted uppercase font-black tracking-widest">
-												Notify me when:
-											</p>
-											<div className="grid grid-cols-2 gap-4">
-												<label className="flex items-center gap-3 p-3 rounded-xl bg-default/5 border border-border cursor-pointer hover:border-accent/30 transition-colors">
-													<input type="checkbox" defaultChecked className="w-4 h-4 accent-accent" />
-													<span className="text-sm font-medium">Download completes</span>
-												</label>
-												<label className="flex items-center gap-3 p-3 rounded-xl bg-default/5 border border-border cursor-pointer hover:border-accent/30 transition-colors">
-													<input type="checkbox" defaultChecked className="w-4 h-4 accent-accent" />
-													<span className="text-sm font-medium">Upload completes</span>
-												</label>
-												<label className="flex items-center gap-3 p-3 rounded-xl bg-default/5 border border-border cursor-pointer hover:border-accent/30 transition-colors">
-													<input type="checkbox" defaultChecked className="w-4 h-4 accent-accent" />
-													<span className="text-sm font-medium">Download fails</span>
-												</label>
-												<label className="flex items-center gap-3 p-3 rounded-xl bg-default/5 border border-border cursor-pointer hover:border-accent/30 transition-colors">
-													<input type="checkbox" className="w-4 h-4 accent-accent" />
-													<span className="text-sm font-medium">Queue becomes empty</span>
-												</label>
-											</div>
+							<Card className="bg-background/50 border-border overflow-hidden">
+								<Card.Content className="p-6 space-y-6">
+									<div className="flex items-center justify-between">
+										<div>
+											<Label className="text-sm font-bold">Desktop Notifications</Label>
+											<p className="text-xs text-muted mt-0.5">Get notified when downloads complete or fail</p>
 										</div>
-									</>
-								)}
+										<Switch
+											isSelected={enableNotifications}
+											onChange={setEnableNotifications}
+										/>
+									</div>
+
+									{enableNotifications && (
+										<>
+											<div className="h-px bg-border" />
+											
+											<div className="space-y-4 animate-in slide-in-from-top-2 duration-200">
+												<p className="text-xs text-muted uppercase font-black tracking-widest">
+													Notify me when:
+												</p>
+												<div className="grid grid-cols-2 gap-4">
+													<label className="flex items-center gap-3 p-3 rounded-xl bg-default/5 border border-border cursor-pointer hover:border-accent/30 transition-colors">
+														<Checkbox defaultSelected />
+														<span className="text-sm font-medium">Download completes</span>
+													</label>
+													<label className="flex items-center gap-3 p-3 rounded-xl bg-default/5 border border-border cursor-pointer hover:border-accent/30 transition-colors">
+														<Checkbox defaultSelected />
+														<span className="text-sm font-medium">Upload completes</span>
+													</label>
+													<label className="flex items-center gap-3 p-3 rounded-xl bg-default/5 border border-border cursor-pointer hover:border-accent/30 transition-colors">
+														<Checkbox defaultSelected />
+														<span className="text-sm font-medium">Download fails</span>
+													</label>
+													<label className="flex items-center gap-3 p-3 rounded-xl bg-default/5 border border-border cursor-pointer hover:border-accent/30 transition-colors">
+														<Checkbox />
+														<span className="text-sm font-medium">Queue becomes empty</span>
+													</label>
+												</div>
+											</div>
+										</>
+									)}
+								</Card.Content>
 							</Card>
 						</section>
 
@@ -227,46 +227,48 @@ function PreferencesSettingsPage() {
 								<div className="w-1.5 h-6 bg-accent rounded-full" />
 								<h3 className="text-lg font-bold">Performance</h3>
 							</div>
-							<Card className="p-6 bg-background/50 border-border space-y-6">
-								<div className="flex items-center justify-between">
-									<div>
-										<Label className="text-sm font-bold">Update Interval</Label>
-										<p className="text-xs text-muted mt-0.5">How often to refresh task status</p>
+							<Card className="bg-background/50 border-border overflow-hidden">
+								<Card.Content className="p-6 space-y-6">
+									<div className="flex items-center justify-between">
+										<div>
+											<Label className="text-sm font-bold">Update Interval</Label>
+											<p className="text-xs text-muted mt-0.5">How often to refresh task status</p>
+										</div>
+										<Select
+											selectedKey={String(pollingInterval)}
+											onSelectionChange={(key) => setPollingInterval(Number(key))}
+											className="w-32"
+										>
+											<Select.Trigger className="h-10 px-4 bg-default/10 rounded-xl border-none">
+												<Select.Value className="text-sm font-bold" />
+												<Select.Indicator className="text-muted">
+													<IconChevronDown className="w-4 h-4" />
+												</Select.Indicator>
+											</Select.Trigger>
+											<Select.Popover className="min-w-[140px] p-2 bg-background border border-border rounded-2xl shadow-xl">
+												<ListBox items={[
+													{ id: "500", name: "500ms (Fast)" },
+													{ id: "1000", name: "1 second" },
+													{ id: "2000", name: "2 seconds" },
+													{ id: "5000", name: "5 seconds" },
+												]}>
+													{(item) => (
+														<ListBox.Item
+															id={item.id}
+															textValue={item.name}
+															className="px-3 py-2 rounded-lg data-[hover=true]:bg-default/15 text-sm cursor-pointer outline-none"
+														>
+															<Label>{item.name}</Label>
+														</ListBox.Item>
+													)}
+												</ListBox>
+											</Select.Popover>
+										</Select>
 									</div>
-									<Select
-										selectedKey={String(pollingInterval)}
-										onSelectionChange={(key) => setPollingInterval(Number(key))}
-										className="w-32"
-									>
-										<Select.Trigger className="h-10 px-4 bg-default/10 rounded-xl border-none">
-											<Select.Value className="text-sm font-bold" />
-											<Select.Indicator className="text-muted">
-												<IconChevronDown className="w-4 h-4" />
-											</Select.Indicator>
-										</Select.Trigger>
-										<Select.Popover className="min-w-[140px] p-2 bg-background border border-border rounded-2xl shadow-xl">
-											<ListBox items={[
-												{ id: "500", name: "500ms (Fast)" },
-												{ id: "1000", name: "1 second" },
-												{ id: "2000", name: "2 seconds" },
-												{ id: "5000", name: "5 seconds" },
-											]}>
-												{(item) => (
-													<ListBox.Item
-														id={item.id}
-														textValue={item.name}
-														className="px-3 py-2 rounded-lg data-[hover=true]:bg-default/15 text-sm cursor-pointer outline-none"
-													>
-														<Label>{item.name}</Label>
-													</ListBox.Item>
-												)}
-											</ListBox>
-										</Select.Popover>
-									</Select>
-								</div>
-								<p className="text-xs text-muted">
-									Lower intervals mean more real-time updates but use more resources
-								</p>
+									<p className="text-xs text-muted">
+										Lower intervals mean more real-time updates but use more resources
+									</p>
+								</Card.Content>
 							</Card>
 						</section>
 
@@ -276,23 +278,25 @@ function PreferencesSettingsPage() {
 								<div className="w-1.5 h-6 bg-accent rounded-full" />
 								<h3 className="text-lg font-bold">Keyboard Shortcuts</h3>
 							</div>
-							<Card className="p-6 bg-background/50 border-border">
-								<div className="space-y-3">
-									<div className="flex items-center justify-between py-2">
-										<span className="text-sm font-medium">Add Download</span>
-										<kbd className="px-2 py-1 bg-default/10 rounded-lg text-xs font-mono font-bold">Shift + A</kbd>
+							<Card className="bg-background/50 border-border overflow-hidden">
+								<Card.Content className="p-6">
+									<div className="space-y-3">
+										<div className="flex items-center justify-between py-2">
+											<span className="text-sm font-medium">Add Download</span>
+											<kbd className="px-2 py-1 bg-default/10 rounded-lg text-xs font-mono font-bold">Shift + A</kbd>
+										</div>
+										<div className="h-px bg-border" />
+										<div className="flex items-center justify-between py-2">
+											<span className="text-sm font-medium">Purge Completed</span>
+											<kbd className="px-2 py-1 bg-default/10 rounded-lg text-xs font-mono font-bold">Shift + C</kbd>
+										</div>
+										<div className="h-px bg-border" />
+										<div className="flex items-center justify-between py-2">
+											<span className="text-sm font-medium">Toggle Theme</span>
+											<kbd className="px-2 py-1 bg-default/10 rounded-lg text-xs font-mono font-bold">Shift + T</kbd>
+										</div>
 									</div>
-									<div className="h-px bg-border" />
-									<div className="flex items-center justify-between py-2">
-										<span className="text-sm font-medium">Purge Completed</span>
-										<kbd className="px-2 py-1 bg-default/10 rounded-lg text-xs font-mono font-bold">Shift + C</kbd>
-									</div>
-									<div className="h-px bg-border" />
-									<div className="flex items-center justify-between py-2">
-										<span className="text-sm font-medium">Toggle Theme</span>
-										<kbd className="px-2 py-1 bg-default/10 rounded-lg text-xs font-mono font-bold">Shift + T</kbd>
-									</div>
-								</div>
+								</Card.Content>
 							</Card>
 						</section>
 
@@ -302,46 +306,48 @@ function PreferencesSettingsPage() {
 								<div className="w-1.5 h-6 bg-accent rounded-full" />
 								<h3 className="text-lg font-bold">Data & Backup</h3>
 							</div>
-							<Card className="p-6 bg-background/50 border-border space-y-4">
-								<div className="flex gap-3">
-									<input
-										type="file"
-										ref={fileInputRef}
-										onChange={handleFileChange}
-										className="hidden"
-										accept=".json"
-									/>
-									<Button
-										variant="secondary"
-										className="rounded-xl font-bold"
-										onPress={handleExport}
-									>
-										📥 Export Settings
-									</Button>
-									<Button
-										variant="secondary"
-										className="rounded-xl font-bold"
-										onPress={handleImportClick}
-										isPending={importSettings.isPending}
-									>
-										📤 Import Settings
-									</Button>
-								</div>
+							<Card className="bg-background/50 border-border overflow-hidden">
+								<Card.Content className="p-6 space-y-4">
+									<div className="flex gap-3">
+										<input
+											type="file"
+											ref={fileInputRef}
+											onChange={handleFileChange}
+											className="hidden"
+											accept=".json"
+										/>
+										<Button
+											variant="secondary"
+											className="rounded-xl font-bold"
+											onPress={handleExport}
+										>
+											📥 Export Settings
+										</Button>
+										<Button
+											variant="secondary"
+											className="rounded-xl font-bold"
+											onPress={handleImportClick}
+											isPending={importSettings.isPending}
+										>
+											📤 Import Settings
+										</Button>
+									</div>
 
-								<div className="h-px bg-border" />
+									<div className="h-px bg-border" />
 
-								<Button
-									variant="ghost"
-									className="rounded-xl font-bold text-danger hover:bg-danger/10"
-									onPress={() => {
-										if (confirm("Reset all settings to defaults? This cannot be undone.")) {
-											resetSettings.mutate();
-										}
-									}}
-									isPending={resetSettings.isPending}
-								>
-									⚠️ Reset All Settings
-								</Button>
+									<Button
+										variant="ghost"
+										className="rounded-xl font-bold text-danger hover:bg-danger/10"
+										onPress={() => {
+											if (confirm("Reset all settings to defaults? This cannot be undone.")) {
+												resetSettings.mutate();
+											}
+										}}
+										isPending={resetSettings.isPending}
+									>
+										⚠️ Reset All Settings
+									</Button>
+								</Card.Content>
 							</Card>
 						</section>
 					</div>

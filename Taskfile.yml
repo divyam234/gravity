@@ -1,4 +1,4 @@
-version: '3'
+version: "3"
 
 tasks:
   default:
@@ -24,7 +24,7 @@ tasks:
 
   dev:backend:
     dir: server
-    cmd: air
+    cmd: go run ./cmd/gravity
 
   build:
     desc: Build for production

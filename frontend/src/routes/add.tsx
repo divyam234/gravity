@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useId } from "react";
-import { Button, Chip, Label, Input, TextArea } from "@heroui/react";
+import { Button, Chip, Label, Input, TextArea, TextField } from "@heroui/react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import IconChevronLeft from "~icons/gravity-ui/chevron-left";
@@ -235,37 +235,39 @@ function AddDownloadPage() {
         <div className="lg:col-span-7 space-y-6">
           <div className="bg-background p-8 rounded-[32px] border border-border shadow-sm">
             <div className="flex flex-col gap-3">
-              <Label className="text-xs font-black uppercase tracking-widest text-muted px-1">
-                Download URL
-              </Label>
-              <div className="relative group">
-                <TextArea
-                  placeholder="Paste HTTP, FTP or Magnet links here..."
-                  value={uris}
-                  onChange={(e) => setUris(e.target.value)}
-                  className="w-full p-6 bg-default/10 rounded-3xl text-sm border border-transparent focus:bg-default/15 focus:border-accent/30 transition-all outline-none min-h-[120px] leading-relaxed font-mono"
-                />
-                <div className="absolute right-4 bottom-4 flex gap-2">
-                  <input
-                    type="file"
-                    id={fileInputId}
-                    className="hidden"
-                    accept=".torrent"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) handleTorrentUpload(file);
-                    }}
+              <TextField className="flex flex-col gap-3">
+                <Label className="text-xs font-black uppercase tracking-widest text-muted px-1">
+                  Download URL
+                </Label>
+                <div className="relative group">
+                  <TextArea
+                    placeholder="Paste HTTP, FTP or Magnet links here..."
+                    value={uris}
+                    onChange={(e) => setUris(e.target.value)}
+                    className="w-full p-6 bg-default/10 rounded-3xl text-sm border border-transparent focus:bg-default/15 focus:border-accent/30 transition-all outline-none min-h-[120px] leading-relaxed font-mono"
                   />
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    className="rounded-xl font-bold text-[10px] uppercase tracking-widest px-3 h-8"
-                    onPress={() => document.getElementById(fileInputId)?.click()}
-                  >
-                    Upload .torrent
-                  </Button>
+                  <div className="absolute right-4 bottom-4 flex gap-2">
+                    <input
+                      type="file"
+                      id={fileInputId}
+                      className="hidden"
+                      accept=".torrent"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleTorrentUpload(file);
+                      }}
+                    />
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="rounded-xl font-bold text-[10px] uppercase tracking-widest px-3 h-8"
+                      onPress={() => document.getElementById(fileInputId)?.click()}
+                    >
+                      Upload .torrent
+                    </Button>
+                  </div>
                 </div>
-              </div>
+              </TextField>
 
               {/* Magnet/Torrent indicator */}
               {(isMagnet || isTorrent) && (
@@ -406,7 +408,7 @@ function AddDownloadPage() {
           <div className="bg-background p-8 rounded-[32px] border border-border shadow-sm space-y-6">
             {/* Filename (only for non-magnet/torrent) */}
             {!isMagnet && !isTorrent && (
-              <div className="flex flex-col gap-2">
+              <TextField className="flex flex-col gap-2">
                 <Label className="text-xs font-black uppercase tracking-widest text-muted px-1">
                   Filename (Optional)
                 </Label>
@@ -416,10 +418,10 @@ function AddDownloadPage() {
                   onChange={(e) => setFilename(e.target.value)}
                   className="w-full h-12 px-4 bg-default/10 rounded-2xl text-sm border-none focus:bg-default/15 transition-all outline-none"
                 />
-              </div>
+              </TextField>
             )}
 
-            <div className="flex flex-col gap-2">
+            <TextField className="flex flex-col gap-2">
               <Label className="text-xs font-black uppercase tracking-widest text-muted px-1">
                 Upload Target
               </Label>
@@ -433,7 +435,7 @@ function AddDownloadPage() {
                 Enter a remote path to automatically offload files to the cloud
                 after download completes.
               </p>
-            </div>
+            </TextField>
           </div>
 
           {/* Magnet/Torrent source info */}

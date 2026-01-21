@@ -65,7 +65,7 @@ function TaskDetailsPage() {
         {/* Content Area */}
         <div className="lg:col-span-8 space-y-8">
           <Card className="overflow-hidden flex flex-col bg-background shadow-sm border border-border rounded-[40px]">
-              <div className="p-8 space-y-10 text-foreground">
+              <Card.Content className="p-8 space-y-10 text-foreground">
                   <section>
                     <h3 className="text-[10px] font-black uppercase tracking-widest text-muted mb-6 flex items-center gap-3">
                       <div className="w-2 h-2 rounded-full bg-accent" />
@@ -151,7 +151,7 @@ function TaskDetailsPage() {
                                   <div className="flex flex-col">
                                     <span className="text-xs font-mono font-bold tracking-tight">{peer.ip}:{peer.port}</span>
                                     <div className="mt-1">
-                                      <Chip size="sm" variant="secondary" color={peer.isSeeder ? "success" : "default"} className="text-[8px] font-black uppercase tracking-widest h-4 px-1.5 min-w-0">
+                                      <Chip size="sm" variant="soft" color={peer.isSeeder ? "success" : "default"} className="text-[8px] font-black uppercase tracking-widest h-4 px-1.5 min-w-0">
                                         {peer.isSeeder ? "Seeder" : "Leecher"}
                                       </Chip>
                                     </div>
@@ -181,78 +181,80 @@ function TaskDetailsPage() {
                       </div>
                     </section>
                   )}
-              </div>
+              </Card.Content>
           </Card>
         </div>
 
         {/* Sidebar / Stats */}
         <div className="lg:col-span-4 space-y-6">
-            <Card className="p-8 bg-background border border-border rounded-[40px] shadow-sm">
-                <h3 className="text-[10px] font-black uppercase tracking-widest text-muted mb-8 flex items-center gap-3">
-                  <div className="w-2 h-2 rounded-full bg-accent" />
-                  Status Overview
-                </h3>
-                
-                <div className="space-y-6">
-                    <div className="flex flex-col gap-2">
-                        <p className="text-[10px] text-muted uppercase font-black tracking-widest px-1">
-                          {isUploading ? "Upload Progress" : "Download Progress"}
-                        </p>
-                        <div className="bg-default/5 p-6 rounded-3xl border border-border/50">
-                            <div className="flex justify-between items-end mb-4">
-                                <p className="text-3xl font-black tracking-tighter leading-none">
-                                    {Math.floor(progressValue)}%
-                                </p>
-                                <p className="text-xs font-bold text-muted uppercase tracking-widest">
-                                    {task.status}
-                                </p>
-                            </div>
-                            <ProgressBar 
-                                value={progressValue} 
-                                color={task.status === 'complete' ? 'success' : isUploading ? 'cyan' : 'accent'}
-                                className="h-2"
-                            />
-                        </div>
-                    </div>
+            <Card className="bg-background border border-border rounded-[40px] shadow-sm">
+                <Card.Content className="p-8">
+                  <h3 className="text-[10px] font-black uppercase tracking-widest text-muted mb-8 flex items-center gap-3">
+                    <div className="w-2 h-2 rounded-full bg-accent" />
+                    Status Overview
+                  </h3>
+                  
+                  <div className="space-y-6">
+                      <div className="flex flex-col gap-2">
+                          <p className="text-[10px] text-muted uppercase font-black tracking-widest px-1">
+                            {isUploading ? "Upload Progress" : "Download Progress"}
+                          </p>
+                          <div className="bg-default/5 p-6 rounded-3xl border border-border/50">
+                              <div className="flex justify-between items-end mb-4">
+                                  <p className="text-3xl font-black tracking-tighter leading-none">
+                                      {Math.floor(progressValue)}%
+                                  </p>
+                                  <p className="text-xs font-bold text-muted uppercase tracking-widest">
+                                      {task.status}
+                                  </p>
+                              </div>
+                              <ProgressBar 
+                                  value={progressValue} 
+                                  color={task.status === 'complete' ? 'success' : isUploading ? 'cyan' : 'accent'}
+                                  className="h-2"
+                              />
+                          </div>
+                      </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="bg-default/5 p-4 rounded-3xl border border-border/50">
-                            <p className="text-[10px] text-muted uppercase font-black tracking-widest mb-1">{speedLabel}</p>
-                            <p className={`text-sm font-bold ${speedColor}`}>{formatBytes(currentSpeed)}/s</p>
-                        </div>
-                        <div className="bg-default/5 p-4 rounded-3xl border border-border/50">
-                            <p className="text-[10px] text-muted uppercase font-black tracking-widest mb-1">Total Size</p>
-                            <p className="text-sm font-bold">{formatBytes(task.size)}</p>
-                        </div>
-                    </div>
+                      <div className="grid grid-cols-2 gap-4">
+                          <div className="bg-default/5 p-4 rounded-3xl border border-border/50">
+                              <p className="text-[10px] text-muted uppercase font-black tracking-widest mb-1">{speedLabel}</p>
+                              <p className={`text-sm font-bold ${speedColor}`}>{formatBytes(currentSpeed)}/s</p>
+                          </div>
+                          <div className="bg-default/5 p-4 rounded-3xl border border-border/50">
+                              <p className="text-[10px] text-muted uppercase font-black tracking-widest mb-1">Total Size</p>
+                              <p className="text-sm font-bold">{formatBytes(task.size)}</p>
+                          </div>
+                      </div>
 
-                    {task.isMagnet && (
-                        <div className="bg-accent/5 p-6 rounded-3xl border border-accent/20">
-                            <p className="text-[10px] text-accent uppercase font-black tracking-widest mb-3 flex items-center gap-2">
-                                <IconMagnet className="w-3 h-3" />
-                                Magnet Stats
-                            </p>
-                            <div className="space-y-3">
-                                <div className="flex justify-between items-center">
-                                    <span className="text-xs font-medium text-muted-foreground">Files</span>
-                                    <span className="text-xs font-black">{task.filesComplete || 0} / {task.totalFiles || 0}</span>
-                                </div>
-                                <div className="flex justify-between items-center">
-                                    <span className="text-xs font-medium text-muted-foreground">Seeders / Peers</span>
-                                    <span className="text-xs font-black">
-                                        <span className="text-success">{task.seeders || 0}</span>
-                                        <span className="text-muted mx-1">/</span>
-                                        <span className="text-foreground">{task.peers || 0}</span>
-                                    </span>
-                                </div>
-                                <div className="flex justify-between items-center">
-                                    <span className="text-xs font-medium text-muted-foreground">Source</span>
-                                    <span className="text-xs font-black uppercase tracking-widest">{task.magnetSource}</span>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </div>
+                      {task.isMagnet && (
+                          <div className="bg-accent/5 p-6 rounded-3xl border border-accent/20">
+                              <p className="text-[10px] text-accent uppercase font-black tracking-widest mb-3 flex items-center gap-2">
+                                  <IconMagnet className="w-3 h-3" />
+                                  Magnet Stats
+                              </p>
+                              <div className="space-y-3">
+                                  <div className="flex justify-between items-center">
+                                      <span className="text-xs font-medium text-muted-foreground">Files</span>
+                                      <span className="text-xs font-black">{task.filesComplete || 0} / {task.totalFiles || 0}</span>
+                                  </div>
+                                  <div className="flex justify-between items-center">
+                                      <span className="text-xs font-medium text-muted-foreground">Seeders / Peers</span>
+                                      <span className="text-xs font-black">
+                                          <span className="text-success">{task.seeders || 0}</span>
+                                          <span className="text-muted mx-1">/</span>
+                                          <span className="text-foreground">{task.peers || 0}</span>
+                                      </span>
+                                  </div>
+                                  <div className="flex justify-between items-center">
+                                      <span className="text-xs font-medium text-muted-foreground">Source</span>
+                                      <span className="text-xs font-black uppercase tracking-widest">{task.magnetSource}</span>
+                                  </div>
+                              </div>
+                          </div>
+                      )}
+                  </div>
+                </Card.Content>
             </Card>
         </div>
       </div>

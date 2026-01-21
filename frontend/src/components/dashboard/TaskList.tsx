@@ -77,23 +77,24 @@ export const TaskList: React.FC<TaskListProps> = ({ status }) => {
                 textValue={task.filename || task.id}
                 className="outline-none focus:outline-none bg-transparent p-0 w-full"
               >
-                {/* @ts-ignore - contextMenu is valid at runtime */}
-                <Dropdown trigger="contextMenu">
-                  <div className="flex items-center gap-4 group w-full">
-                    {isSelectionMode && (
-                      <div className="pl-6">
-                        <Checkbox
-                          isSelected={selectedGids.has(task.id)}
-                          onChange={() => toggleGidSelection(task.id)}
-                        />
+                <Dropdown trigger="longPress">
+                  <Dropdown.Trigger>
+                    <div className="flex items-center gap-4 group w-full cursor-default">
+                      {isSelectionMode && (
+                        <div className="pl-6">
+                          <Checkbox
+                            isSelected={selectedGids.has(task.id)}
+                            onChange={() => toggleGidSelection(task.id)}
+                          />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0 w-full">
+                        <DownloadCard task={task} variant={viewMode} />
                       </div>
-                    )}
-                    <div className="flex-1 min-w-0 w-full">
-                      <DownloadCard task={task} variant={viewMode} />
                     </div>
-                  </div>
+                  </Dropdown.Trigger>
 
-                  <Dropdown.Popover className="min-w-[200px] p-1 bg-background border border-border rounded-xl shadow-xl">
+                  <Dropdown.Popover className="min-w-[200px]">
                     <Dropdown.Menu
                       onAction={(key) => {
                         const action = String(key).replace(`${baseId}-`, "");
@@ -114,14 +115,13 @@ export const TaskList: React.FC<TaskListProps> = ({ status }) => {
                         textValue={
                           task.status === "paused" ? "Resume" : "Pause"
                         }
-                        className="px-3 py-2 rounded-lg data-[hover=true]:bg-default/15 cursor-pointer outline-none flex items-center gap-2"
                       >
                         {task.status === "paused" ? (
                           <IconPlay className="w-4 h-4 text-success" />
                         ) : (
                           <IconPause className="w-4 h-4 text-warning" />
                         )}
-                        <Label className="text-sm font-medium">
+                        <Label>
                           {task.status === "paused" ? "Resume" : "Pause"}
                         </Label>
                       </Dropdown.Item>
@@ -129,20 +129,18 @@ export const TaskList: React.FC<TaskListProps> = ({ status }) => {
                       <Dropdown.Item
                         id={`${baseId}-copy`}
                         textValue="Copy Link"
-                        className="px-3 py-2 rounded-lg data-[hover=true]:bg-default/15 cursor-pointer outline-none flex items-center gap-2"
                       >
                         <IconCopy className="w-4 h-4 text-accent" />
-                        <Label className="text-sm font-medium">Copy Link</Label>
+                        <Label>Copy Link</Label>
                       </Dropdown.Item>
 
                       <Dropdown.Item
                         id={`${baseId}-remove`}
                         textValue="Remove"
                         variant="danger"
-                        className="px-3 py-2 rounded-lg data-[hover=true]:bg-danger/10 text-danger cursor-pointer outline-none flex items-center gap-2"
                       >
                         <IconTrashBin className="w-4 h-4" />
-                        <Label className="text-sm font-medium">Remove</Label>
+                        <Label>Remove</Label>
                       </Dropdown.Item>
                     </Dropdown.Menu>
                   </Dropdown.Popover>

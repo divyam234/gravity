@@ -300,16 +300,18 @@ export function FileBrowser({ path }: FileBrowserProps) {
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="relative group w-48 lg:w-64">
-            <IconMagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted group-focus-within:text-accent transition-colors" />
-            <input
-              type="text"
-              placeholder="Search files..."
-              className="w-full h-9 pl-9 pr-4 bg-default/10 rounded-xl text-sm outline-none focus:ring-2 focus:ring-accent/50 transition-all"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
+          <TextField className="w-48 lg:w-64">
+            <div className="relative group">
+              <IconMagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted group-focus-within:text-accent transition-colors z-10" />
+              <Input
+                type="text"
+                placeholder="Search files..."
+                className="w-full h-9 pl-9 pr-4 bg-default/10 rounded-xl text-sm outline-none focus:ring-2 focus:ring-accent/50 transition-all"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+          </TextField>
 
           <Button
             size="sm"

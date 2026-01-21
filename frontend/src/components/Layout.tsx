@@ -11,6 +11,7 @@ import {
     ListBox,
     Header,
     Separator,
+    TextField,
 } from "@heroui/react";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import React, { useState } from "react";
@@ -133,14 +134,18 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({
 					{/* Global Search Bar */}
 					{isTaskListPage && (
 						<div className="flex-1 max-w-md relative hidden md:block">
-							<IconMagnifier className="absolute left-3 top-1/2 -translate-y-1/2 text-muted z-10 w-4 h-4" />
-							<Input
-								placeholder="Search downloads..."
-								className="pl-10 h-10 bg-default/10 rounded-xl border-none focus:bg-default/20 transition-all outline-none"
-								value={searchQuery}
-								onChange={(e) => setSearchQuery(e.target.value)}
-								fullWidth
-							/>
+							<TextField className="w-full">
+								<div className="relative">
+									<IconMagnifier className="absolute left-3 top-1/2 -translate-y-1/2 text-muted z-10 w-4 h-4" />
+									<Input
+										placeholder="Search downloads..."
+										className="pl-10 h-10 bg-default/10 rounded-xl border-none focus:bg-default/20 transition-all outline-none"
+										value={searchQuery}
+										onChange={(e) => setSearchQuery(e.target.value)}
+										fullWidth
+									/>
+								</div>
+							</TextField>
 						</div>
 					)}
 

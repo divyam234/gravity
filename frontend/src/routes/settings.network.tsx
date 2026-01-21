@@ -1,4 +1,4 @@
-import { Button, Card, Input, Label, ListBox, ScrollShadow, Select, Switch } from "@heroui/react";
+import { Button, Card, Input, Label, ListBox, ScrollShadow, Select, Switch, TextField } from "@heroui/react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import IconChevronLeft from "~icons/gravity-ui/chevron-left";
@@ -123,95 +123,93 @@ function NetworkSettingsPage() {
 								<div className="w-1.5 h-6 bg-accent rounded-full" />
 								<h3 className="text-lg font-bold">Proxy</h3>
 							</div>
-							<Card className="p-6 bg-background/50 border-border space-y-6">
-								<div className="space-y-3">
-									<Label className="text-sm font-bold">Proxy Type</Label>
-									<div className="flex gap-2">
-										{(["none", "http", "socks5"] as const).map((type) => (
-											<Button
-												key={type}
-												size="sm"
-												variant={proxyType === type ? "primary" : "secondary"}
-												onPress={() => {
-													setProxyType(type);
-													if (type === "none") {
-														changeGlobalOption.mutate({ proxyUrl: "" });
-													}
-												}}
-												className="rounded-xl font-bold capitalize"
-											>
-												{type === "none" ? "No Proxy" : type.toUpperCase()}
-											</Button>
-										))}
+							<Card className="bg-background/50 border-border overflow-hidden">
+								<Card.Content className="p-6 space-y-6">
+									<div className="space-y-3">
+										<Label className="text-sm font-bold">Proxy Type</Label>
+										<div className="flex gap-2">
+											{(["none", "http", "socks5"] as const).map((type) => (
+												<Button
+													key={type}
+													size="sm"
+													variant={proxyType === type ? "primary" : "secondary"}
+													onPress={() => {
+														setProxyType(type);
+														if (type === "none") {
+															changeGlobalOption.mutate({ proxyUrl: "" });
+														}
+													}}
+													className="rounded-xl font-bold capitalize"
+												>
+													{type === "none" ? "No Proxy" : type.toUpperCase()}
+												</Button>
+											))}
+										</div>
 									</div>
-								</div>
 
-								{proxyType !== "none" && (
-									<>
-										<div className="grid grid-cols-3 gap-4 animate-in slide-in-from-top-2 duration-200">
-											<div className="col-span-2">
-												<Label className="text-sm font-bold mb-2 block">Host</Label>
-												<Input
-													value={proxyHost}
-													onChange={(e) => setProxyHost(e.target.value)}
-													onBlur={handleProxyChange}
-													placeholder="proxy.example.com"
-													className="h-11 bg-default/10 rounded-xl border-none"
-												/>
-											</div>
-											<div>
-												<Label className="text-sm font-bold mb-2 block">Port</Label>
-												<Input
-													value={proxyPort}
-													onChange={(e) => setProxyPort(e.target.value)}
-													onBlur={handleProxyChange}
-													placeholder="1080"
-													className="h-11 bg-default/10 rounded-xl border-none"
-												/>
-											</div>
-										</div>
-
-										<div className="h-px bg-border" />
-
-										<div className="flex items-center justify-between">
-											<div>
-												<Label className="text-sm font-bold">Proxy Authentication</Label>
-												<p className="text-xs text-muted mt-0.5">Proxy requires username and password</p>
-											</div>
-											<Switch isSelected={proxyAuth} onChange={setProxyAuth}>
-												<Switch.Control>
-													<Switch.Thumb />
-												</Switch.Control>
-											</Switch>
-										</div>
-
-										{proxyAuth && (
-											<div className="grid grid-cols-2 gap-4 animate-in slide-in-from-top-2 duration-200">
-												<div>
-													<Label className="text-sm font-bold mb-2 block">Username</Label>
+									{proxyType !== "none" && (
+										<>
+											<div className="grid grid-cols-3 gap-4 animate-in slide-in-from-top-2 duration-200">
+												<TextField className="col-span-2">
+													<Label className="text-sm font-bold mb-2 block">Host</Label>
 													<Input
-														value={proxyUser}
-														onChange={(e) => setProxyUser(e.target.value)}
-														onBlur={handleProxyAuthChange}
-														placeholder="username"
+														value={proxyHost}
+														onChange={(e) => setProxyHost(e.target.value)}
+														onBlur={handleProxyChange}
+														placeholder="proxy.example.com"
 														className="h-11 bg-default/10 rounded-xl border-none"
 													/>
-												</div>
-												<div>
-													<Label className="text-sm font-bold mb-2 block">Password</Label>
+												</TextField>
+												<TextField>
+													<Label className="text-sm font-bold mb-2 block">Port</Label>
 													<Input
-														type="password"
-														value={proxyPass}
-														onChange={(e) => setProxyPass(e.target.value)}
-														onBlur={handleProxyAuthChange}
-														placeholder="password"
+														value={proxyPort}
+														onChange={(e) => setProxyPort(e.target.value)}
+														onBlur={handleProxyChange}
+														placeholder="1080"
 														className="h-11 bg-default/10 rounded-xl border-none"
 													/>
-												</div>
+												</TextField>
 											</div>
-										)}
-									</>
-								)}
+
+											<div className="h-px bg-border" />
+
+											<div className="flex items-center justify-between">
+												<div>
+													<Label className="text-sm font-bold">Proxy Authentication</Label>
+													<p className="text-xs text-muted mt-0.5">Proxy requires username and password</p>
+												</div>
+												<Switch isSelected={proxyAuth} onChange={setProxyAuth} />
+											</div>
+
+											{proxyAuth && (
+												<div className="grid grid-cols-2 gap-4 animate-in slide-in-from-top-2 duration-200">
+													<TextField>
+														<Label className="text-sm font-bold mb-2 block">Username</Label>
+														<Input
+															value={proxyUser}
+															onChange={(e) => setProxyUser(e.target.value)}
+															onBlur={handleProxyAuthChange}
+															placeholder="username"
+															className="h-11 bg-default/10 rounded-xl border-none"
+														/>
+													</TextField>
+													<TextField>
+														<Label className="text-sm font-bold mb-2 block">Password</Label>
+														<Input
+															type="password"
+															value={proxyPass}
+															onChange={(e) => setProxyPass(e.target.value)}
+															onBlur={handleProxyAuthChange}
+															placeholder="password"
+															className="h-11 bg-default/10 rounded-xl border-none"
+														/>
+													</TextField>
+												</div>
+											)}
+										</>
+									)}
+								</Card.Content>
 							</Card>
 						</section>
 
@@ -221,118 +219,120 @@ function NetworkSettingsPage() {
 								<div className="w-1.5 h-6 bg-accent rounded-full" />
 								<h3 className="text-lg font-bold">Connection Limits</h3>
 							</div>
-							<Card className="p-6 bg-background/50 border-border space-y-6">
-								<div className="flex items-center justify-between">
-									<div>
-										<Label className="text-sm font-bold">Max Connections per Server</Label>
-										<p className="text-xs text-muted mt-0.5">Parallel connections to each server</p>
+							<Card className="bg-background/50 border-border overflow-hidden">
+								<Card.Content className="p-6 space-y-6">
+									<div className="flex items-center justify-between">
+										<div>
+											<Label className="text-sm font-bold">Max Connections per Server</Label>
+											<p className="text-xs text-muted mt-0.5">Parallel connections to each server</p>
+										</div>
+										<Select
+											selectedKey={String(maxConnections)}
+											onSelectionChange={(key) => {
+												const val = Number(key);
+												setMaxConnections(val);
+												changeGlobalOption.mutate({ maxConnectionsPerServer: String(val) });
+											}}
+											className="w-24"
+										>
+											<Select.Trigger className="h-10 px-4 bg-default/10 rounded-xl border-none">
+												<Select.Value className="text-sm font-bold" />
+												<Select.Indicator className="text-muted">
+													<IconChevronDown className="w-4 h-4" />
+												</Select.Indicator>
+											</Select.Trigger>
+											<Select.Popover className="min-w-[100px] p-2 bg-background border border-border rounded-2xl shadow-xl">
+												<ListBox items={[1, 2, 4, 8, 16].map(n => ({ id: String(n), name: String(n) }))}>
+													{(item) => (
+														<ListBox.Item
+															id={item.id}
+															textValue={item.name}
+															className="px-3 py-2 rounded-lg data-[hover=true]:bg-default/15 text-sm cursor-pointer outline-none"
+														>
+															<Label>{item.name}</Label>
+														</ListBox.Item>
+													)}
+												</ListBox>
+											</Select.Popover>
+										</Select>
 									</div>
-									<Select
-										selectedKey={String(maxConnections)}
-										onSelectionChange={(key) => {
-											const val = Number(key);
-											setMaxConnections(val);
-											changeGlobalOption.mutate({ maxConnectionsPerServer: String(val) });
-										}}
-										className="w-24"
-									>
-										<Select.Trigger className="h-10 px-4 bg-default/10 rounded-xl border-none">
-											<Select.Value className="text-sm font-bold" />
-											<Select.Indicator className="text-muted">
-												<IconChevronDown className="w-4 h-4" />
-											</Select.Indicator>
-										</Select.Trigger>
-										<Select.Popover className="min-w-[100px] p-2 bg-background border border-border rounded-2xl shadow-xl">
-											<ListBox items={[1, 2, 4, 8, 16].map(n => ({ id: String(n), name: String(n) }))}>
-												{(item) => (
-													<ListBox.Item
-														id={item.id}
-														textValue={item.name}
-														className="px-3 py-2 rounded-lg data-[hover=true]:bg-default/15 text-sm cursor-pointer outline-none"
-													>
-														<Label>{item.name}</Label>
-													</ListBox.Item>
-												)}
-											</ListBox>
-										</Select.Popover>
-									</Select>
-								</div>
 
-								<div className="h-px bg-border" />
+									<div className="h-px bg-border" />
 
-								<div className="flex items-center justify-between">
-									<div>
-										<Label className="text-sm font-bold">Connection Timeout</Label>
-										<p className="text-xs text-muted mt-0.5">Seconds to wait before giving up</p>
+									<div className="flex items-center justify-between">
+										<div>
+											<Label className="text-sm font-bold">Connection Timeout</Label>
+											<p className="text-xs text-muted mt-0.5">Seconds to wait before giving up</p>
+										</div>
+										<Select
+											selectedKey={String(timeout)}
+											onSelectionChange={(key) => {
+												const val = Number(key);
+												setTimeout(val);
+												changeGlobalOption.mutate({ connectTimeout: String(val) });
+											}}
+											className="w-28"
+										>
+											<Select.Trigger className="h-10 px-4 bg-default/10 rounded-xl border-none">
+												<Select.Value className="text-sm font-bold" />
+												<Select.Indicator className="text-muted">
+													<IconChevronDown className="w-4 h-4" />
+												</Select.Indicator>
+											</Select.Trigger>
+											<Select.Popover className="min-w-[120px] p-2 bg-background border border-border rounded-2xl shadow-xl">
+												<ListBox items={[30, 60, 120, 300].map(n => ({ id: String(n), name: `${n}s` }))}>
+													{(item) => (
+														<ListBox.Item
+															id={item.id}
+															textValue={item.name}
+															className="px-3 py-2 rounded-lg data-[hover=true]:bg-default/15 text-sm cursor-pointer outline-none"
+														>
+															<Label>{item.name}</Label>
+														</ListBox.Item>
+													)}
+												</ListBox>
+											</Select.Popover>
+										</Select>
 									</div>
-									<Select
-										selectedKey={String(timeout)}
-										onSelectionChange={(key) => {
-											const val = Number(key);
-											setTimeout(val);
-											changeGlobalOption.mutate({ connectTimeout: String(val) });
-										}}
-										className="w-28"
-									>
-										<Select.Trigger className="h-10 px-4 bg-default/10 rounded-xl border-none">
-											<Select.Value className="text-sm font-bold" />
-											<Select.Indicator className="text-muted">
-												<IconChevronDown className="w-4 h-4" />
-											</Select.Indicator>
-										</Select.Trigger>
-										<Select.Popover className="min-w-[120px] p-2 bg-background border border-border rounded-2xl shadow-xl">
-											<ListBox items={[30, 60, 120, 300].map(n => ({ id: String(n), name: `${n}s` }))}>
-												{(item) => (
-													<ListBox.Item
-														id={item.id}
-														textValue={item.name}
-														className="px-3 py-2 rounded-lg data-[hover=true]:bg-default/15 text-sm cursor-pointer outline-none"
-													>
-														<Label>{item.name}</Label>
-													</ListBox.Item>
-												)}
-											</ListBox>
-										</Select.Popover>
-									</Select>
-								</div>
 
-								<div className="h-px bg-border" />
+									<div className="h-px bg-border" />
 
-								<div className="flex items-center justify-between">
-									<div>
-										<Label className="text-sm font-bold">Max Retries</Label>
-										<p className="text-xs text-muted mt-0.5">Number of retry attempts on failure</p>
+									<div className="flex items-center justify-between">
+										<div>
+											<Label className="text-sm font-bold">Max Retries</Label>
+											<p className="text-xs text-muted mt-0.5">Number of retry attempts on failure</p>
+										</div>
+										<Select
+											selectedKey={String(maxRetries)}
+											onSelectionChange={(key) => {
+												const val = Number(key);
+												setMaxRetries(val);
+												changeGlobalOption.mutate({ maxRetries: String(val) });
+											}}
+											className="w-24"
+										>
+											<Select.Trigger className="h-10 px-4 bg-default/10 rounded-xl border-none">
+												<Select.Value className="text-sm font-bold" />
+												<Select.Indicator className="text-muted">
+													<IconChevronDown className="w-4 h-4" />
+												</Select.Indicator>
+											</Select.Trigger>
+											<Select.Popover className="min-w-[100px] p-2 bg-background border border-border rounded-2xl shadow-xl">
+												<ListBox items={[0, 1, 3, 5, 10].map(n => ({ id: String(n), name: n === 0 ? "∞" : String(n) }))}>
+													{(item) => (
+														<ListBox.Item
+															id={item.id}
+															textValue={item.name}
+															className="px-3 py-2 rounded-lg data-[hover=true]:bg-default/15 text-sm cursor-pointer outline-none"
+														>
+															<Label>{item.name}</Label>
+														</ListBox.Item>
+													)}
+												</ListBox>
+											</Select.Popover>
+										</Select>
 									</div>
-									<Select
-										selectedKey={String(maxRetries)}
-										onSelectionChange={(key) => {
-											const val = Number(key);
-											setMaxRetries(val);
-											changeGlobalOption.mutate({ maxRetries: String(val) });
-										}}
-										className="w-24"
-									>
-										<Select.Trigger className="h-10 px-4 bg-default/10 rounded-xl border-none">
-											<Select.Value className="text-sm font-bold" />
-											<Select.Indicator className="text-muted">
-												<IconChevronDown className="w-4 h-4" />
-											</Select.Indicator>
-										</Select.Trigger>
-										<Select.Popover className="min-w-[100px] p-2 bg-background border border-border rounded-2xl shadow-xl">
-											<ListBox items={[0, 1, 3, 5, 10].map(n => ({ id: String(n), name: n === 0 ? "∞" : String(n) }))}>
-												{(item) => (
-													<ListBox.Item
-														id={item.id}
-														textValue={item.name}
-														className="px-3 py-2 rounded-lg data-[hover=true]:bg-default/15 text-sm cursor-pointer outline-none"
-													>
-														<Label>{item.name}</Label>
-													</ListBox.Item>
-												)}
-											</ListBox>
-										</Select.Popover>
-									</Select>
-								</div>
+								</Card.Content>
 							</Card>
 						</section>
 
@@ -342,24 +342,22 @@ function NetworkSettingsPage() {
 								<div className="w-1.5 h-6 bg-accent rounded-full" />
 								<h3 className="text-lg font-bold">Security</h3>
 							</div>
-							<Card className="p-6 bg-background/50 border-border space-y-6">
-								<div className="flex items-center justify-between">
-									<div>
-										<Label className="text-sm font-bold">Verify SSL/TLS Certificates</Label>
-										<p className="text-xs text-muted mt-0.5">Reject connections with invalid certificates</p>
+							<Card className="bg-background/50 border-border overflow-hidden">
+								<Card.Content className="p-6 space-y-6">
+									<div className="flex items-center justify-between">
+										<div>
+											<Label className="text-sm font-bold">Verify SSL/TLS Certificates</Label>
+											<p className="text-xs text-muted mt-0.5">Reject connections with invalid certificates</p>
+										</div>
+										<Switch
+											isSelected={verifyCerts}
+											onChange={(selected) => {
+												setVerifyCerts(selected);
+												changeGlobalOption.mutate({ checkCertificate: selected ? "true" : "false" });
+											}}
+										/>
 									</div>
-									<Switch
-										isSelected={verifyCerts}
-										onChange={(selected) => {
-											setVerifyCerts(selected);
-											changeGlobalOption.mutate({ checkCertificate: selected ? "true" : "false" });
-										}}
-									>
-										<Switch.Control>
-											<Switch.Thumb />
-										</Switch.Control>
-									</Switch>
-								</div>
+								</Card.Content>
 							</Card>
 						</section>
 
@@ -369,20 +367,22 @@ function NetworkSettingsPage() {
 								<div className="w-1.5 h-6 bg-accent rounded-full" />
 								<h3 className="text-lg font-bold">Advanced</h3>
 							</div>
-							<Card className="p-6 bg-background/50 border-border space-y-6">
-								<div className="space-y-3">
-									<Label className="text-sm font-bold">User-Agent</Label>
-									<Input
-										value={userAgent}
-										onChange={(e) => setUserAgent(e.target.value)}
-										onBlur={() => changeGlobalOption.mutate({ userAgent })}
-										placeholder="gravity/1.0"
-										className="h-11 bg-default/10 rounded-xl border-none"
-									/>
-									<p className="text-xs text-muted">
-										The User-Agent header sent with HTTP requests
-									</p>
-								</div>
+							<Card className="bg-background/50 border-border overflow-hidden">
+								<Card.Content className="p-6 space-y-6">
+									<TextField className="space-y-3">
+										<Label className="text-sm font-bold">User-Agent</Label>
+										<Input
+											value={userAgent}
+											onChange={(e) => setUserAgent(e.target.value)}
+											onBlur={() => changeGlobalOption.mutate({ userAgent })}
+											placeholder="gravity/1.0"
+											className="h-11 bg-default/10 rounded-xl border-none"
+										/>
+										<p className="text-xs text-muted">
+											The User-Agent header sent with HTTP requests
+										</p>
+									</TextField>
+								</Card.Content>
 							</Card>
 						</section>
 					</div>
