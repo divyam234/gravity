@@ -23,10 +23,22 @@ type FileInfo struct {
 	ID       string    `json:"id,omitempty"` // Optional ID for some systems
 }
 
+type Remote struct {
+	Name      string `json:"name"`
+	Type      string `json:"type"`
+	Connected bool   `json:"connected"`
+}
+
 type StorageEngine interface {
 	// Virtual File System Operations
 	List(ctx context.Context, virtualPath string) ([]FileInfo, error)
 	// Stat(ctx context.Context, virtualPath string) (*FileInfo, error)
+
+	// Remotes
+	ListRemotes(ctx context.Context) ([]Remote, error)
+
+	// Cache
+	ClearCache(ctx context.Context) error
 
 	// File Manipulation
 	Mkdir(ctx context.Context, virtualPath string) error

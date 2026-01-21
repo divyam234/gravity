@@ -49,5 +49,12 @@ type DownloadMagnetRequest struct {
 
 // Search
 type UpdateConfigRequest struct {
-	Interval int `json:"interval"`
+	Interval           int    `json:"interval"`
+	ExcludedPatterns   string `json:"excludedPatterns"`
+	IncludedExtensions string `json:"includedExtensions"`
+	MinSizeBytes       int64  `json:"minSizeBytes"`
+}
+
+type BatchUpdateConfigRequest struct {
+	Configs map[string]UpdateConfigRequest `json:"configs"`
 }

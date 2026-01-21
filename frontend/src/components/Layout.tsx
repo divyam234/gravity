@@ -51,8 +51,36 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({
         setActiveServer,
 	} = useSettingsStore();
 	const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
+	const [tempSearch, setTempSearch] = useState(searchQuery);
 
 	const isTaskListPage = location.pathname.startsWith("/tasks");
+
+	// Debounce search updates
+	React.useEffect(() => {
+		const timer = setTimeout(() => {
+			if (tempSearch !== searchQuery) {
+				setSearchQuery(tempSearch);
+				
+				// Automatically navigate to files search if not on tasks page
+				if (!isTaskListPage && tempSearch) {
+					navigate({
+						to: "/files",
+						search: { query: tempSearch || undefined },
+						replace: true
+					});
+				}
+			}
+		}, 500);
+
+		return () => clearTimeout(timer);
+	}, [tempSearch, isTaskListPage, navigate, searchQuery, setSearchQuery]);
+
+	// Sync local input with store when store changes externally
+	React.useEffect(() => {
+		if (searchQuery !== tempSearch) {
+			setTempSearch(searchQuery);
+		}
+	}, [searchQuery]);
 
 	// Safe query that only runs when configured
 	const { isError, isLoading } = useGlobalStat();
@@ -131,23 +159,20 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({
                         </Chip>
 					</div>
 
-					{/* Global Search Bar */}
-					{isTaskListPage && (
-						<div className="flex-1 max-w-md relative hidden md:block">
-							<TextField className="w-full">
-								<div className="relative">
-									<IconMagnifier className="absolute left-3 top-1/2 -translate-y-1/2 text-muted z-10 w-4 h-4" />
-									<Input
-										placeholder="Search downloads..."
-										className="pl-10 h-10 bg-default/10 rounded-xl border-none focus:bg-default/20 transition-all outline-none"
-										value={searchQuery}
-										onChange={(e) => setSearchQuery(e.target.value)}
-										fullWidth
-									/>
-								</div>
-							</TextField>
-						</div>
-					)}
+					<div className="flex-1 max-w-md relative hidden md:block">
+						<TextField className="w-full">
+							<div className="relative">
+								<IconMagnifier className="absolute left-3 top-1/2 -translate-y-1/2 text-muted z-10 w-4 h-4" />
+								<Input
+									placeholder={isTaskListPage ? "Search downloads..." : "Global file search..."}
+									className="pl-10 h-10 bg-default/10 rounded-xl border-none focus:bg-default/20 transition-all outline-none"
+									value={tempSearch}
+									onChange={(e) => setTempSearch(e.target.value)}
+									fullWidth
+								/>
+							</div>
+						</TextField>
+					</div>
 
 					<div className="flex items-center gap-2 md:gap-3 shrink-0 ml-auto">
 						<Tooltip>

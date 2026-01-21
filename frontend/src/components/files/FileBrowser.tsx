@@ -4,6 +4,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { api } from "../../lib/api";
 import { formatBytes, cn } from "../../lib/utils";
 import { FileIcon } from "./FileIcon";
+import { useSettingsStore } from "../../store/useSettingsStore";
 import IconFolder from "~icons/gravity-ui/folder";
 import IconChevronRight from "~icons/gravity-ui/chevron-right";
 import IconPlus from "~icons/gravity-ui/plus";
@@ -23,6 +24,7 @@ import {
   ListBox,
   ScrollShadow,
   Label,
+  Chip,
 } from "@heroui/react";
 import type { Selection } from "@heroui/react";
 import { toast } from "sonner";
@@ -46,6 +48,7 @@ import IconCheck from "~icons/gravity-ui/check";
 
 interface FileBrowserProps {
   path: string;
+  query?: string;
 }
 
 type ModalType = "create" | "rename" | null;
@@ -53,17 +56,23 @@ type ModalType = "create" | "rename" | null;
 import IconMagnifyingGlass from "~icons/gravity-ui/magnifier";
 import IconGear from "~icons/gravity-ui/gear";
 
-export function FileBrowser({ path }: FileBrowserProps) {
+export function FileBrowser({ path, query }: FileBrowserProps) {
   const navigateRouter = useNavigate();
   const [clipboard, setClipboard] = useState<ClipboardItem | null>(null);
   const [selectedKeys, setSelectedKeys] = useState<Selection>(new Set([]));
   const [isSelectionMode, setIsSelectionMode] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
+  const { searchQuery, setSearchQuery } = useSettingsStore();
   const queryClient = useQueryClient();
+
+  // Sync prop query to store
+  React.useEffect(() => {
+    if (query !== undefined && query !== searchQuery) {
+      setSearchQuery(query);
+    }
+  }, [query]);
 
   // Unified Modal state
   const modal = useDisclosure();
-  const indexModal = useDisclosure();
   const [modalType, setModalType] = useState<ModalType>(null);
   const [modalInputValue, setModalInputValue] = useState("");
   const [renameOldPath, setRenameOldPath] = useState("");
@@ -92,38 +101,21 @@ export function FileBrowser({ path }: FileBrowserProps) {
     enabled: !!searchQuery,
   });
 
-  const { data: indexConfigs } = useQuery({
-    queryKey: ["search", "config"],
-    queryFn: () => api.getSearchConfigs(),
-  });
-
-  const triggerIndexMutation = useMutation({
-    mutationFn: (remote: string) => api.triggerIndex(remote),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["search", "config"] });
-      toast.success("Indexing started");
-    },
-  });
-
-  const updateIndexConfigMutation = useMutation({
-    mutationFn: (vars: { remote: string; interval: number }) =>
-      api.updateSearchConfig(vars.remote, vars.interval),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["search", "config"] });
-      toast.success("Settings updated");
-    },
-  });
-
   const files = useMemo(() => {
-    if (searchQuery) return searchResponse?.data || [];
-    return filesResponse?.data || [];
+    const list = searchQuery ? (searchResponse?.data || []) : (filesResponse?.data || []);
+    return [...list].sort((a, b) => {
+      if (a.isDir && !b.isDir) return -1;
+      if (!a.isDir && b.isDir) return 1;
+      return a.name.localeCompare(b.name);
+    });
   }, [searchQuery, searchResponse, filesResponse]);
 
   const navigate = (newPath: string) => {
     setSelectedKeys(new Set([]));
+    setSearchQuery(""); // Clear search when navigating to a specific path
     navigateRouter({
       to: "/files",
-      search: { path: newPath },
+      search: { path: newPath, query: undefined },
     });
   };
 
@@ -274,50 +266,42 @@ export function FileBrowser({ path }: FileBrowserProps) {
                 size="sm"
                 variant="ghost"
                 className="h-7 min-w-0 px-2 rounded-lg text-muted hover:text-foreground"
-                onPress={() => setSearchQuery("")}
+                onPress={() => {
+                  setSearchQuery("");
+                  navigateRouter({
+                    to: "/files",
+                    search: { path, query: undefined },
+                  });
+                }}
               >
                 Clear
               </Button>
             </div>
           ) : (
             breadcrumbs.map((b) => (
-              <React.Fragment key={b.path}>
-                <IconChevronRight className="w-4 h-4 text-muted/50" />
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className={cn(
-                    "rounded-xl font-bold",
-                    b.path === path ? "text-accent bg-accent/10" : "text-muted",
-                  )}
-                  onPress={() => navigate(b.path)}
-                >
-                  {b.name}
-                </Button>
-              </React.Fragment>
-            ))
-          )}
+            <React.Fragment key={b.path}>
+              <IconChevronRight className="w-4 h-4 text-muted/50" />
+              <Button
+                size="sm"
+                variant="ghost"
+                className={cn(
+                  "rounded-xl font-bold",
+                  b.path === path ? "text-accent bg-accent/10" : "text-muted",
+                )}
+                onPress={() => navigate(b.path)}
+              >
+                {b.name}
+              </Button>
+            </React.Fragment>
+          )))}
         </div>
 
         <div className="flex items-center gap-2">
-          <TextField className="w-48 lg:w-64">
-            <div className="relative group">
-              <IconMagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted group-focus-within:text-accent transition-colors z-10" />
-              <Input
-                type="text"
-                placeholder="Search files..."
-                className="w-full h-9 pl-9 pr-4 bg-default/10 rounded-xl text-sm outline-none focus:ring-2 focus:ring-accent/50 transition-all"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-          </TextField>
-
           <Button
             size="sm"
             isIconOnly
             variant="ghost"
-            onPress={indexModal.onOpen}
+            onPress={() => navigateRouter({ to: "/settings/search" })}
             className="rounded-xl"
           >
             <IconGear />
@@ -455,9 +439,23 @@ export function FileBrowser({ path }: FileBrowserProps) {
                   />
 
                   <div className="flex-1 min-w-0 flex items-center justify-between gap-4">
-                    <Label className="font-semibold truncate text-foreground text-sm tracking-tight leading-none">
-                      {file.name}
-                    </Label>
+                    <div className="flex flex-col min-w-0 gap-1">
+                      <div className="flex items-center gap-2">
+                        <Label className="font-semibold truncate text-foreground text-sm tracking-tight leading-none cursor-pointer">
+                          {file.name}
+                        </Label>
+                        {searchQuery && file.remote && (
+                          <Chip size="sm" variant="soft" color="accent" className="h-4 text-[9px] px-1 font-black uppercase tracking-tighter shrink-0">
+                            {file.remote}
+                          </Chip>
+                        )}
+                      </div>
+                      {searchQuery && (
+                        <p className="text-[10px] text-muted truncate opacity-60">
+                          {file.path}
+                        </p>
+                      )}
+                    </div>
 
                     <div className="flex items-center gap-3 shrink-0 text-[10px] sm:text-xs text-muted font-medium">
                       {!file.isDir && (
@@ -643,80 +641,6 @@ export function FileBrowser({ path }: FileBrowserProps) {
                 onPress={handleModalConfirm}
               >
                 {modalType === "create" ? "Create" : "Rename"}
-              </Button>
-            </Modal.Footer>
-          </Modal.Dialog>
-        </Modal.Container>
-      </Modal.Backdrop>
-
-      {/* Indexing Management Modal */}
-      <Modal.Backdrop
-        isOpen={indexModal.isOpen}
-        onOpenChange={indexModal.onOpenChange}
-        className="bg-background/80 backdrop-blur-sm"
-      >
-        <Modal.Container>
-          <Modal.Dialog className="bg-content1 border border-border shadow-2xl rounded-2xl w-full max-w-lg">
-            <Modal.Header className="p-6 pb-2">
-              <Modal.Heading className="text-xl font-bold">Search Indexing</Modal.Heading>
-            </Modal.Header>
-            <Modal.Body className="px-6 py-4">
-              <div className="space-y-4">
-                {indexConfigs?.data?.map((config) => (
-                  <div key={config.remote} className="p-4 bg-default/5 rounded-2xl border border-border">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex flex-col">
-                        <span className="font-bold text-lg capitalize">{config.remote}</span>
-                        <span className="text-xs text-muted flex items-center gap-1">
-                          {config.status === "indexing" ? (
-                            <span className="text-accent animate-pulse">Indexing...</span>
-                          ) : config.lastIndexedAt ? (
-                            <>Last indexed: {new Date(config.lastIndexedAt).toLocaleString()}</>
-                          ) : (
-                            "Never indexed"
-                          )}
-                        </span>
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="primary"
-                        className="rounded-xl"
-                        isDisabled={config.status === "indexing"}
-                        onPress={() => triggerIndexMutation.mutate(config.remote)}
-                      >
-                        Rebuild Index
-                      </Button>
-                    </div>
-
-                    <div className="flex items-center gap-4 mt-4">
-                      <Label className="text-xs font-bold text-muted uppercase tracking-widest shrink-0">Auto Update</Label>
-                      <select
-                        className="flex-1 bg-background border border-border rounded-lg px-2 py-1 text-sm outline-none"
-                        value={config.autoIndexIntervalMin}
-                        onChange={(e) => updateIndexConfigMutation.mutate({
-                          remote: config.remote,
-                          interval: parseInt(e.target.value)
-                        })}
-                      >
-                        <option value={0}>Disabled</option>
-                        <option value={60}>Hourly</option>
-                        <option value={360}>Every 6 Hours</option>
-                        <option value={720}>Every 12 Hours</option>
-                        <option value={1440}>Daily</option>
-                        <option value={10080}>Weekly</option>
-                      </select>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </Modal.Body>
-            <Modal.Footer className="p-6 pt-2">
-              <Button
-                variant="ghost"
-                className="w-full rounded-xl font-bold"
-                onPress={() => indexModal.onClose()}
-              >
-                Close
               </Button>
             </Modal.Footer>
           </Modal.Dialog>

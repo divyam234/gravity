@@ -24,13 +24,43 @@ func (h *SearchHandler) Routes() chi.Router {
 	r := chi.NewRouter()
 	r.Get("/", h.Search)
 	r.Get("/config", h.GetConfigs)
+	r.Post("/config", h.BatchUpdateConfig)
 	r.Post("/config/{remote}", h.UpdateConfig)
 	r.Post("/index/{remote}", h.IndexRemote)
 	return r
 }
 
+func (h *SearchHandler) BatchUpdateConfig(w http.ResponseWriter, r *http.Request) {
+	var req BatchUpdateConfigRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request", http.StatusBadRequest)
+		return
+	}
+
+	configs := make(map[string]store.RemoteIndexConfig)
+	for remote, cfg := range req.Configs {
+		configs[remote] = store.RemoteIndexConfig{
+			AutoIndexIntervalMin: cfg.Interval,
+			ExcludedPatterns:     cfg.ExcludedPatterns,
+			IncludedExtensions:   cfg.IncludedExtensions,
+			MinSizeBytes:         cfg.MinSizeBytes,
+			Status:               "idle",
+		}
+	}
+
+	if err := h.service.BatchUpdateConfig(r.Context(), configs); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
 func (h *SearchHandler) Search(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query().Get(ParamQuery)
+	if q == "" {
+		q = r.URL.Query().Get("query")
+	}
+
 	if q == "" {
 		http.Error(w, "missing query", http.StatusBadRequest)
 		return
@@ -82,7 +112,7 @@ func (h *SearchHandler) UpdateConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.service.UpdateConfig(r.Context(), remote, req.Interval); err != nil {
+	if err := h.service.UpdateConfig(r.Context(), remote, req.Interval, req.ExcludedPatterns, req.IncludedExtensions, req.MinSizeBytes); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

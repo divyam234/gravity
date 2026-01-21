@@ -10,6 +10,7 @@ import IconCheck from "~icons/gravity-ui/check";
 import IconCircleExclamation from "~icons/gravity-ui/circle-exclamation";
 import IconFolder from "~icons/gravity-ui/folder";
 import IconCloudArrowUpIn from "~icons/gravity-ui/cloud-arrow-up-in";
+import IconMagnifyingGlass from "~icons/gravity-ui/magnifier";
 import { useRemotes } from "../hooks/useRemotes";
 import { useProviders } from "../hooks/useProviders";
 import { useSettingsStore } from "../store/useSettingsStore";
@@ -297,6 +298,13 @@ function SettingsOverview() {
 										description="File browser cache duration and display"
 										icon={<IconFolder className="w-4 h-4" />}
 										to="/settings/browser"
+									/>
+									<div className="h-px bg-border mx-4" />
+									<SettingsLink
+										title="Search Indexing"
+										description="Manage file search index and auto-update intervals"
+										icon={<IconMagnifyingGlass className="w-4 h-4" />}
+										to="/settings/search"
 									/>
 									<div className="h-px bg-border mx-4" />
 									<SettingsLink

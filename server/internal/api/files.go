@@ -24,7 +24,16 @@ func (h *FileHandler) Routes() chi.Router {
 	r.Post("/mkdir", h.Mkdir)
 	r.Post("/delete", h.Delete)
 	r.Post("/operate", h.Operate)
+	r.Post("/purge-cache", h.PurgeCache)
 	return r
+}
+
+func (h *FileHandler) PurgeCache(w http.ResponseWriter, r *http.Request) {
+	if err := h.engine.ClearCache(r.Context()); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
 }
 
 func (h *FileHandler) List(w http.ResponseWriter, r *http.Request) {

@@ -144,6 +144,7 @@ export interface FileInfo {
   modTime: string;
   type: 'file' | 'folder';
   isDir: boolean;
+  remote?: string;
 }
 
 export interface SearchConfig {
@@ -152,4 +153,7 @@ export interface SearchConfig {
   lastIndexedAt?: string;
   status: 'idle' | 'indexing' | 'error';
   errorMsg?: string;
+  excludedPatterns?: string;
+  includedExtensions?: string;
+  minSizeBytes?: number;
 }

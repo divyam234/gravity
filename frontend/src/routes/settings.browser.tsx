@@ -1,7 +1,12 @@
-import { Button, Card, Label, ScrollShadow, Slider } from "@heroui/react";
+import { Button, Card, Label, ScrollShadow, Input, TextField } from "@heroui/react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import IconChevronLeft from "~icons/gravity-ui/chevron-left";
+import IconTrashBin from "~icons/gravity-ui/trash-bin";
+import { api } from "../lib/api";
+import { toast } from "sonner";
+import { cn } from "../lib/utils";
 import { useGlobalOption, useEngineActions, globalOptionOptions } from "../hooks/useEngine";
 
 export const Route = createFileRoute("/settings/browser")({
@@ -13,22 +18,45 @@ export const Route = createFileRoute("/settings/browser")({
 
 function BrowserSettingsPage() {
 	const navigate = useNavigate();
+  const queryClient = useQueryClient();
 	const { data: options } = useGlobalOption();
 	const { changeGlobalOption } = useEngineActions();
 
-	const [cacheTTL, setCacheTTL] = useState(5);
+	const [cacheTTL, setCacheTTL] = useState("5m");
+  const [isValid, setIsValid] = useState(true);
 
 	useEffect(() => {
-		if (options) {
-			const ttl = parseInt(options.fileBrowserCacheTTL || "5");
-			setCacheTTL(isNaN(ttl) ? 5 : ttl);
+		if (options?.fileBrowserCacheTTL) {
+			setCacheTTL(options.fileBrowserCacheTTL);
 		}
 	}, [options]);
 
-	const handleTTLChange = (val: number) => {
+  const validateDuration = (val: string) => {
+    if (val.toLowerCase() === "unlimited") return true;
+    // Matches patterns like 1m, 5h, 2d, 10s
+    return /^\d+[smhd]$/i.test(val);
+  };
+
+	const handleTTLChange = (val: string) => {
 		setCacheTTL(val);
-		changeGlobalOption.mutate({ fileBrowserCacheTTL: String(val) });
+    const valid = validateDuration(val);
+    setIsValid(valid);
+    
+    if (valid) {
+		  changeGlobalOption.mutate({ fileBrowserCacheTTL: val });
+    }
 	};
+
+  const purgeMutation = useMutation({
+    mutationFn: () => api.purgeFileCache(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["files"] });
+      toast.success("File browser cache purged");
+    },
+    onError: (err: any) => {
+      toast.error("Failed to purge cache: " + err.message);
+    }
+  });
 
 	return (
 		<div className="flex flex-col h-full space-y-6">
@@ -55,38 +83,56 @@ function BrowserSettingsPage() {
 								<div className="w-1.5 h-6 bg-accent rounded-full" />
 								<h3 className="text-lg font-bold">Performance</h3>
 							</div>
-							<Card className="p-6 bg-background/50 border-border space-y-6">
-								<div className="space-y-4">
-									<div className="flex items-center justify-between">
-										<div>
-											<Label className="text-sm font-bold">Cache Duration</Label>
-											<p className="text-xs text-muted mt-0.5">
-												How long to cache file listings to improve performance
-											</p>
-										</div>
-										<span className="text-sm font-bold text-accent bg-accent/10 px-3 py-1 rounded-lg">
-											{cacheTTL} min
-										</span>
-									</div>
-									<Slider
-										value={cacheTTL}
-										onChange={(val) => handleTTLChange(val as number)}
-										minValue={1}
-										maxValue={60}
-										step={1}
-									>
-										<Slider.Track className="h-2 bg-default/10">
-											<Slider.Fill className="bg-accent" />
-											<Slider.Thumb className="w-5 h-5 border-2 border-accent bg-background" />
-										</Slider.Track>
-									</Slider>
-									<div className="flex justify-between text-xs text-muted">
-										<span>1 min</span>
-										<span>30 min</span>
-										<span>60 min</span>
-									</div>
-								</div>
-							</Card>
+              
+              <div className="grid gap-4">
+                <Card className="p-6 bg-background/50 border-border">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1 mr-8">
+                      <Label className="text-sm font-bold">Cache Duration</Label>
+                      <p className="text-xs text-muted mt-0.5">
+                        How long to cache file listings (e.g., 1m, 1h, 1d, or "unlimited")
+                      </p>
+                    </div>
+                    
+                    <TextField className="w-48">
+                      <Input
+                        value={cacheTTL}
+                        onChange={(e) => handleTTLChange(e.target.value)}
+                        placeholder="e.g. 5m"
+                        className={cn(
+                          "h-11 bg-default/10 rounded-2xl border-none text-center font-bold",
+                          !isValid && "ring-2 ring-danger/50"
+                        )}
+                      />
+                    </TextField>
+                  </div>
+                  {!isValid && (
+                    <p className="text-[10px] text-danger mt-2 font-bold uppercase tracking-wider">
+                      Invalid duration format (use s, m, h, d or "unlimited")
+                    </p>
+                  )}
+                </Card>
+
+                <Card className="p-6 bg-background/50 border-border">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label className="text-sm font-bold">Purge Cache</Label>
+                      <p className="text-xs text-muted mt-0.5">
+                        Immediately clear all cached file listings across all remotes
+                      </p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      className="rounded-xl font-bold text-danger hover:bg-danger/10"
+                      onPress={() => purgeMutation.mutate()}
+                      isPending={purgeMutation.isPending}
+                    >
+                      <IconTrashBin className="w-4 h-4 mr-2" />
+                      Purge Now
+                    </Button>
+                  </div>
+                </Card>
+              </div>
 						</section>
 					</div>
 				</ScrollShadow>

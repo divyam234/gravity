@@ -27,12 +27,6 @@ type UploadOptions struct {
 	JobID       int64  // Custom job ID to use (if 0, one will be generated)
 }
 
-type Remote struct {
-	Name      string `json:"name"`
-	Type      string `json:"type"`
-	Connected bool   `json:"connected"`
-}
-
 type GlobalStats struct {
 	Speed           int64 `json:"speed"`
 	ActiveTransfers int   `json:"activeTransfers"`

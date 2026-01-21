@@ -419,6 +419,10 @@ func (e *Engine) invalidateListCache(ctx context.Context, virtualPath string) {
 	e.cache.Delete(ctx, e.getCacheKey(virtualPath))
 }
 
+func (e *Engine) ClearCache(ctx context.Context) error {
+	return e.cache.DeletePrefix(ctx, "list:")
+}
+
 func (e *Engine) List(ctx context.Context, virtualPath string) ([]engine.FileInfo, error) {
 	// Check cache
 	cacheKey := e.getCacheKey(virtualPath)
