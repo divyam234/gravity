@@ -79,9 +79,6 @@ type StorageEngine interface {
 
 	// Data
 	Open(ctx context.Context, virtualPath string) (ReadSeekCloser, error)
-
-	// Cache
-	ClearCache(ctx context.Context) error
 }
 
 type UploadEngine interface {
@@ -116,4 +113,5 @@ type UploadEngine interface {
 
 	// Config
 	Configure(ctx context.Context, options map[string]string) error
+	Restart(ctx context.Context) error
 }

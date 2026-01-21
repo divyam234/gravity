@@ -351,10 +351,6 @@ func (e *Engine) TestRemote(ctx context.Context, name string) error {
 	return err
 }
 
-func (e *Engine) ClearCache(ctx context.Context) error {
-	return nil
-}
-
 func (e *Engine) Copy(ctx context.Context, srcPath, dstPath string) (string, error) {
 	_, _, srcPathPart, _, err := fs.ParseRemote(GravityRootRemote + ":" + srcPath)
 	if err != nil {
@@ -547,6 +543,29 @@ func (e *Engine) Configure(ctx context.Context, options map[string]string) error
 	log.Printf("Rclone: VFS configured (CacheMode=%v, WriteBack=%v, ReadAhead=%v)",
 		vfscommon.Opt.CacheMode, vfscommon.Opt.WriteBack, vfscommon.Opt.ReadAhead)
 
+	return e.Restart(ctx)
+}
+
+func (e *Engine) Restart(ctx context.Context) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	// Shutdown existing VFS if running
+	if e.vfs != nil {
+		e.vfs.Shutdown()
+		e.vfs = nil
+	}
+
+	// Re-initialize Root FS
+	f, err := fs.NewFs(ctx, GravityRootRemote+":")
+	if err != nil {
+		return fmt.Errorf("failed to recreate root fs: %w", err)
+	}
+
+	// Create new VFS with updated global options
+	e.vfs = vfs.New(f, &vfscommon.Opt)
+
+	log.Println("Rclone: VFS restarted successfully")
 	return nil
 }
 

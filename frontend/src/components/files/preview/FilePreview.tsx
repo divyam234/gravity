@@ -20,24 +20,42 @@ export function FilePreview({ file, onClose }: FilePreviewProps) {
   if (!file) return null;
 
   const ext = file.name.split(".").pop()?.toLowerCase() || "";
-  
+
   const isVideo = ["mp4", "mkv", "webm", "avi", "mov"].includes(ext);
   const isImage = ["jpg", "jpeg", "png", "gif", "webp", "svg"].includes(ext);
   const isPdf = ext === "pdf";
   const isEpub = ext === "epub";
   const isCode = [
-    "ts", "tsx", "js", "jsx", "go", "py", "rs", "cpp", "c", "h", "java", 
-    "html", "css", "json", "yaml", "yml", "md", "txt", "sh", "sql"
+    "ts",
+    "tsx",
+    "js",
+    "jsx",
+    "go",
+    "py",
+    "rs",
+    "cpp",
+    "c",
+    "h",
+    "java",
+    "html",
+    "css",
+    "json",
+    "yaml",
+    "yml",
+    "md",
+    "txt",
+    "sh",
+    "sql",
   ].includes(ext);
 
   return (
     <Modal.Backdrop
       isOpen={!!file}
+      variant="opaque"
       onOpenChange={(open) => !open && onClose()}
-      className="bg-background/90 backdrop-blur-md z-[100]"
     >
-      <Modal.Container className="max-w-[95vw] w-full h-[90vh]">
-        <Modal.Dialog className="bg-surface border border-border shadow-2xl rounded-2xl flex flex-col overflow-hidden h-full">
+      <Modal.Container className="will-change-auto">
+        <Modal.Dialog className="max-w-5xl  p-0 bg-surface border border-border shadow-2xl rounded-2xl flex flex-col overflow-hidden h-full">
           <Modal.Header className="p-4 border-b border-border flex items-center justify-between shrink-0">
             <Modal.Heading className="text-lg font-bold truncate pr-8">
               {file.name}
@@ -61,7 +79,9 @@ export function FilePreview({ file, onClose }: FilePreviewProps) {
             {!isVideo && !isImage && !isPdf && !isEpub && !isCode && (
               <div className="flex flex-col items-center justify-center h-full text-muted">
                 <p>No preview available for this file type.</p>
-                <p className="text-sm mt-2">{file.mimeType || "Unknown type"}</p>
+                <p className="text-sm mt-2">
+                  {file.mimeType || "Unknown type"}
+                </p>
               </div>
             )}
           </Modal.Body>

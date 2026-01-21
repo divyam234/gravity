@@ -30,8 +30,16 @@ func (h *FileHandler) Routes() chi.Router {
 	r.Post("/mkdir", h.Mkdir)
 	r.Post("/delete", h.Delete)
 	r.Post("/operate", h.Operate)
-	r.Post("/purge-cache", h.PurgeCache)
+	r.Post("/restart", h.Restart)
 	return r
+}
+
+func (h *FileHandler) Restart(w http.ResponseWriter, r *http.Request) {
+	if err := h.upload.Restart(r.Context()); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
 }
 
 func (h *FileHandler) Cat(w http.ResponseWriter, r *http.Request) {
@@ -62,14 +70,6 @@ func (h *FileHandler) Cat(w http.ResponseWriter, r *http.Request) {
 
 	// Use http.ServeContent to support Range requests (Seeking)
 	http.ServeContent(w, r, info.Name, info.ModTime, rc)
-}
-
-func (h *FileHandler) PurgeCache(w http.ResponseWriter, r *http.Request) {
-	if err := h.storage.ClearCache(r.Context()); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.WriteHeader(http.StatusOK)
 }
 
 func (h *FileHandler) List(w http.ResponseWriter, r *http.Request) {
