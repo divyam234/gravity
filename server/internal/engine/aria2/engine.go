@@ -295,7 +295,7 @@ func (e *Engine) Sync(ctx context.Context) error {
 func (e *Engine) Configure(ctx context.Context, options map[string]string) error {
 	keyMap := map[string]string{
 		"download_dir":              "dir",
-		"max_concurrent_downloads":   "max-concurrent-downloads",
+		"max_concurrent_downloads":  "max-concurrent-downloads",
 		"max_download_speed":        "max-overall-download-limit",
 		"max_upload_speed":          "max-overall-upload-limit",
 		"max_connection_per_server": "max-connection-per-server",
@@ -466,6 +466,7 @@ func (e *Engine) handleNotification(method string, params []interface{}) {
 		delete(e.activeGids, gid)
 		e.mu.Unlock()
 		log.Printf("Aria2: Download stopped %s", gid)
+		go e.client.Call(ctx, "aria2.removeDownloadResult", gid)
 
 	case "aria2.onDownloadComplete":
 		e.mu.Lock()
@@ -488,6 +489,7 @@ func (e *Engine) handleNotification(method string, params []interface{}) {
 			}
 		}
 		log.Printf("Aria2: Download complete %s", gid)
+		go e.client.Call(ctx, "aria2.removeDownloadResult", gid)
 
 	case "aria2.onDownloadError":
 		e.mu.Lock()
@@ -507,6 +509,7 @@ func (e *Engine) handleNotification(method string, params []interface{}) {
 			go onError(gid, fmt.Errorf("%s", errMsg))
 		}
 		log.Printf("Aria2: Download error %s", gid)
+		go e.client.Call(ctx, "aria2.removeDownloadResult", gid)
 	}
 }
 

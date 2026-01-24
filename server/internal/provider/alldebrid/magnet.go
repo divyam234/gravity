@@ -1,9 +1,11 @@
 package alldebrid
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"strings"
@@ -25,6 +27,37 @@ func (p *AllDebridProvider) CheckMagnet(ctx context.Context, magnet string) (*mo
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
+	return p.handleUploadResponse(ctx, req)
+}
+
+// CheckTorrentFile uploads .torrent file to AllDebrid and checks status
+func (p *AllDebridProvider) CheckTorrentFile(ctx context.Context, fileData []byte) (*model.MagnetInfo, error) {
+	// POST /v4/magnet/upload/file
+	endpoint := fmt.Sprintf("%s/magnet/upload/file?agent=%s&apikey=%s", baseURL, agent, p.apiKey)
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	part, err := writer.CreateFormFile("files[]", "upload.torrent")
+	if err != nil {
+		return nil, err
+	}
+	if _, err := part.Write(fileData); err != nil {
+		return nil, err
+	}
+	if err := writer.Close(); err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, body)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	return p.handleUploadResponse(ctx, req)
+}
+
+func (p *AllDebridProvider) handleUploadResponse(ctx context.Context, req *http.Request) (*model.MagnetInfo, error) {
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
 		return nil, err
@@ -54,7 +87,7 @@ func (p *AllDebridProvider) CheckMagnet(ctx context.Context, magnet string) (*mo
 	}
 
 	if result.Status != "success" || len(result.Data.Magnets) == 0 {
-		return nil, fmt.Errorf("failed to check magnet")
+		return nil, fmt.Errorf("failed to upload/check")
 	}
 
 	m := result.Data.Magnets[0]
@@ -63,8 +96,15 @@ func (p *AllDebridProvider) CheckMagnet(ctx context.Context, magnet string) (*mo
 	}
 
 	if !m.Ready {
-		// Not cached - caller should fall back to aria2
-		return nil, nil
+		// Not cached
+		return &model.MagnetInfo{
+			Source:   "alldebrid",
+			Cached:   false,
+			MagnetID: fmt.Sprintf("%d", m.ID),
+			Name:     m.Name,
+			Hash:     m.Hash,
+			Size:     m.Size,
+		}, nil
 	}
 
 	// Get files
@@ -86,17 +126,13 @@ func (p *AllDebridProvider) CheckMagnet(ctx context.Context, magnet string) (*mo
 
 // GetMagnetFiles retrieves file tree for a magnet
 func (p *AllDebridProvider) GetMagnetFiles(ctx context.Context, magnetID string) ([]model.MagnetFile, error) {
-	// POST /v4/magnet/files
-	endpoint := fmt.Sprintf("%s/magnet/files?agent=%s&apikey=%s", baseURL, agent, p.apiKey)
+	// GET /v4/magnet/status
+	endpoint := fmt.Sprintf("%s/magnet/status?agent=%s&apikey=%s&id=%s", baseURL, agent, p.apiKey, magnetID)
 
-	form := url.Values{}
-	form.Set("id[]", magnetID)
-
-	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, strings.NewReader(form.Encode()))
+	req, err := http.NewRequestWithContext(ctx, "GET", endpoint, nil)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
@@ -107,8 +143,8 @@ func (p *AllDebridProvider) GetMagnetFiles(ctx context.Context, magnetID string)
 	var result struct {
 		Status string `json:"status"`
 		Data   struct {
-			Magnets []struct {
-				ID    string            `json:"id"`
+			Magnets struct {
+				ID    int               `json:"id"`
 				Files []json.RawMessage `json:"files"`
 			} `json:"magnets"`
 		} `json:"data"`
@@ -118,12 +154,12 @@ func (p *AllDebridProvider) GetMagnetFiles(ctx context.Context, magnetID string)
 		return nil, err
 	}
 
-	if result.Status != "success" || len(result.Data.Magnets) == 0 {
-		return nil, fmt.Errorf("failed to get magnet files")
+	if result.Status != "success" {
+		return nil, fmt.Errorf("failed to get magnet status")
 	}
 
 	// Parse AllDebrid's nested file format
-	return p.parseFiles(result.Data.Magnets[0].Files, "")
+	return p.parseFiles(result.Data.Magnets.Files, "")
 }
 
 // parseFiles converts AllDebrid's nested format to flat MagnetFile array

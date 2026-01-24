@@ -2,6 +2,8 @@ package aria2
 
 import (
 	"context"
+	"crypto/sha1"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -9,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/zeebo/bencode"
 	"gravity/internal/engine"
 	"gravity/internal/model"
 )
@@ -143,7 +146,8 @@ func (e *Engine) AddMagnetWithSelection(ctx context.Context, magnet string, sele
 	selectFile := strings.Join(selectedIndexes, ",")
 
 	options := map[string]interface{}{
-		"select-file": selectFile,
+		"select-file":     selectFile,
+		"file-allocation": "none",
 	}
 
 	if opts.Dir != "" {
@@ -162,85 +166,83 @@ func (e *Engine) AddMagnetWithSelection(ctx context.Context, magnet string, sele
 	return gid, nil
 }
 
-// GetTorrentFiles extracts metadata from a .torrent file (base64 encoded)
+// GetTorrentFiles extracts metadata from a .torrent file using native parser
 func (e *Engine) GetTorrentFiles(ctx context.Context, torrentBase64 string) (*model.MagnetInfo, error) {
-	log.Printf("[aria2] Extracting metadata from .torrent file")
-	res, err := e.client.Call(ctx, "aria2.addTorrent", torrentBase64, []interface{}{}, map[string]interface{}{
-		"paused": "true",
-	})
+	log.Printf("[aria2] Extracting metadata from .torrent file using native parser")
+
+	data, err := base64.StdEncoding.DecodeString(torrentBase64)
 	if err != nil {
-		return nil, fmt.Errorf("failed to add torrent: %w", err)
+		return nil, fmt.Errorf("invalid base64: %w", err)
 	}
 
-	var gid string
-	if err := json.Unmarshal(res, &gid); err != nil {
-		return nil, err
+	var torrent struct {
+		Info bencode.RawMessage `bencode:"info"`
 	}
 
-	defer e.client.Call(context.Background(), "aria2.remove", gid)
-
-	statusRes, err := e.client.Call(ctx, "aria2.tellStatus", gid)
-	if err != nil {
-		return nil, err
+	if err := bencode.DecodeBytes(data, &torrent); err != nil {
+		return nil, fmt.Errorf("failed to decode torrent: %w", err)
 	}
 
-	var status struct {
-		Status     string `json:"status"`
-		InfoHash   string `json:"infoHash"`
-		BitTorrent struct {
-			Info struct {
-				Name string `json:"name"`
-			} `json:"info"`
-		} `json:"bittorrent"`
-	}
-	if err := json.Unmarshal(statusRes, &status); err != nil {
-		return nil, err
+	// Calculate InfoHash
+	hasher := sha1.New()
+	hasher.Write(torrent.Info)
+	hash := fmt.Sprintf("%x", hasher.Sum(nil))
+
+	// Parse Info
+	var info struct {
+		Name   string `bencode:"name"`
+		Length int64  `bencode:"length"` // Single file size
+		Files  []struct {
+			Length int64    `bencode:"length"`
+			Path   []string `bencode:"path"`
+		} `bencode:"files"`
 	}
 
-	filesRes, err := e.client.Call(ctx, "aria2.getFiles", gid)
-	if err != nil {
-		return nil, err
-	}
-
-	var files []struct {
-		Index  string `json:"index"`
-		Path   string `json:"path"`
-		Length string `json:"length"`
-	}
-	if err := json.Unmarshal(filesRes, &files); err != nil {
-		return nil, err
+	if err := bencode.DecodeBytes(torrent.Info, &info); err != nil {
+		return nil, fmt.Errorf("failed to decode info dictionary: %w", err)
 	}
 
 	var magnetFiles []model.MagnetFile
 	var totalSize int64
-	name := status.BitTorrent.Info.Name
 
-	for _, f := range files {
-		size := parseSize(f.Length)
+	if len(info.Files) > 0 {
+		// Multi-file
+		for i, f := range info.Files {
+			// Path components are relative to the root directory (info.Name)
+			// But for display, we usually show tree starting under root.
+			// Or we show root folder as top level.
+			// The FileTree component expects relative paths.
+			// Join with /
+			relPath := strings.Join(f.Path, "/")
 
-		// Extract relative path (remove download dir prefix)
-		relPath := f.Path
-		if idx := strings.Index(f.Path, name); idx >= 0 {
-			relPath = f.Path[idx:]
+			magnetFiles = append(magnetFiles, model.MagnetFile{
+				ID:       fmt.Sprintf("%d", i+1), // 1-indexed
+				Name:     f.Path[len(f.Path)-1],
+				Path:     relPath,
+				Size:     f.Length,
+				IsFolder: false,
+				Index:    i + 1,
+			})
+			totalSize += f.Length
 		}
-
-		idx, _ := strconv.Atoi(f.Index)
+	} else {
+		// Single file
 		magnetFiles = append(magnetFiles, model.MagnetFile{
-			ID:       f.Index,
-			Name:     extractFilename(relPath),
-			Path:     relPath,
-			Size:     size,
+			ID:       "1",
+			Name:     info.Name,
+			Path:     info.Name,
+			Size:     info.Length,
 			IsFolder: false,
-			Index:    idx,
+			Index:    1,
 		})
-		totalSize += size
+		totalSize = info.Length
 	}
 
 	return &model.MagnetInfo{
 		Source: "aria2",
 		Cached: false,
-		Name:   status.BitTorrent.Info.Name,
-		Hash:   status.InfoHash,
+		Name:   info.Name,
+		Hash:   hash,
 		Size:   totalSize,
 		Files:  magnetFiles,
 	}, nil

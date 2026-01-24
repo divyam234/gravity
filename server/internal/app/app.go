@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
@@ -76,7 +75,7 @@ func New(ctx context.Context) (*App, error) {
 	setr := store.NewSettingsRepo(s.GetDB())
 	ds := service.NewDownloadService(dr, setr, de, ue, bus, ps)
 	us := service.NewUploadService(dr, setr, ue, bus)
-	ms := service.NewMagnetService(dr, setr, de, ad, ue)
+	ms := service.NewMagnetService(dr, setr, de, ad, ue, bus)
 	ss := service.NewStatsService(sr, setr, dr, de, ue, bus)
 	searchService := service.NewSearchService(store.NewSearchRepo(s.GetDB()), ue)
 
@@ -110,6 +109,7 @@ func New(ctx context.Context) (*App, error) {
 
 	// Mount V1 to root
 	router.Mount("/api/v1", v1)
+	router.Handle("/*", AssetsHandler())
 
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.Port),
@@ -131,25 +131,6 @@ func New(ctx context.Context) (*App, error) {
 		httpServer:      srv,
 		router:          router,
 	}, nil
-}
-
-func (a *App) Handler() http.Handler {
-	ah := AssetsHandler()
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, "/api/v1") {
-			a.router.Handler().ServeHTTP(w, r)
-			return
-		}
-
-		// Check if it's a file request or if we should serve index.html
-		// This is important for SPA routing
-		path := r.URL.Path
-		if path == "/" || path == "" {
-			r.URL.Path = "/index.html"
-		}
-
-		ah.ServeHTTP(w, r)
-	})
 }
 
 func (a *App) Events() *event.Bus {

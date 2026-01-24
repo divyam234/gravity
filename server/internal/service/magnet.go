@@ -12,6 +12,7 @@ import (
 
 	"gravity/internal/engine"
 	"gravity/internal/engine/aria2"
+	"gravity/internal/event"
 	"gravity/internal/model"
 	"gravity/internal/provider/alldebrid"
 	"gravity/internal/store"
@@ -25,6 +26,7 @@ type MagnetService struct {
 	aria2Engine  *aria2.Engine
 	allDebrid    *alldebrid.AllDebridProvider
 	uploadEngine engine.UploadEngine
+	bus          *event.Bus
 }
 
 func NewMagnetService(
@@ -33,6 +35,7 @@ func NewMagnetService(
 	aria2 *aria2.Engine,
 	allDebrid *alldebrid.AllDebridProvider,
 	uploadEngine engine.UploadEngine,
+	bus *event.Bus,
 ) *MagnetService {
 	return &MagnetService{
 		downloadRepo: repo,
@@ -40,6 +43,7 @@ func NewMagnetService(
 		aria2Engine:  aria2,
 		allDebrid:    allDebrid,
 		uploadEngine: uploadEngine,
+		bus:          bus,
 	}
 }
 
@@ -89,7 +93,7 @@ func (s *MagnetService) CheckTorrent(ctx context.Context, torrentBase64 string) 
 		magnet := fmt.Sprintf("magnet:?xt=urn:btih:%s", info.Hash)
 		cached, err := s.allDebrid.CheckMagnet(ctx, magnet)
 		if err == nil && cached != nil && cached.Cached {
-			log.Printf("[MagnetService] Torrent found in AllDebrid cache: %s", info.Name)
+			log.Printf("[MagnetService] Torrent found in AllDebrid cache: %s", cached.Name)
 			return cached, nil
 		}
 	}
@@ -188,8 +192,16 @@ func (s *MagnetService) DownloadMagnet(ctx context.Context, req MagnetDownloadRe
 		return nil, err
 	}
 
+	s.bus.Publish(event.Event{
+		Type:      event.DownloadCreated,
+		Timestamp: time.Now(),
+		Data:      d,
+	})
+
 	// Start downloads based on source
 	if req.Source == "alldebrid" {
+		d.Status = model.StatusActive
+		s.downloadRepo.Update(ctx, d)
 		go s.startAllDebridDownload(context.Background(), d)
 	} else {
 		// Native torrents/magnets go to the queue first
@@ -209,8 +221,17 @@ func (s *MagnetService) startAllDebridDownload(ctx context.Context, d *model.Dow
 			continue
 		}
 
+		// Unlock the link first
+		resolved, err := s.allDebrid.Resolve(ctx, file.URL)
+		if err != nil {
+			file.Status = model.StatusError
+			file.Error = "Link unlock failed: " + err.Error()
+			s.downloadRepo.UpdateFile(ctx, file)
+			continue
+		}
+
 		// Add to aria2
-		gid, err := s.aria2Engine.Add(ctx, file.URL, engine.DownloadOptions{
+		gid, err := s.aria2Engine.Add(ctx, resolved.URL, engine.DownloadOptions{
 			Dir:      d.LocalPath, // Base directory
 			Filename: file.Path,   // Preserve path structure
 		})
@@ -218,15 +239,14 @@ func (s *MagnetService) startAllDebridDownload(ctx context.Context, d *model.Dow
 		if err != nil {
 			file.Status = model.StatusError
 			file.Error = err.Error()
+			s.downloadRepo.UpdateFile(ctx, file)
 			continue
 		}
 
 		file.EngineID = gid
 		file.Status = model.StatusActive
+		s.downloadRepo.UpdateFile(ctx, file)
 	}
-
-	// Update database
-	s.downloadRepo.UpdateFiles(context.Background(), d.ID, d.Files)
 }
 
 // startAria2Download downloads magnet via native aria2 BitTorrent

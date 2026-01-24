@@ -194,11 +194,23 @@ func (e *Engine) Upload(ctx context.Context, src, dst string, opts engine.Upload
 		jobID = opts.TrackingID
 	}
 
+	var size int64
+	if isDir {
+		filepath.Walk(src, func(_ string, info os.FileInfo, err error) error {
+			if err == nil && !info.IsDir() {
+				size += info.Size()
+			}
+			return nil
+		})
+	} else {
+		size = info.Size()
+	}
+
 	jobCtx, cancel := context.WithCancel(e.appCtx)
 	j := &job{
 		id:      jobID,
 		trackID: opts.TrackingID,
-		size:    info.Size(),
+		size:    size,
 		done:    make(chan struct{}),
 		cancel:  cancel,
 	}

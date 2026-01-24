@@ -398,7 +398,7 @@ func (s *DownloadService) Start() {
 	go func() {
 		for ev := range events {
 			switch ev.Type {
-			case event.DownloadCompleted, event.DownloadError:
+			case event.DownloadCreated, event.DownloadCompleted, event.DownloadError:
 				s.ProcessQueue(context.Background())
 			}
 		}
@@ -653,6 +653,7 @@ func (s *DownloadService) handleProgress(engineID string, p engine.Progress) {
 
 		parent, err := s.repo.Get(ctx, file.DownloadID)
 		if err == nil {
+			parent.Speed = p.Speed
 			s.updateAggregateProgress(ctx, parent)
 		}
 		return
@@ -660,7 +661,7 @@ func (s *DownloadService) handleProgress(engineID string, p engine.Progress) {
 }
 
 func (s *DownloadService) updateAggregateProgress(ctx context.Context, d *model.Download) {
-	files, _, err := s.repo.GetFiles(ctx, d.ID, 1000, 0)
+	files, _, err := s.repo.GetFiles(ctx, d.ID, 10000, 0)
 	if err != nil {
 		return
 	}
@@ -681,6 +682,17 @@ func (s *DownloadService) updateAggregateProgress(ctx context.Context, d *model.
 	d.Size = totalSize
 	d.FilesComplete = filesComplete
 
+	if d.Speed > 0 {
+		remaining := totalSize - totalDownloaded
+		if remaining > 0 {
+			d.ETA = int(remaining / d.Speed)
+		} else {
+			d.ETA = 0
+		}
+	} else {
+		d.ETA = 0
+	}
+
 	if filesComplete == len(files) && len(files) > 0 && d.Status != model.StatusComplete && d.Status != model.StatusUploading {
 		if d.Destination != "" {
 			d.Status = model.StatusUploading
@@ -689,6 +701,12 @@ func (s *DownloadService) updateAggregateProgress(ctx context.Context, d *model.
 		}
 		now := time.Now()
 		d.CompletedAt = &now
+
+		s.bus.Publish(event.Event{
+			Type:      event.DownloadCompleted,
+			Timestamp: time.Now(),
+			Data:      d,
+		})
 	}
 
 	s.mu.Lock()

@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	baseURL = "https://api.alldebrid.com/v4"
+	baseURL = "https://api.alldebrid.com/v4.1"
 	agent   = "gravity"
 )
 

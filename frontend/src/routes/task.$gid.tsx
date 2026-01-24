@@ -136,7 +136,7 @@ function TaskDetailsPage() {
                     </section>
                   )}
 
-                  {peers.length > 0 && (
+                  {peers.length > 0 && task.magnetSource === "aria2" && (
                     <section>
                       <h3 className="text-[10px] font-black uppercase tracking-widest text-muted mb-6 flex items-center gap-3">
                         <div className="w-2 h-2 rounded-full bg-accent" />
@@ -238,14 +238,16 @@ function TaskDetailsPage() {
                                       <span className="text-xs font-medium text-muted-foreground">Files</span>
                                       <span className="text-xs font-black">{task.filesComplete || 0} / {task.totalFiles || 0}</span>
                                   </div>
-                                  <div className="flex justify-between items-center">
+                                  {task.magnetSource === "aria2" && (
+                                    <div className="flex justify-between items-center">
                                       <span className="text-xs font-medium text-muted-foreground">Seeders / Peers</span>
                                       <span className="text-xs font-black">
                                           <span className="text-success">{task.seeders || 0}</span>
                                           <span className="text-muted mx-1">/</span>
                                           <span className="text-foreground">{task.peers || 0}</span>
                                       </span>
-                                  </div>
+                                    </div>
+                                  )}
                                   <div className="flex justify-between items-center">
                                       <span className="text-xs font-medium text-muted-foreground">Source</span>
                                       <span className="text-xs font-black uppercase tracking-widest">{task.magnetSource}</span>

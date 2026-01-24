@@ -42,8 +42,7 @@ tasks:
     desc: Build desktop application (Wails v3)
     dir: server
     cmds:
-      - cd ../frontend && bun run build
-      - go build -o ../bin/gravity-desktop cmd/desktop/main.go
+      - go build -tags webkit2_41 -ldflags "-w -s" -o ../bin/gravity-desktop cmd/desktop/main.go
 
   test:
     desc: Run tests
