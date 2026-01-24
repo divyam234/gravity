@@ -9,6 +9,7 @@ import type {
   FileInfo,
   SearchConfig,
   Settings,
+  TaskOptions,
 } from "./types";
 
 export type { ApiResponse };
@@ -34,8 +35,10 @@ export interface IApiClient {
   getDownload(id: string): Promise<Download>;
   createDownload(
     url: string,
+    downloadDir?: string,
     destination?: string,
     filename?: string,
+    options?: TaskOptions,
   ): Promise<Download>;
   pauseDownload(id: string): Promise<void>;
   resumeDownload(id: string): Promise<void>;
@@ -46,7 +49,7 @@ export interface IApiClient {
     config: Record<string, string>,
     enabled: boolean,
   ): Promise<void>;
-  resolveUrl(url: string): Promise<any>;
+  resolveUrl(url: string, headers?: Record<string, string>): Promise<any>;
   getRemotes(): Promise<ApiResponse<Remote[]>>;
   getStats(): Promise<Stats>;
   getSettings(): Promise<Settings>;
@@ -67,7 +70,7 @@ export interface IApiClient {
   subscribeEvents(handler: (event: any) => void): () => void;
 
   // System/Admin
-  getVersion(): Promise<{ version: string; aria2: string; rclone: string }>;
+  getVersion(): Promise<{ version: string; aria2: string; rclone: string; native: string }>;
   restartAria2(): Promise<void>;
   restartRclone(): Promise<void>;
   restartServer(): Promise<void>;
@@ -132,11 +135,13 @@ class RestApiClient implements IApiClient {
   getDownload(id: string) {
     return this.request<Download>("GET", `/downloads/${id}`);
   }
-  createDownload(url: string, destination?: string, filename?: string) {
+  createDownload(url: string, downloadDir?: string, destination?: string, filename?: string, options?: TaskOptions) {
     return this.request<Download>("POST", "/downloads", {
       url,
+      downloadDir,
       destination,
       filename,
+      options,
     });
   }
   pauseDownload(id: string) {
@@ -157,8 +162,8 @@ class RestApiClient implements IApiClient {
   configureProvider(name: string, config: any, enabled: boolean) {
     return this.request<void>("PUT", `/providers/${name}`, { config, enabled });
   }
-  resolveUrl(url: string) {
-    return this.request<any>("POST", "/providers/resolve", { url });
+  resolveUrl(url: string, headers?: Record<string, string>) {
+    return this.request<any>("POST", "/providers/resolve", { url, headers });
   }
   getRemotes() {
     return this.request<ApiResponse<Remote[]>>("GET", "/remotes");
@@ -219,7 +224,7 @@ class RestApiClient implements IApiClient {
   }
 
   getVersion() {
-    return this.request<{ version: string; aria2: string; rclone: string }>(
+    return this.request<{ version: string; aria2: string; rclone: string; native: string }>(
       "GET",
       "/system/version",
     );

@@ -46,6 +46,8 @@ function useDisclosure() {
 }
 
 import IconCheck from "~icons/gravity-ui/check";
+import IconMagnifyingGlass from "~icons/gravity-ui/magnifier";
+import IconGear from "~icons/gravity-ui/gear";
 
 interface FileBrowserProps {
   path: string;
@@ -53,9 +55,6 @@ interface FileBrowserProps {
 }
 
 type ModalType = "create" | "rename" | null;
-
-import IconMagnifyingGlass from "~icons/gravity-ui/magnifier";
-import IconGear from "~icons/gravity-ui/gear";
 
 export function FileBrowser({ path, query }: FileBrowserProps) {
   const navigateRouter = useNavigate();
@@ -307,7 +306,7 @@ export function FileBrowser({ path, query }: FileBrowserProps) {
             size="sm"
             isIconOnly
             variant="ghost"
-            onPress={() => navigateRouter({ to: "/settings/search" })}
+            onPress={() => navigateRouter({ to: "/settings/browser" })}
             className="rounded-xl"
           >
             <IconGear />

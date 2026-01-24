@@ -30,13 +30,13 @@ type Provider interface {
 
 	// Configuration
 	ConfigSchema() []ConfigField
-	Configure(config map[string]string) error
+	Configure(ctx context.Context, config map[string]string) error
 	IsConfigured() bool
 
 	// URL handling
 	Supports(url string) bool
 	Priority() int
-	Resolve(ctx context.Context, url string) (*ResolveResult, error)
+	Resolve(ctx context.Context, url string, headers map[string]string) (*ResolveResult, error)
 
 	// Health
 	Test(ctx context.Context) (*model.AccountInfo, error)
@@ -56,7 +56,7 @@ type MagnetProvider interface {
 	CheckMagnet(ctx context.Context, magnet string) (*model.MagnetInfo, error)
 
 	// GetMagnetFiles returns file tree for a magnet (by ID for debrid, by hash for aria2)
-	GetMagnetFiles(ctx context.Context, magnetID string) ([]model.MagnetFile, error)
+	GetMagnetFiles(ctx context.Context, magnetID string) ([]*model.MagnetFile, error)
 
 	// DeleteMagnet removes a magnet from user's account (debrid only)
 	DeleteMagnet(ctx context.Context, magnetID string) error

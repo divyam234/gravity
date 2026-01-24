@@ -1,7 +1,6 @@
 import { Button, Card, Chip, ScrollShadow } from "@heroui/react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import IconRocket from "~icons/gravity-ui/rocket";
-import IconCloud from "~icons/gravity-ui/cloud";
 import IconThunderbolt from "~icons/gravity-ui/thunderbolt";
 import IconGlobe from "~icons/gravity-ui/globe";
 import IconMagnet from "~icons/gravity-ui/magnet";
@@ -10,8 +9,7 @@ import IconCheck from "~icons/gravity-ui/check";
 import IconCircleExclamation from "~icons/gravity-ui/circle-exclamation";
 import IconFolder from "~icons/gravity-ui/folder";
 import IconCloudArrowUpIn from "~icons/gravity-ui/cloud-arrow-up-in";
-import IconMagnifyingGlass from "~icons/gravity-ui/magnifier";
-import { useRemotes } from "../hooks/useRemotes";
+import IconClock from "~icons/gravity-ui/clock";
 import { useProviders } from "../hooks/useProviders";
 import { useSettingsStore } from "../store/useSettingsStore";
 import { cn } from "../lib/utils";
@@ -97,13 +95,11 @@ function SettingsLink({ title, description, icon, to }: SettingsLinkProps) {
 }
 
 function SettingsOverview() {
-	const { data: remotes = [] } = useRemotes();
 	const { data: providersResponse } = useProviders();
 	const { defaultRemote } = useSettingsStore();
 
 	const providers = providersResponse?.data || [];
 
-	const hasRemotes = remotes.length > 0;
 	const connectedProviders = providers.filter((p: any) => p.enabled);
 	const hasProviders = connectedProviders.length > 0;
 
@@ -132,15 +128,15 @@ function SettingsOverview() {
 									to="/settings/downloads"
 								/>
 								<SetupCard
-									title="Cloud Storage"
-									description={hasRemotes 
-										? `${remotes.length} remote${remotes.length > 1 ? 's' : ''} configured`
-										: "Set up cloud remotes for file browsing and auto-upload"
+									title="Uploads"
+									description={defaultRemote 
+										? `Auto-uploading to ${defaultRemote}`
+										: "Configure auto-upload behavior and remotes"
 									}
-									icon={<IconCloud className="w-5 h-5" />}
-									status={hasRemotes ? "configured" : "needs-setup"}
-									statusText={hasRemotes ? `${remotes.length} remote${remotes.length > 1 ? 's' : ''}` : undefined}
-									to="/settings/cloud"
+									icon={<IconCloudArrowUpIn className="w-5 h-5" />}
+									status={defaultRemote ? "configured" : "optional"}
+									statusText={defaultRemote ? "Active" : undefined}
+									to="/settings/uploads"
 								/>
 								<SetupCard
 									title="Premium Services"
@@ -209,7 +205,7 @@ function SettingsOverview() {
 												</p>
 											</div>
 										</div>
-										<Link to="/settings/cloud">
+										<Link to="/settings/uploads">
 											<Button size="sm" variant={defaultRemote ? "secondary" : "primary"} className="rounded-xl font-bold">
 												{defaultRemote ? "Change" : "Set Up"}
 											</Button>
@@ -259,24 +255,10 @@ function SettingsOverview() {
 									/>
 									<div className="h-px bg-border mx-4" />
 									<SettingsLink
-										title="Cloud Storage"
-										description="Manage remotes and upload destinations"
-										icon={<IconCloud className="w-4 h-4" />}
-										to="/settings/cloud"
-									/>
-									<div className="h-px bg-border mx-4" />
-									<SettingsLink
-										title="Premium Services"
-										description="AllDebrid, Real-Debrid, and other debrid providers"
-										icon={<IconThunderbolt className="w-4 h-4" />}
-										to="/settings/premium"
-									/>
-									<div className="h-px bg-border mx-4" />
-									<SettingsLink
-										title="Network"
-										description="Proxy, connections, security, advanced networking"
-										icon={<IconGlobe className="w-4 h-4" />}
-										to="/settings/network"
+										title="Uploads"
+										description="Auto-upload, bandwidth limits, behavior"
+										icon={<IconCloudArrowUpIn className="w-4 h-4" />}
+										to="/settings/uploads"
 									/>
 									<div className="h-px bg-border mx-4" />
 									<SettingsLink
@@ -287,10 +269,17 @@ function SettingsOverview() {
 									/>
 									<div className="h-px bg-border mx-4" />
 									<SettingsLink
-										title="Preferences"
-										description="Theme, notifications, keyboard shortcuts"
-										icon={<IconGear className="w-4 h-4" />}
-										to="/settings/preferences"
+										title="Network"
+										description="Proxy, connections, security, advanced networking"
+										icon={<IconGlobe className="w-4 h-4" />}
+										to="/settings/network"
+									/>
+									<div className="h-px bg-border mx-4" />
+									<SettingsLink
+										title="Automation"
+										description="Scheduling, scripting, auto-organization"
+										icon={<IconClock className="w-4 h-4" />}
+										to="/settings/automation"
 									/>
 									<div className="h-px bg-border mx-4" />
 									<SettingsLink
@@ -301,10 +290,17 @@ function SettingsOverview() {
 									/>
 									<div className="h-px bg-border mx-4" />
 									<SettingsLink
-										title="Search Indexing"
-										description="Manage file search index and auto-update intervals"
-										icon={<IconMagnifyingGlass className="w-4 h-4" />}
-										to="/settings/search"
+										title="Preferences"
+										description="Theme, notifications, keyboard shortcuts"
+										icon={<IconGear className="w-4 h-4" />}
+										to="/settings/preferences"
+									/>
+									<div className="h-px bg-border mx-4" />
+									<SettingsLink
+										title="Advanced"
+										description="System internals, debug mode, log levels"
+										icon={<IconGear className="w-4 h-4" />}
+										to="/settings/advanced"
 									/>
 									<div className="h-px bg-border mx-4" />
 									<SettingsLink
@@ -312,6 +308,13 @@ function SettingsOverview() {
 										description="Engine versions, system status, and maintenance"
 										icon={<IconGear className="w-4 h-4" />}
 										to="/settings/server"
+									/>
+									<div className="h-px bg-border mx-4" />
+									<SettingsLink
+										title="Premium Services"
+										description="AllDebrid, Real-Debrid, and other debrid providers"
+										icon={<IconThunderbolt className="w-4 h-4" />}
+										to="/settings/premium"
 									/>
 								</Card.Content>
 							</Card>

@@ -26,15 +26,20 @@ func (h *MagnetHandler) Routes() chi.Router {
 	return r
 }
 
+// Check godoc
+// @Summary Check magnet link
+// @Description Check availability and retrieve file list for a magnet link
+// @Tags magnets
+// @Accept json
+// @Produce json
+// @Param request body CheckMagnetRequest true "Magnet check request"
+// @Success 200 {object} model.MagnetInfo
+// @Failure 400 {string} string "Invalid Request"
+// @Failure 500 {string} string "Internal Server Error"
+// @Router /magnets/check [post]
 func (h *MagnetHandler) Check(w http.ResponseWriter, r *http.Request) {
 	var req CheckMagnetRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request", http.StatusBadRequest)
-		return
-	}
-
-	if req.Magnet == "" {
-		http.Error(w, "magnet is required", http.StatusBadRequest)
+	if !decodeAndValidate(w, r, &req) {
 		return
 	}
 
@@ -48,15 +53,20 @@ func (h *MagnetHandler) Check(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(info)
 }
 
+// CheckTorrent godoc
+// @Summary Check torrent file
+// @Description Check availability and retrieve file list for a .torrent file (base64)
+// @Tags magnets
+// @Accept json
+// @Produce json
+// @Param request body CheckTorrentRequest true "Torrent check request"
+// @Success 200 {object} model.MagnetInfo
+// @Failure 400 {string} string "Invalid Request"
+// @Failure 500 {string} string "Internal Server Error"
+// @Router /magnets/check-torrent [post]
 func (h *MagnetHandler) CheckTorrent(w http.ResponseWriter, r *http.Request) {
 	var req CheckTorrentRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request", http.StatusBadRequest)
-		return
-	}
-
-	if req.TorrentBase64 == "" {
-		http.Error(w, "torrentBase64 is required", http.StatusBadRequest)
+	if !decodeAndValidate(w, r, &req) {
 		return
 	}
 
@@ -70,17 +80,27 @@ func (h *MagnetHandler) CheckTorrent(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(info)
 }
 
+// Download godoc
+// @Summary Download from magnet/torrent
+// @Description Start a download using selected files from a magnet or torrent
+// @Tags magnets
+// @Accept json
+// @Produce json
+// @Param request body DownloadMagnetRequest true "Magnet download request"
+// @Success 201 {object} model.Download
+// @Failure 400 {string} string "Invalid Request"
+// @Failure 500 {string} string "Internal Server Error"
+// @Router /magnets/download [post]
 func (h *MagnetHandler) Download(w http.ResponseWriter, r *http.Request) {
 	var req DownloadMagnetRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request", http.StatusBadRequest)
+	if !decodeAndValidate(w, r, &req) {
 		return
 	}
 
 	// Convert files to model
-	var allFiles []model.MagnetFile
+	var allFiles []*model.MagnetFile
 	for _, f := range req.Files {
-		allFiles = append(allFiles, model.MagnetFile{
+		allFiles = append(allFiles, &model.MagnetFile{
 			ID:    f.ID,
 			Name:  f.Name,
 			Path:  f.Path,
@@ -97,6 +117,7 @@ func (h *MagnetHandler) Download(w http.ResponseWriter, r *http.Request) {
 		MagnetID:      req.MagnetID,
 		Name:          req.Name,
 		SelectedFiles: req.SelectedFiles,
+		DownloadDir:   req.DownloadDir,
 		Destination:   req.Destination,
 		AllFiles:      allFiles,
 	})

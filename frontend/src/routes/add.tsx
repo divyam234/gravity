@@ -1,13 +1,14 @@
-import { useState, useEffect, useCallback, useId } from "react";
-import { Button, Chip, Label, Input, TextArea, TextField } from "@heroui/react";
+import { useState, useEffect, useId, useDeferredValue } from "react";
+import { Button, Chip, Label, Input, TextArea, TextField, Select, ListBox } from "@heroui/react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { useForm, useStore } from "@tanstack/react-form";
 import { toast } from "sonner";
 import IconChevronLeft from "~icons/gravity-ui/chevron-left";
 import IconMagnet from "~icons/gravity-ui/magnet";
-import IconNodesDown from "~icons/gravity-ui/nodes-down";
+import IconChevronDown from "~icons/gravity-ui/chevron-down";
 import { useDownloadActions } from "../hooks/useDownloads";
 import { api } from "../lib/api";
-import { useSettingsStore } from "../store/useSettingsStore";
 import { tasksLinkOptions } from "./tasks";
 import {
   FileTree,
@@ -15,7 +16,7 @@ import {
   getSelectedSize,
 } from "../components/ui/FileTree";
 import { formatBytes } from "../lib/utils";
-import type { MagnetInfo, MagnetFile } from "../lib/types";
+import type { MagnetFile, TaskOptions } from "../lib/types";
 
 export const Route = createFileRoute("/add")({
   component: AddDownloadPage,
@@ -24,157 +25,140 @@ export const Route = createFileRoute("/add")({
 function AddDownloadPage() {
   const navigate = useNavigate();
   const fileInputId = useId();
-  const { defaultRemote, setDefaultRemote } = useSettingsStore();
-
-  const [uris, setUris] = useState("");
-  const [filename, setFilename] = useState("");
-  const [resolution, setResolution] = useState<{
-    provider: string;
-    supported: boolean;
-  } | null>(null);
-
-  // Magnet/Torrent state
-  const [isMagnet, setIsMagnet] = useState(false);
-  const [isTorrent, setIsTorrent] = useState(false);
-  const [torrentBase64, setTorrentBase64] = useState<string | null>(null);
-  const [isCheckingMagnet, setIsCheckingMagnet] = useState(false);
-  const [checkStatus, setCheckStatus] = useState("Checking cache...");
-  const [magnetInfo, setMagnetInfo] = useState<MagnetInfo | null>(null);
-  const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
-  const [magnetError, setMagnetError] = useState<string | null>(null);
-
   const { create } = useDownloadActions();
 
-  const checkMagnet = useCallback(async (magnet: string) => {
-    setIsCheckingMagnet(true);
-    setCheckStatus("Checking AllDebrid cache...");
-    setMagnetError(null);
-    setMagnetInfo(null);
-    setIsTorrent(false);
-    setTorrentBase64(null);
+  const [isTorrent, setIsTorrent] = useState(false);
+  const [torrentBase64, setTorrentBase64] = useState<string | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
 
-    // Timer to update status if it takes long
-    const statusTimer = setTimeout(() => {
-      setCheckStatus("Searching for peers (fetching metadata)...");
-    }, 3000);
+  // Form setup
+  const form = useForm({
+    defaultValues: {
+      uris: "",
+      filename: "",
+      downloadDir: "",
+      destination: "",
+      headersInput: "",
+      connections: 8,
+      split: 8,
+      maxDownloadSpeed: "",
+      proxyUrl: "",
+    },
+    onSubmit: async ({ value }) => {
+      const currentUrlValue = value.uris.trim().split("\n")[0]?.trim();
+      const headers: Record<string, string> = {};
+      
+      if (value.headersInput.trim()) {
+        value.headersInput.split('\n').forEach(line => {
+          const parts = line.split(':');
+          if (parts.length >= 2) {
+            const key = parts[0].trim();
+            const val = parts.slice(1).join(':').trim();
+            if (key && val) headers[key] = val;
+          }
+        });
+      }
 
-    try {
-      const info = await api.checkMagnet(magnet);
-      info.files = buildTreeFromFlatFiles(info.files);
-      setMagnetInfo(info);
+      const options: TaskOptions = {
+        connections: value.connections,
+        split: value.split,
+        maxDownloadSpeed: value.maxDownloadSpeed ? Number(value.maxDownloadSpeed) : undefined,
+        proxyUrl: value.proxyUrl || undefined,
+        headers: Object.keys(headers).length > 0 ? headers : undefined,
+      };
 
-      // Pre-select all files
-      const allIds = getAllFileIds(info.files);
-      setSelectedFiles(new Set(allIds));
-    } catch (err: any) {
-      setMagnetError(err.message || "Failed to check magnet");
-    } finally {
-      clearTimeout(statusTimer);
-      setIsCheckingMagnet(false);
+      const isMagnetLocal = !!currentUrlValue && currentUrlValue.startsWith("magnet:");
+
+      if ((isMagnetLocal || isTorrent) && magnetInfo) {
+        try {
+          await api.downloadMagnet({
+            magnet: isMagnetLocal ? currentUrlValue : "",
+            torrentBase64: torrentBase64 || "",
+            source: magnetInfo.source,
+            magnetId: magnetInfo.magnetId,
+            name: magnetInfo.name,
+            selectedFiles: Array.from(selectedFiles),
+            downloadDir: value.downloadDir || undefined,
+            destination: value.destination || undefined,
+            files: flattenFiles(magnetInfo.files),
+            options: options,
+          });
+          toast.success(isTorrent ? "Torrent download started" : "Magnet download started");
+          navigate(tasksLinkOptions("active"));
+        } catch (err: unknown) {
+          const error = err as Error;
+          toast.error(`Failed to start download: ${error.message}`);
+        }
+      } else {
+        if (!currentUrlValue) return;
+        create.mutate(
+          {
+            url: currentUrlValue,
+            filename: value.filename || undefined,
+            downloadDir: value.downloadDir || undefined,
+            destination: value.destination || undefined,
+            options: options,
+          },
+          {
+            onSuccess: () => navigate(tasksLinkOptions("active")),
+          },
+        );
+      }
+    },
+  });
+
+  // Reactive uris value for queries
+  const uris = useStore(form.store, (s) => s.values.uris);
+  const deferredUris = useDeferredValue(uris);
+  const currentUrl = deferredUris.trim().split("\n")[0]?.trim();
+
+  // 1. Magnet Check Query
+  const { data: magnetCheckData, isLoading: isCheckingMagnet, error: magnetError } = useQuery({
+    queryKey: ["magnet", currentUrl],
+    queryFn: async () => {
+        const info = await api.checkMagnet(currentUrl!);
+        info.files = buildTreeFromFlatFiles(info.files);
+        return info;
+    },
+    enabled: !!currentUrl && currentUrl.startsWith("magnet:"),
+    staleTime: 60000,
+  });
+
+  // 2. Torrent Check Query
+  const { data: torrentCheckData, isLoading: isCheckingTorrent, error: torrentError } = useQuery({
+    queryKey: ["torrent", torrentBase64],
+    queryFn: async () => {
+        const info = await api.checkTorrent(torrentBase64!);
+        info.files = buildTreeFromFlatFiles(info.files);
+        return info;
+    },
+    enabled: isTorrent && !!torrentBase64,
+    staleTime: 60000,
+  });
+
+  const magnetInfo = isTorrent ? torrentCheckData : magnetCheckData;
+  const isMagnet = !!currentUrl && currentUrl.startsWith("magnet:");
+  const isLoadingInfo = isCheckingMagnet || isCheckingTorrent;
+  const anyError = magnetError || torrentError;
+
+  // Sync selected files when magnet info loads
+  useEffect(() => {
+    if (magnetInfo) {
+        const allIds = getAllFileIds(magnetInfo.files);
+        setSelectedFiles(new Set(allIds));
     }
-  }, []);
+  }, [magnetInfo]);
 
   const handleTorrentUpload = async (file: File) => {
-    setIsCheckingMagnet(true);
-    setCheckStatus("Parsing torrent file...");
-    setMagnetError(null);
-    setMagnetInfo(null);
-    setIsMagnet(false);
     setIsTorrent(true);
-    setUris(""); // Clear URIs if a torrent is uploaded
+    form.setFieldValue("uris", "");
 
     const reader = new FileReader();
     reader.onload = async (e) => {
       const base64 = (e.target?.result as string).split(",")[1];
       setTorrentBase64(base64);
-      try {
-        const info = await api.checkTorrent(base64);
-        info.files = buildTreeFromFlatFiles(info.files);
-        setMagnetInfo(info);
-        const allIds = getAllFileIds(info.files);
-        setSelectedFiles(new Set(allIds));
-      } catch (err: any) {
-        setMagnetError(err.message || "Failed to parse torrent");
-      } finally {
-        setIsCheckingMagnet(false);
-      }
     };
     reader.readAsDataURL(file);
-  };
-
-  // Detect magnet and check
-  useEffect(() => {
-    if (isTorrent) return; // Don't check URIs if we're doing a torrent upload
-
-    const url = uris.trim().split("\n")[0]?.trim();
-
-    if (url && url.startsWith("magnet:")) {
-      setIsMagnet(true);
-      setResolution(null);
-      const timer = setTimeout(() => {
-        checkMagnet(url);
-      }, 500);
-      return () => clearTimeout(timer);
-    } else {
-      setIsMagnet(false);
-      if (!isTorrent) {
-        setMagnetInfo(null);
-        setMagnetError(null);
-        setSelectedFiles(new Set());
-      }
-
-      // Regular URL resolution
-      if (url && url.startsWith("http")) {
-        const timer = setTimeout(async () => {
-          try {
-            const res = await api.resolveUrl(url);
-            setResolution(res);
-          } catch (err) {
-            setResolution(null);
-          }
-        }, 500);
-        return () => clearTimeout(timer);
-      } else {
-        setResolution(null);
-      }
-    }
-  }, [uris, checkMagnet, isTorrent]);
-
-  const handleSubmit = async () => {
-    if ((isMagnet || isTorrent) && magnetInfo) {
-      // Magnet/Torrent download
-      try {
-        await api.downloadMagnet({
-          magnet: isMagnet ? uris.trim().split("\n")[0] : "",
-          torrentBase64: torrentBase64 || "",
-          source: magnetInfo.source,
-          magnetId: magnetInfo.magnetId,
-          name: magnetInfo.name,
-          selectedFiles: Array.from(selectedFiles),
-          destination: defaultRemote || undefined,
-          files: flattenFiles(magnetInfo.files),
-        });
-        toast.success(isTorrent ? "Torrent download started" : "Magnet download started");
-        navigate(tasksLinkOptions("active"));
-      } catch (err: any) {
-        toast.error(`Failed to start download: ${err.message}`);
-      }
-    } else {
-      // Regular download
-      const uriList = uris.split("\n").filter((u) => u.trim());
-      if (uriList.length === 0) return;
-
-      create.mutate(
-        {
-          url: uriList[0],
-          filename: filename || undefined,
-          destination: defaultRemote || undefined,
-        },
-        {
-          onSuccess: () => navigate(tasksLinkOptions("active")),
-        },
-      );
-    }
   };
 
   const selectAllFiles = () => {
@@ -218,14 +202,14 @@ function AddDownloadPage() {
           </Button>
           <Button
             className="px-8 h-10 rounded-xl font-black uppercase tracking-widest shadow-lg shadow-accent/20 bg-accent text-accent-foreground"
-            onPress={handleSubmit}
+            onPress={() => form.handleSubmit()}
             isDisabled={
-              !uris.trim() && !isTorrent ||
+              (!currentUrl && !isTorrent) ||
               create.isPending ||
-              isCheckingMagnet ||
+              isLoadingInfo ||
               ((isMagnet || isTorrent) && selectedFiles.size === 0)
             }
-            isPending={create.isPending || isCheckingMagnet}
+            isPending={create.isPending || isLoadingInfo}
           >
             Start
           </Button>
@@ -237,39 +221,44 @@ function AddDownloadPage() {
         <div className="lg:col-span-7 space-y-6">
           <div className="bg-background p-8 rounded-[32px] border border-border shadow-sm">
             <div className="flex flex-col gap-3">
-              <TextField className="flex flex-col gap-3">
-                <Label className="text-xs font-black uppercase tracking-widest text-muted px-1">
-                  Download URL
-                </Label>
-                <div className="relative group">
-                  <TextArea
-                    placeholder="Paste HTTP, FTP or Magnet links here..."
-                    value={uris}
-                    onChange={(e) => setUris(e.target.value)}
-                    className="w-full p-6 bg-default/10 rounded-3xl text-sm border border-transparent focus:bg-default/15 focus:border-accent/30 transition-all outline-none min-h-[120px] leading-relaxed font-mono"
-                  />
-                  <div className="absolute right-4 bottom-4 flex gap-2">
-                    <input
-                      type="file"
-                      id={fileInputId}
-                      className="hidden"
-                      accept=".torrent"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) handleTorrentUpload(file);
-                      }}
-                    />
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      className="rounded-xl font-bold text-[10px] uppercase tracking-widest px-3 h-8"
-                      onPress={() => document.getElementById(fileInputId)?.click()}
-                    >
-                      Upload .torrent
-                    </Button>
-                  </div>
-                </div>
-              </TextField>
+              <form.Field
+                name="uris"
+                children={(field) => (
+                  <TextField className="flex flex-col gap-3">
+                    <Label className="text-xs font-black uppercase tracking-widest text-muted px-1">
+                      Download URL
+                    </Label>
+                    <div className="relative group">
+                      <TextArea
+                        placeholder="Paste HTTP, FTP or Magnet links here..."
+                        value={field.state.value}
+                        onChange={(e) => field.handleChange(e.target.value)}
+                        className="w-full p-6 bg-default/10 rounded-3xl text-sm border border-transparent focus:bg-default/15 focus:border-accent/30 transition-all outline-none min-h-[120px] leading-relaxed font-mono"
+                      />
+                      <div className="absolute right-4 bottom-4 flex gap-2">
+                        <input
+                          type="file"
+                          id={fileInputId}
+                          className="hidden"
+                          accept=".torrent"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) handleTorrentUpload(file);
+                          }}
+                        />
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          className="rounded-xl font-bold text-[10px] uppercase tracking-widest px-3 h-8"
+                          onPress={() => document.getElementById(fileInputId)?.click()}
+                        >
+                          Upload .torrent
+                        </Button>
+                      </div>
+                    </div>
+                  </TextField>
+                )}
+              />
 
               {/* Magnet/Torrent indicator */}
               {(isMagnet || isTorrent) && (
@@ -286,7 +275,6 @@ function AddDownloadPage() {
                       onPress={() => {
                         setIsTorrent(false);
                         setTorrentBase64(null);
-                        setMagnetInfo(null);
                       }}
                     >
                       Clear
@@ -295,26 +283,10 @@ function AddDownloadPage() {
                 </div>
               )}
 
-              {/* Regular URL resolution */}
-              {!isMagnet && !isTorrent && resolution && (
-                <div
-                  className={`mt-2 p-4 rounded-2xl flex items-center gap-3 border ${resolution.supported ? "bg-success/5 border-success/20 text-success" : "bg-warning/5 border-warning/20 text-warning"}`}
-                >
-                  <IconNodesDown className="w-5 h-5" />
-                  <div className="flex-1">
-                    <p className="text-xs font-bold">
-                      {resolution.supported
-                        ? `Supported by ${resolution.provider}`
-                        : "No specific provider support, will try direct download"}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Magnet error */}
-              {magnetError && (
-                <div className="mt-2 p-4 rounded-2xl bg-danger/5 border border-danger/20 text-danger">
-                  <p className="text-xs font-bold">{magnetError}</p>
+              {/* Error display */}
+              {anyError && (
+                <div className="mt-2 p-4 rounded-2xl bg-danger/5 border border-danger/20 text-danger text-xs font-bold">
+                  {(anyError as Error).message || "Failed to process link"}
                 </div>
               )}
             </div>
@@ -393,12 +365,12 @@ function AddDownloadPage() {
           )}
 
           {/* Loading state for magnet/torrent check */}
-          {(isMagnet || isTorrent) && isCheckingMagnet && (
+          {(isMagnet || isTorrent) && isLoadingInfo && (
             <div className="bg-background p-8 rounded-[32px] border border-border shadow-sm">
               <div className="flex items-center justify-center gap-3 py-8 flex-col">
                 <div className="animate-spin rounded-full h-8 w-8 border-3 border-accent border-t-transparent" />
                 <span className="text-sm text-muted font-bold uppercase tracking-widest">
-                  {checkStatus}
+                  {isCheckingTorrent ? "Parsing torrent file..." : "Checking cache & peers..."}
                 </span>
               </div>
             </div>
@@ -410,34 +382,206 @@ function AddDownloadPage() {
           <div className="bg-background p-8 rounded-[32px] border border-border shadow-sm space-y-6">
             {/* Filename (only for non-magnet/torrent) */}
             {!isMagnet && !isTorrent && (
-              <TextField className="flex flex-col gap-2">
-                <Label className="text-xs font-black uppercase tracking-widest text-muted px-1">
-                  Filename (Optional)
-                </Label>
-                <Input
-                  placeholder="original-name.zip"
-                  value={filename}
-                  onChange={(e) => setFilename(e.target.value)}
-                  className="w-full h-12 px-4 bg-default/10 rounded-2xl text-sm border-none focus:bg-default/15 transition-all outline-none"
-                />
-              </TextField>
+              <form.Field
+                name="filename"
+                children={(field) => (
+                  <TextField className="flex flex-col gap-2">
+                    <Label className="text-xs font-black uppercase tracking-widest text-muted px-1">
+                      Filename (Optional)
+                    </Label>
+                    <Input
+                      placeholder="original-name.zip"
+                      value={field.state.value}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                      className="w-full h-12 px-4 bg-default/10 rounded-2xl text-sm border-none focus:bg-default/15 transition-all outline-none"
+                    />
+                  </TextField>
+                )}
+              />
             )}
 
-            <TextField className="flex flex-col gap-2">
-              <Label className="text-xs font-black uppercase tracking-widest text-muted px-1">
-                Upload Target
-              </Label>
-              <Input
-                placeholder="e.g. gdrive:/downloads"
-                value={defaultRemote}
-                onChange={(e) => setDefaultRemote(e.target.value)}
-                className="w-full h-12 px-4 bg-default/10 rounded-2xl text-sm border-none focus:bg-default/15 transition-all outline-none"
+            <form.Field
+              name="downloadDir"
+              children={(field) => (
+                <TextField className="flex flex-col gap-2">
+                  <Label className="text-xs font-black uppercase tracking-widest text-muted px-1">
+                    Download Directory (Optional)
+                  </Label>
+                  <Input
+                    placeholder="e.g. /downloads/movies"
+                    value={field.state.value}
+                    onChange={(e) => field.handleChange(e.target.value)}
+                    className="w-full h-12 px-4 bg-default/10 rounded-2xl text-sm border-none focus:bg-default/15 transition-all outline-none"
+                  />
+                  <p className="text-[10px] text-muted font-medium px-1 leading-relaxed">
+                    Local directory where files will be downloaded.
+                  </p>
+                </TextField>
+              )}
+            />
+
+            <form.Field
+              name="destination"
+              children={(field) => (
+                <TextField className="flex flex-col gap-2">
+                  <Label className="text-xs font-black uppercase tracking-widest text-muted px-1">
+                    Final Destination (Remote)
+                  </Label>
+                  <Input
+                    placeholder="e.g. gdrive:/downloads"
+                    value={field.state.value}
+                    onChange={(e) => field.handleChange(e.target.value)}
+                    className="w-full h-12 px-4 bg-default/10 rounded-2xl text-sm border-none focus:bg-default/15 transition-all outline-none"
+                  />
+                  <p className="text-[10px] text-muted font-medium px-1 leading-relaxed">
+                    Enter a remote path to automatically offload files to the cloud
+                    after download completes.
+                  </p>
+                </TextField>
+              )}
+            />
+          </div>
+
+          {/* Download Options */}
+          <div className="bg-background p-8 rounded-[32px] border border-border shadow-sm space-y-6">
+            <h3 className="text-sm font-black uppercase tracking-widest text-muted">
+              Download Options
+            </h3>
+
+            <div className="grid grid-cols-2 gap-4">
+              <form.Field
+                name="connections"
+                children={(field) => (
+                  <TextField className="flex flex-col gap-2">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted px-1">
+                      Connections
+                    </Label>
+                    <Select
+                      selectedKey={String(field.state.value)}
+                      onSelectionChange={(key) => field.handleChange(Number(key))}
+                      className="w-full"
+                    >
+                      <Select.Trigger className="h-10 px-4 bg-default/10 rounded-xl border-none">
+                        <Select.Value className="text-sm font-bold" />
+                        <Select.Indicator className="text-muted">
+                          <IconChevronDown className="w-4 h-4" />
+                        </Select.Indicator>
+                      </Select.Trigger>
+                      <Select.Popover className="min-w-[100px] p-2 bg-background border border-border rounded-2xl shadow-xl">
+                        <ListBox
+                          items={[1, 2, 4, 8, 16].map((n) => ({
+                            id: String(n),
+                            name: String(n),
+                          }))}
+                        >
+                          {(item) => (
+                            <ListBox.Item
+                              id={item.id}
+                              textValue={item.name}
+                              className="px-3 py-2 rounded-lg data-[hover=true]:bg-default/15 text-sm cursor-pointer outline-none"
+                            >
+                              <Label>{item.name}</Label>
+                            </ListBox.Item>
+                          )}
+                        </ListBox>
+                      </Select.Popover>
+                    </Select>
+                  </TextField>
+                )}
               />
-              <p className="text-[10px] text-muted font-medium px-1 leading-relaxed">
-                Enter a remote path to automatically offload files to the cloud
-                after download completes.
-              </p>
-            </TextField>
+
+              <form.Field
+                name="split"
+                children={(field) => (
+                  <TextField className="flex flex-col gap-2">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted px-1">
+                      Split
+                    </Label>
+                    <Select
+                      selectedKey={String(field.state.value)}
+                      onSelectionChange={(key) => field.handleChange(Number(key))}
+                      className="w-full"
+                    >
+                      <Select.Trigger className="h-10 px-4 bg-default/10 rounded-xl border-none">
+                        <Select.Value className="text-sm font-bold" />
+                        <Select.Indicator className="text-muted">
+                          <IconChevronDown className="w-4 h-4" />
+                        </Select.Indicator>
+                      </Select.Trigger>
+                      <Select.Popover className="min-w-[100px] p-2 bg-background border border-border rounded-2xl shadow-xl">
+                        <ListBox
+                          items={[1, 2, 4, 8, 16].map((n) => ({
+                            id: String(n),
+                            name: String(n),
+                          }))}
+                        >
+                          {(item) => (
+                            <ListBox.Item
+                              id={item.id}
+                              textValue={item.name}
+                              className="px-3 py-2 rounded-lg data-[hover=true]:bg-default/15 text-sm cursor-pointer outline-none"
+                            >
+                              <Label>{item.name}</Label>
+                            </ListBox.Item>
+                          )}
+                        </ListBox>
+                      </Select.Popover>
+                    </Select>
+                  </TextField>
+                )}
+              />
+            </div>
+
+            <form.Field
+              name="maxDownloadSpeed"
+              children={(field) => (
+                <TextField className="flex flex-col gap-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-muted px-1">
+                    Max Speed
+                  </Label>
+                  <Input
+                    placeholder="e.g. 10M, 500K or 0"
+                    value={field.state.value}
+                    onChange={(e) => field.handleChange(e.target.value)}
+                    className="w-full h-12 px-4 bg-default/10 rounded-2xl text-sm border-none focus:bg-default/15 transition-all outline-none"
+                  />
+                </TextField>
+              )}
+            />
+
+            <form.Field
+              name="proxyUrl"
+              children={(field) => (
+                <TextField className="flex flex-col gap-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-muted px-1">
+                    Proxy URL (Optional)
+                  </Label>
+                  <Input
+                    placeholder="http://proxy:port"
+                    value={field.state.value}
+                    onChange={(e) => field.handleChange(e.target.value)}
+                    className="w-full h-12 px-4 bg-default/10 rounded-2xl text-sm border-none focus:bg-default/15 transition-all outline-none"
+                  />
+                </TextField>
+              )}
+            />
+
+            <form.Field
+              name="headersInput"
+              children={(field) => (
+                <TextField className="flex flex-col gap-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-muted px-1">
+                    Custom Headers (Optional)
+                  </Label>
+                  <TextArea
+                    placeholder="User-Agent: MyAgent&#10;Cookie: key=value"
+                    value={field.state.value}
+                    onChange={(e) => field.handleChange(e.target.value)}
+                    className="w-full p-4 bg-default/10 rounded-2xl text-xs border-none focus:bg-default/15 transition-all outline-none font-mono min-h-[80px]"
+                  />
+                </TextField>
+              )}
+            />
           </div>
 
           {/* Magnet/Torrent source info */}
@@ -445,10 +589,9 @@ function AddDownloadPage() {
             <div className="bg-background p-6 rounded-[32px] border border-border shadow-sm">
               <div className="flex items-center gap-4">
                 <div
-                  className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg ${
-                    magnetInfo.source === "alldebrid"
-                      ? "bg-success/10 text-success shadow-success/10"
-                      : "bg-accent/10 text-accent shadow-accent/10"
+                  className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg ${magnetInfo.source === "alldebrid"
+                    ? "bg-success/10 text-success shadow-success/10"
+                    : "bg-accent/10 text-accent shadow-accent/10"
                   }`}
                 >
                   <span className="font-black text-lg">
@@ -477,20 +620,13 @@ function AddDownloadPage() {
 }
 
 // Helper to flatten nested files for API request
-function flattenFiles(files: MagnetFile[]): any[] {
-  const result: any[] = [];
+function flattenFiles(files: MagnetFile[]): MagnetFile[] {
+  const result: MagnetFile[] = [];
 
   function traverse(items: MagnetFile[]) {
     for (const file of items) {
       if (!file.isFolder) {
-        result.push({
-          id: file.id,
-          name: file.name,
-          path: file.path,
-          size: file.size,
-          link: file.link,
-          index: file.index,
-        });
+        result.push(file);
       }
       if (file.children) {
         traverse(file.children);
@@ -513,7 +649,7 @@ function buildTreeFromFlatFiles(files: MagnetFile[]): MagnetFile[] {
   const root: MagnetFile[] = [];
 
   files.forEach((file) => {
-    let parts = file.path.split("/");
+    const parts = file.path.split("/");
     let currentLevel = root;
     let currentPath = "";
 
@@ -522,7 +658,7 @@ function buildTreeFromFlatFiles(files: MagnetFile[]): MagnetFile[] {
       const isFile = index === parts.length - 1;
 
       // Find existing node at this level
-      let existing = currentLevel.find((n) => n.name === part);
+      const existing = currentLevel.find((n) => n.name === part);
 
       if (existing) {
         if (existing.isFolder) {

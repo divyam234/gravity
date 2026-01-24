@@ -5,35 +5,28 @@ import (
 )
 
 type Registry struct {
-	providers map[string]Provider
-	mu        sync.RWMutex
+	providers sync.Map // map[string]Provider
 }
 
 func NewRegistry() *Registry {
-	return &Registry{
-		providers: make(map[string]Provider),
-	}
+	return &Registry{}
 }
 
 func (r *Registry) Register(p Provider) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.providers[p.Name()] = p
+	r.providers.Store(p.Name(), p)
 }
 
 func (r *Registry) Get(name string) Provider {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	return r.providers[name]
+	val, ok := r.providers.Load(name)
+	if !ok { return nil }
+	return val.(Provider)
 }
 
 func (r *Registry) List() []Provider {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	list := make([]Provider, 0, len(r.providers))
-	for _, p := range r.providers {
-		list = append(list, p)
-	}
+	var list []Provider
+	r.providers.Range(func(key, value any) bool {
+		list = append(list, value.(Provider))
+		return true
+	})
 	return list
 }

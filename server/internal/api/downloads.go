@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"gravity/internal/model"
 	"gravity/internal/service"
 	"gravity/internal/utils"
 
@@ -32,6 +33,17 @@ func (h *DownloadHandler) Routes() chi.Router {
 	return r
 }
 
+// List godoc
+// @Summary List downloads
+// @Description Get a paginated list of downloads with optional status filtering
+// @Tags downloads
+// @Produce json
+// @Param status query string false "Comma-separated statuses to filter by"
+// @Param limit query int false "Max number of items to return"
+// @Param offset query int false "Offset for pagination"
+// @Success 200 {object} ListResponse
+// @Failure 500 {string} string "Internal Server Error"
+// @Router /downloads [get]
 func (h *DownloadHandler) List(w http.ResponseWriter, r *http.Request) {
 	statusStr := r.URL.Query().Get(ParamStatus)
 	var status []string
@@ -61,10 +73,20 @@ func (h *DownloadHandler) List(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// Create godoc
+// @Summary Create download
+// @Description Start a new download from a URL
+// @Tags downloads
+// @Accept json
+// @Produce json
+// @Param request body CreateDownloadRequest true "Download request"
+// @Success 201 {object} model.Download
+// @Failure 400 {string} string "Invalid Request"
+// @Failure 500 {string} string "Internal Server Error"
+// @Router /downloads [post]
 func (h *DownloadHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var req CreateDownloadRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request", http.StatusBadRequest)
+	if !decodeAndValidate(w, r, &req) {
 		return
 	}
 
@@ -86,18 +108,19 @@ func (h *DownloadHandler) Create(w http.ResponseWriter, r *http.Request) {
 	// 2. A remote path (e.g. gdrive:) -> Download to default -> Upload
 	// 3. A relative path (e.g. movies) -> Download to default/movies (Direct Download)
 
-	// Therefore, we do NOT strictly sanitize req.Destination against the default data directory here.
+	// Therefore, we do NOT strictly sanitize the paths against the default data directory here.
 	// We trust the service layer to handle the logic and the underlying engine/OS to handle permission errors.
 	// This allows power users to download to external drives.
 
-	cleanDest := ""
-	if req.Destination != "" {
-		// Just clean the path string to remove redundancies like // or /./
-		// We do NOT use SanitizePath because that enforces baseDir containment.
-		cleanDest = req.Destination
+	opts := model.TaskOptions{
+		MaxDownloadSpeed: req.Options.MaxDownloadSpeed,
+		Connections:      req.Options.Connections,
+		Split:            req.Options.Split,
+		ProxyURL:         req.Options.ProxyURL,
+		UploadRemote:     req.Options.UploadRemote,
 	}
 
-	d, err := h.service.Create(r.Context(), req.URL, cleanFilename, cleanDest)
+	d, err := h.service.Create(r.Context(), req.URL, cleanFilename, req.DownloadDir, req.Destination, opts)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -107,6 +130,15 @@ func (h *DownloadHandler) Create(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(d)
 }
 
+// Get godoc
+// @Summary Get download
+// @Description Get details of a specific download by ID
+// @Tags downloads
+// @Produce json
+// @Param id path string true "Download ID"
+// @Success 200 {object} model.Download
+// @Failure 404 {string} string "Not Found"
+// @Router /downloads/{id} [get]
 func (h *DownloadHandler) Get(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, ParamID)
 	d, err := h.service.Get(r.Context(), id)
@@ -117,6 +149,15 @@ func (h *DownloadHandler) Get(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(d)
 }
 
+// Delete godoc
+// @Summary Delete download
+// @Description Stop and delete a download, optionally removing files
+// @Tags downloads
+// @Param id path string true "Download ID"
+// @Param delete_files query bool false "If true, deletes files from disk"
+// @Success 204 "No Content"
+// @Failure 500 {string} string "Internal Server Error"
+// @Router /downloads/{id} [delete]
 func (h *DownloadHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, ParamID)
 	deleteFiles := r.URL.Query().Get(ParamDeleteFiles) == "true"
@@ -129,6 +170,14 @@ func (h *DownloadHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// Pause godoc
+// @Summary Pause download
+// @Description Pause an active download
+// @Tags downloads
+// @Param id path string true "Download ID"
+// @Success 200 "OK"
+// @Failure 500 {string} string "Internal Server Error"
+// @Router /downloads/{id}/pause [post]
 func (h *DownloadHandler) Pause(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, ParamID)
 	if err := h.service.Pause(r.Context(), id); err != nil {
@@ -138,6 +187,14 @@ func (h *DownloadHandler) Pause(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+// Resume godoc
+// @Summary Resume download
+// @Description Resume a paused download
+// @Tags downloads
+// @Param id path string true "Download ID"
+// @Success 200 "OK"
+// @Failure 500 {string} string "Internal Server Error"
+// @Router /downloads/{id}/resume [post]
 func (h *DownloadHandler) Resume(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, ParamID)
 	if err := h.service.Resume(r.Context(), id); err != nil {
@@ -147,6 +204,14 @@ func (h *DownloadHandler) Resume(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+// Retry godoc
+// @Summary Retry download
+// @Description Retry a failed or completed download
+// @Tags downloads
+// @Param id path string true "Download ID"
+// @Success 200 "OK"
+// @Failure 500 {string} string "Internal Server Error"
+// @Router /downloads/{id}/retry [post]
 func (h *DownloadHandler) Retry(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, ParamID)
 	if err := h.service.Retry(r.Context(), id); err != nil {

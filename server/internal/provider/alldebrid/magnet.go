@@ -6,35 +6,39 @@ import (
 	"encoding/json"
 	"fmt"
 	"mime/multipart"
-	"net/http"
 	"net/url"
 	"strings"
 
+	"github.com/rclone/rclone/lib/rest"
 	"gravity/internal/model"
 )
 
 // CheckMagnet uploads magnet to AllDebrid and checks if cached
 func (p *AllDebridProvider) CheckMagnet(ctx context.Context, magnet string) (*model.MagnetInfo, error) {
 	// POST /v4/magnet/upload
-	endpoint := fmt.Sprintf("%s/magnet/upload?agent=%s&apikey=%s", baseURL, agent, p.apiKey)
-
+	
 	form := url.Values{}
 	form.Set("magnets[]", magnet)
 
-	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, strings.NewReader(form.Encode()))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	params := url.Values{}
+	params.Set("agent", agent)
+	params.Set("apikey", p.apiKey)
 
-	return p.handleUploadResponse(ctx, req)
+	opts := rest.Opts{
+		Method:      "POST",
+		Path:        "/magnet/upload",
+		Parameters:  params,
+		ContentType: "application/x-www-form-urlencoded",
+		Body:        strings.NewReader(form.Encode()),
+	}
+
+	return p.handleUploadResponse(ctx, &opts)
 }
 
 // CheckTorrentFile uploads .torrent file to AllDebrid and checks status
 func (p *AllDebridProvider) CheckTorrentFile(ctx context.Context, fileData []byte) (*model.MagnetInfo, error) {
 	// POST /v4/magnet/upload/file
-	endpoint := fmt.Sprintf("%s/magnet/upload/file?agent=%s&apikey=%s", baseURL, agent, p.apiKey)
-
+	
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
 	part, err := writer.CreateFormFile("files[]", "upload.torrent")
@@ -48,22 +52,22 @@ func (p *AllDebridProvider) CheckTorrentFile(ctx context.Context, fileData []byt
 		return nil, err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, body)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", writer.FormDataContentType())
+	params := url.Values{}
+	params.Set("agent", agent)
+	params.Set("apikey", p.apiKey)
 
-	return p.handleUploadResponse(ctx, req)
+	opts := rest.Opts{
+		Method:      "POST",
+		Path:        "/magnet/upload/file",
+		Parameters:  params,
+		ContentType: writer.FormDataContentType(),
+		Body:        body,
+	}
+
+	return p.handleUploadResponse(ctx, &opts)
 }
 
-func (p *AllDebridProvider) handleUploadResponse(ctx context.Context, req *http.Request) (*model.MagnetInfo, error) {
-	resp, err := p.httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
+func (p *AllDebridProvider) handleUploadResponse(ctx context.Context, opts *rest.Opts) (*model.MagnetInfo, error) {
 	var result struct {
 		Status string `json:"status"`
 		Data   struct {
@@ -82,7 +86,8 @@ func (p *AllDebridProvider) handleUploadResponse(ctx context.Context, req *http.
 		} `json:"data"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	_, err := p.client.CallJSON(ctx, opts, nil, &result)
+	if err != nil {
 		return nil, err
 	}
 
@@ -125,20 +130,18 @@ func (p *AllDebridProvider) handleUploadResponse(ctx context.Context, req *http.
 }
 
 // GetMagnetFiles retrieves file tree for a magnet
-func (p *AllDebridProvider) GetMagnetFiles(ctx context.Context, magnetID string) ([]model.MagnetFile, error) {
+func (p *AllDebridProvider) GetMagnetFiles(ctx context.Context, magnetID string) ([]*model.MagnetFile, error) {
 	// GET /v4/magnet/status
-	endpoint := fmt.Sprintf("%s/magnet/status?agent=%s&apikey=%s&id=%s", baseURL, agent, p.apiKey, magnetID)
+	params := url.Values{}
+	params.Set("agent", agent)
+	params.Set("apikey", p.apiKey)
+	params.Set("id", magnetID)
 
-	req, err := http.NewRequestWithContext(ctx, "GET", endpoint, nil)
-	if err != nil {
-		return nil, err
+	opts := rest.Opts{
+		Method:     "GET",
+		Path:       "/magnet/status",
+		Parameters: params,
 	}
-
-	resp, err := p.httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
 
 	var result struct {
 		Status string `json:"status"`
@@ -150,7 +153,8 @@ func (p *AllDebridProvider) GetMagnetFiles(ctx context.Context, magnetID string)
 		} `json:"data"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	_, err := p.client.CallJSON(ctx, &opts, nil, &result)
+	if err != nil {
 		return nil, err
 	}
 
@@ -163,8 +167,8 @@ func (p *AllDebridProvider) GetMagnetFiles(ctx context.Context, magnetID string)
 }
 
 // parseFiles converts AllDebrid's nested format to flat MagnetFile array
-func (p *AllDebridProvider) parseFiles(rawFiles []json.RawMessage, parentPath string) ([]model.MagnetFile, error) {
-	var files []model.MagnetFile
+func (p *AllDebridProvider) parseFiles(rawFiles []json.RawMessage, parentPath string) ([]*model.MagnetFile, error) {
+	var files []*model.MagnetFile
 
 	for i, raw := range rawFiles {
 		var node struct {
@@ -196,7 +200,7 @@ func (p *AllDebridProvider) parseFiles(rawFiles []json.RawMessage, parentPath st
 				folderSize += child.Size
 			}
 
-			files = append(files, model.MagnetFile{
+			files = append(files, &model.MagnetFile{
 				ID:       fmt.Sprintf("folder_%d_%s", i, path),
 				Name:     node.N,
 				Path:     path,
@@ -206,7 +210,7 @@ func (p *AllDebridProvider) parseFiles(rawFiles []json.RawMessage, parentPath st
 			})
 		} else {
 			// File
-			files = append(files, model.MagnetFile{
+			files = append(files, &model.MagnetFile{
 				ID:       node.L, // Use link as ID for easy lookup
 				Name:     node.N,
 				Path:     path,
@@ -222,22 +226,21 @@ func (p *AllDebridProvider) parseFiles(rawFiles []json.RawMessage, parentPath st
 
 // DeleteMagnet removes a magnet from user's AllDebrid account
 func (p *AllDebridProvider) DeleteMagnet(ctx context.Context, magnetID string) error {
-	endpoint := fmt.Sprintf("%s/magnet/delete?agent=%s&apikey=%s", baseURL, agent, p.apiKey)
-
+	params := url.Values{}
+	params.Set("agent", agent)
+	params.Set("apikey", p.apiKey)
+	
 	form := url.Values{}
 	form.Set("id", magnetID)
 
-	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, strings.NewReader(form.Encode()))
-	if err != nil {
-		return err
+	opts := rest.Opts{
+		Method:      "POST",
+		Path:        "/magnet/delete",
+		Parameters:  params,
+		ContentType: "application/x-www-form-urlencoded",
+		Body:        strings.NewReader(form.Encode()),
 	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	resp, err := p.httpClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	return nil
+	_, err := p.client.CallJSON(ctx, &opts, nil, nil)
+	return err
 }

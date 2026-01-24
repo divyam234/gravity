@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"time"
 
@@ -11,6 +10,8 @@ import (
 	"gravity/internal/event"
 	"gravity/internal/model"
 	"gravity/internal/store"
+
+	"go.uber.org/zap"
 )
 
 type UploadService struct {
@@ -18,14 +19,17 @@ type UploadService struct {
 	settingsRepo *store.SettingsRepo
 	engine       engine.UploadEngine
 	bus          *event.Bus
+	ctx          context.Context
+	logger       *zap.Logger
 }
 
-func NewUploadService(repo *store.DownloadRepo, settingsRepo *store.SettingsRepo, eng engine.UploadEngine, bus *event.Bus) *UploadService {
+func NewUploadService(repo *store.DownloadRepo, settingsRepo *store.SettingsRepo, eng engine.UploadEngine, bus *event.Bus, l *zap.Logger) *UploadService {
 	s := &UploadService{
 		repo:         repo,
 		settingsRepo: settingsRepo,
 		engine:       eng,
 		bus:          bus,
+		logger:       l.With(zap.String("service", "upload")),
 	}
 
 	// Wire up engine events
@@ -36,23 +40,91 @@ func NewUploadService(repo *store.DownloadRepo, settingsRepo *store.SettingsRepo
 	return s
 }
 
-func (s *UploadService) Start() {
-	// Listen for download completions to trigger auto-upload
+func (s *UploadService) Start(ctx context.Context) {
+	s.ctx = ctx
+
+	// 1. Initial sync to catch stale uploads
+	if err := s.Sync(ctx); err != nil {
+		s.logger.Error("failed to sync uploads", zap.Error(err))
+	}
+
+	// 2. Listen for download completions to trigger auto-upload
 	events := s.bus.Subscribe()
 	go func() {
-		for ev := range events {
-			if ev.Type == event.DownloadCompleted {
-				d := ev.Data.(*model.Download)
-				if d.Destination != "" {
-					s.TriggerUpload(context.Background(), d)
+		for {
+			select {
+			case <-s.ctx.Done():
+				return
+			case ev := <-events:
+				if ev.Type == event.DownloadCompleted {
+					d := ev.Data.(*model.Download)
+					
+					settings, err := s.settingsRepo.Get(s.ctx)
+					if err != nil || settings == nil {
+						continue
+					}
+
+					// Logic:
+					// 1. If task has explicit destination -> use it.
+					// 2. If task has NO destination AND AutoUpload is ON -> use DefaultRemote.
+					target := d.Destination
+					if target == "" && settings.Upload.AutoUpload {
+						target = settings.Upload.DefaultRemote
+					}
+
+					if target != "" {
+						// Update the download object with the resolved destination so engine knows where to put it
+						d.Destination = target
+						s.TriggerUpload(s.ctx, d)
+					}
 				}
 			}
 		}
 	}()
 }
 
+func (s *UploadService) Sync(ctx context.Context) error {
+	// Find all downloads stuck in "uploading" state
+	uploads, _, err := s.repo.List(ctx, []string{string(model.StatusUploading)}, 1000, 0, false)
+	if err != nil {
+		return err
+	}
+
+	settings, _ := s.settingsRepo.Get(ctx)
+	autoUpload := true
+	if settings != nil {
+		autoUpload = settings.Upload.AutoUpload
+	}
+
+	for _, d := range uploads {
+		s.logger.Info("resetting stale upload", zap.String("id", d.ID))
+		d.Status = model.StatusComplete
+		d.UploadStatus = ""
+		d.UploadJobID = ""
+		
+		target := d.Destination
+		if target == "" && autoUpload {
+			target = settings.Upload.DefaultRemote
+		}
+
+		s.repo.Update(ctx, d)
+
+		if target != "" {
+			s.logger.Debug("re-triggering stale upload", zap.String("id", d.ID), zap.String("dest", target))
+			d.Destination = target
+			go s.TriggerUpload(s.ctx, d)
+		} else {
+			s.logger.Debug("skipping stale upload resume: no destination and auto-upload disabled", zap.String("id", d.ID))
+		}
+	}
+
+	return nil
+}
+
 func (s *UploadService) TriggerUpload(ctx context.Context, d *model.Download) error {
-	log.Printf("Upload: Triggering upload for %s to %s", d.ID, d.Destination)
+	s.logger.Info("triggering upload", 
+		zap.String("id", d.ID), 
+		zap.String("destination", d.Destination))
 
 	// Generate job ID upfront so we can save it before starting the upload
 	// This avoids race condition with handleProgress overwriting it
@@ -65,8 +137,8 @@ func (s *UploadService) TriggerUpload(ctx context.Context, d *model.Download) er
 	s.repo.Update(ctx, d)
 
 	// Trigger in engine
-	// Use LocalPath (absolute) if available, otherwise Filename (relative/fallback)
-	srcPath := d.LocalPath
+	// Use DownloadDir (absolute) if available, otherwise Filename (relative/fallback)
+	srcPath := d.DownloadDir
 	if srcPath == "" {
 		srcPath = d.Filename
 	}
@@ -92,7 +164,10 @@ func (s *UploadService) TriggerUpload(ctx context.Context, d *model.Download) er
 }
 
 func (s *UploadService) handleProgress(downloadID string, p engine.UploadProgress) {
-	ctx := context.Background()
+	ctx := s.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	d, err := s.repo.Get(ctx, downloadID)
 	if err != nil {
 		// Download may have been deleted - this is expected, silently ignore
@@ -119,7 +194,10 @@ func (s *UploadService) handleProgress(downloadID string, p engine.UploadProgres
 }
 
 func (s *UploadService) handleComplete(downloadID string) {
-	ctx := context.Background()
+	ctx := s.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	d, err := s.repo.Get(ctx, downloadID)
 	if err != nil {
 		// Download may have been deleted - this is expected, silently ignore
@@ -140,24 +218,25 @@ func (s *UploadService) handleComplete(downloadID string) {
 	// Check if we should delete the local file
 	settings, err := s.settingsRepo.Get(ctx)
 	shouldDelete := true // Default to true
-	if err == nil {
-		if val, ok := settings["delete_after_upload"]; ok && val == "false" {
-			shouldDelete = false
-		}
+	if err == nil && settings != nil {
+		shouldDelete = settings.Upload.RemoveLocal
 	}
 
-	if shouldDelete && d.LocalPath != "" {
-		log.Printf("Upload: Deleting local copy %s", d.LocalPath)
-		if err := os.RemoveAll(d.LocalPath); err != nil {
-			log.Printf("Upload: Failed to delete local file: %v", err)
+	if shouldDelete && d.DownloadDir != "" {
+		s.logger.Debug("deleting local copy after upload", zap.String("path", d.DownloadDir))
+		if err := os.RemoveAll(d.DownloadDir); err != nil {
+			s.logger.Error("failed to delete local file", zap.String("path", d.DownloadDir), zap.Error(err))
 		}
 		// Also try removing .aria2 control file just in case
-		os.Remove(d.LocalPath + ".aria2")
+		os.Remove(d.DownloadDir + ".aria2")
 	}
 }
 
 func (s *UploadService) handleError(downloadID string, err error) {
-	ctx := context.Background()
+	ctx := s.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	d, repoErr := s.repo.Get(ctx, downloadID)
 	if repoErr != nil {
 		// Download may have been deleted - this is expected, silently ignore

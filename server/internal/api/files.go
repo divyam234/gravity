@@ -34,6 +34,13 @@ func (h *FileHandler) Routes() chi.Router {
 	return r
 }
 
+// Restart godoc
+// @Summary Restart VFS
+// @Description Restart the Virtual File System engine
+// @Tags files
+// @Success 200 "OK"
+// @Failure 500 {string} string "Internal Server Error"
+// @Router /files/restart [post]
 func (h *FileHandler) Restart(w http.ResponseWriter, r *http.Request) {
 	if err := h.upload.Restart(r.Context()); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -42,6 +49,15 @@ func (h *FileHandler) Restart(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+// Cat godoc
+// @Summary Read file content
+// @Description Stream file content (supports Range requests)
+// @Tags files
+// @Param path query string true "Virtual path to file"
+// @Success 200 {file} file "File content"
+// @Failure 400 {string} string "Invalid Path"
+// @Failure 404 {string} string "Not Found"
+// @Router /files/cat [get]
 func (h *FileHandler) Cat(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Query().Get("path")
 	if path == "" {
@@ -72,6 +88,15 @@ func (h *FileHandler) Cat(w http.ResponseWriter, r *http.Request) {
 	http.ServeContent(w, r, info.Name, info.ModTime, rc)
 }
 
+// List godoc
+// @Summary List files
+// @Description List files and directories at a path
+// @Tags files
+// @Produce json
+// @Param path query string false "Virtual path (default root)"
+// @Success 200 {object} map[string][]engine.FileInfo
+// @Failure 500 {string} string "Internal Server Error"
+// @Router /files/list [get]
 func (h *FileHandler) List(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Query().Get("path")
 	if path == "" {
@@ -92,12 +117,19 @@ func (h *FileHandler) List(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]interface{}{"data": files})
 }
 
+// Mkdir godoc
+// @Summary Create directory
+// @Description Create a new directory
+// @Tags files
+// @Accept json
+// @Param request body MkdirRequest true "Directory path"
+// @Success 201 "Created"
+// @Failure 400 {string} string "Invalid Path"
+// @Failure 500 {string} string "Internal Server Error"
+// @Router /files/mkdir [post]
 func (h *FileHandler) Mkdir(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Path string `json:"path"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request", http.StatusBadRequest)
+	var req MkdirRequest
+	if !decodeAndValidate(w, r, &req) {
 		return
 	}
 
@@ -114,12 +146,19 @@ func (h *FileHandler) Mkdir(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 }
 
+// Delete godoc
+// @Summary Delete file/directory
+// @Description Delete a file or directory
+// @Tags files
+// @Accept json
+// @Param request body DeleteFileRequest true "Path to delete"
+// @Success 204 "No Content"
+// @Failure 400 {string} string "Invalid Path"
+// @Failure 500 {string} string "Internal Server Error"
+// @Router /files/delete [post]
 func (h *FileHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Path string `json:"path"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request", http.StatusBadRequest)
+	var req DeleteFileRequest
+	if !decodeAndValidate(w, r, &req) {
 		return
 	}
 
@@ -137,13 +176,8 @@ func (h *FileHandler) Delete(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *FileHandler) Operate(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Op  string `json:"op"`
-		Src string `json:"src"`
-		Dst string `json:"dst"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request", http.StatusBadRequest)
+	var req FileOperationRequest
+	if !decodeAndValidate(w, r, &req) {
 		return
 	}
 

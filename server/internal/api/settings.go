@@ -1,12 +1,13 @@
 package api
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
-	"strconv"
+	"reflect"
+	"time"
 
 	"gravity/internal/engine"
+	"gravity/internal/event"
 	"gravity/internal/model"
 	"gravity/internal/store"
 
@@ -18,14 +19,16 @@ type SettingsHandler struct {
 	providerRepo *store.ProviderRepo
 	engine       engine.DownloadEngine
 	uploadEngine engine.UploadEngine
+	bus          *event.Bus
 }
 
-func NewSettingsHandler(repo *store.SettingsRepo, providerRepo *store.ProviderRepo, engine engine.DownloadEngine, uploadEngine engine.UploadEngine) *SettingsHandler {
+func NewSettingsHandler(repo *store.SettingsRepo, providerRepo *store.ProviderRepo, engine engine.DownloadEngine, uploadEngine engine.UploadEngine, bus *event.Bus) *SettingsHandler {
 	return &SettingsHandler{
 		repo:         repo,
 		providerRepo: providerRepo,
 		engine:       engine,
 		uploadEngine: uploadEngine,
+		bus:          bus,
 	}
 }
 
@@ -40,148 +43,98 @@ func (h *SettingsHandler) Routes() chi.Router {
 	return r
 }
 
+// Get godoc
+// @Summary Get application settings
+// @Description Retrieve all application settings organized by category
+// @Tags settings
+// @Produce json
+// @Success 200 {object} model.Settings
+// @Failure 500 {string} string "Internal Server Error"
+// @Router /settings [get]
 func (h *SettingsHandler) Get(w http.ResponseWriter, r *http.Request) {
-	flat, err := h.repo.Get(r.Context())
+	settings, err := h.repo.Get(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	settings := h.mapToModel(flat)
+	if settings == nil {
+		// Provide defaults if not found
+		settings = model.DefaultSettings()
+	}
+
 	json.NewEncoder(w).Encode(settings)
 }
 
-func (h *SettingsHandler) mapToModel(flat map[string]string) model.Settings {
-	s := model.Settings{}
+// Update godoc
+// @Summary Update application settings
+// @Description Update configuration settings category by category and emit change events
+// @Tags settings
+// @Accept json
+// @Param request body model.Settings true "Structured settings object"
+// @Success 200 "OK"
+// @Failure 400 {string} string "Invalid Request"
+// @Failure 500 {string} string "Internal Server Error"
+// @Router /settings [patch]
+func (h *SettingsHandler) Update(w http.ResponseWriter, r *http.Request) {
+	var newSettings model.Settings
+	if !decodeAndValidate(w, r, &newSettings) {
+		return
+	}
 
-	// Download
-	s.Download.DownloadDir = flat["download_dir"]
-	s.Download.MaxConcurrentDownloads, _ = strconv.Atoi(flat["max_concurrent_downloads"])
-	s.Download.MaxDownloadSpeed = flat["max_download_speed"]
-	s.Download.MaxUploadSpeed = flat["max_upload_speed"]
-	s.Download.MaxConnectionPerServer, _ = strconv.Atoi(flat["max_connection_per_server"])
-	s.Download.Split, _ = strconv.Atoi(flat["split"])
-	s.Download.UserAgent = flat["user_agent"]
-	s.Download.ConnectTimeout, _ = strconv.Atoi(flat["connect_timeout"])
-	s.Download.MaxTries, _ = strconv.Atoi(flat["max_tries"])
-	s.Download.CheckCertificate, _ = strconv.ParseBool(flat["check_certificate"])
+	ctx := r.Context()
+	oldSettings, err := h.repo.Get(ctx)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
-	// Upload
-	s.Upload.DefaultRemote = flat["default_remote"]
-	s.Upload.AutoUpload, _ = strconv.ParseBool(flat["auto_upload"])
-	s.Upload.RemoveLocal, _ = strconv.ParseBool(flat["remove_local"])
+	if oldSettings == nil {
+		oldSettings = &model.Settings{}
+	}
 
-	// Network
-	s.Network.ProxyEnabled, _ = strconv.ParseBool(flat["proxy_enabled"])
-	s.Network.ProxyUrl = flat["proxy_url"]
-	s.Network.ProxyUser = flat["proxy_user"]
-	s.Network.ProxyPassword = flat["proxy_password"]
+	// Detect changes
+	changedFields := h.getChangedFields(*oldSettings, newSettings)
 
-	// Torrent
-	s.Torrent.SeedRatio = flat["seed_ratio"]
-	s.Torrent.SeedTime, _ = strconv.Atoi(flat["seed_time"])
-	s.Torrent.ListenPort, _ = strconv.Atoi(flat["listen_port"])
-	s.Torrent.ForceSave, _ = strconv.ParseBool(flat["force_save"])
-	s.Torrent.EnablePex, _ = strconv.ParseBool(flat["enable_pex"])
-	s.Torrent.EnableDht, _ = strconv.ParseBool(flat["enable_dht"])
-	s.Torrent.EnableLpd, _ = strconv.ParseBool(flat["enable_lpd"])
-	s.Torrent.Encryption = flat["bt_encryption"]
+	// Save to DB
+	if err := h.repo.Save(ctx, &newSettings); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
-	// VFS
-	s.Vfs.CacheMode = flat["vfs_cache_mode"]
-	s.Vfs.CacheMaxSize = flat["vfs_cache_max_size"]
-	s.Vfs.CacheMaxAge = flat["vfs_cache_max_age"]
-	s.Vfs.WriteBack = flat["vfs_write_back"]
-	s.Vfs.ReadChunkSize = flat["vfs_read_chunk_size"]
-	s.Vfs.ReadChunkSizeLimit = flat["vfs_read_chunk_size_limit"]
-	s.Vfs.ReadAhead = flat["vfs_read_ahead"]
-	s.Vfs.DirCacheTime = flat["vfs_dir_cache_time"]
-	s.Vfs.PollInterval = flat["vfs_poll_interval"]
-	s.Vfs.ReadChunkStreams, _ = strconv.Atoi(flat["vfs_read_chunk_streams"])
+	// Apply settings to engines (Sync)
+	h.engine.Configure(ctx, &newSettings)
+	h.uploadEngine.Configure(ctx, &newSettings)
 
-	return s
-}
+	// Emit event
+	if len(changedFields) > 0 {
+		h.bus.Publish(event.Event{
+			Type:      event.SettingsUpdated,
+			Timestamp: time.Now(),
+			Data: map[string]interface{}{
+				"changes": changedFields,
+			},
+		})
+	}
 
-func (h *SettingsHandler) mapFromModel(s model.Settings) map[string]string {
-	flat := make(map[string]string)
-
-	// Download
-	flat["download_dir"] = s.Download.DownloadDir
-	flat["max_concurrent_downloads"] = strconv.Itoa(s.Download.MaxConcurrentDownloads)
-	flat["max_download_speed"] = s.Download.MaxDownloadSpeed
-	flat["max_upload_speed"] = s.Download.MaxUploadSpeed
-	flat["max_connection_per_server"] = strconv.Itoa(s.Download.MaxConnectionPerServer)
-	flat["split"] = strconv.Itoa(s.Download.Split)
-	flat["user_agent"] = s.Download.UserAgent
-	flat["connect_timeout"] = strconv.Itoa(s.Download.ConnectTimeout)
-	flat["max_tries"] = strconv.Itoa(s.Download.MaxTries)
-	flat["check_certificate"] = strconv.FormatBool(s.Download.CheckCertificate)
-
-	// Upload
-	flat["default_remote"] = s.Upload.DefaultRemote
-	flat["auto_upload"] = strconv.FormatBool(s.Upload.AutoUpload)
-	flat["remove_local"] = strconv.FormatBool(s.Upload.RemoveLocal)
-
-	// Network
-	flat["proxy_enabled"] = strconv.FormatBool(s.Network.ProxyEnabled)
-	flat["proxy_url"] = s.Network.ProxyUrl
-	flat["proxy_user"] = s.Network.ProxyUser
-	flat["proxy_password"] = s.Network.ProxyPassword
-
-	// Torrent
-	flat["seed_ratio"] = s.Torrent.SeedRatio
-	flat["seed_time"] = strconv.Itoa(s.Torrent.SeedTime)
-	flat["listen_port"] = strconv.Itoa(s.Torrent.ListenPort)
-	flat["force_save"] = strconv.FormatBool(s.Torrent.ForceSave)
-	flat["enable_pex"] = strconv.FormatBool(s.Torrent.EnablePex)
-	flat["enable_dht"] = strconv.FormatBool(s.Torrent.EnableDht)
-	flat["enable_lpd"] = strconv.FormatBool(s.Torrent.EnableLpd)
-	flat["bt_encryption"] = s.Torrent.Encryption
-
-	// VFS
-	flat["vfs_cache_mode"] = s.Vfs.CacheMode
-	flat["vfs_cache_max_size"] = s.Vfs.CacheMaxSize
-	flat["vfs_cache_max_age"] = s.Vfs.CacheMaxAge
-	flat["vfs_write_back"] = s.Vfs.WriteBack
-	flat["vfs_read_chunk_size"] = s.Vfs.ReadChunkSize
-	flat["vfs_read_chunk_size_limit"] = s.Vfs.ReadChunkSizeLimit
-	flat["vfs_read_ahead"] = s.Vfs.ReadAhead
-	flat["vfs_dir_cache_time"] = s.Vfs.DirCacheTime
-	flat["vfs_poll_interval"] = s.Vfs.PollInterval
-	flat["vfs_read_chunk_streams"] = strconv.Itoa(s.Vfs.ReadChunkStreams)
-
-	return flat
+	w.WriteHeader(http.StatusOK)
 }
 
 func (h *SettingsHandler) GetStatus(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	settings, err := h.repo.Get(ctx)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
+	settings, _ := h.repo.Get(ctx)
 	remotes, _ := h.uploadEngine.ListRemotes(ctx)
 	providers, _ := h.providerRepo.List(ctx)
 
 	status := map[string]interface{}{
 		"downloads": map[string]interface{}{
-			"configured":   settings["download_dir"] != "",
-			"downloadPath": settings["download_dir"],
+			"configured": settings != nil && settings.Download.DownloadDir != "",
 		},
 		"cloud": map[string]interface{}{
-			"configured":         len(remotes) > 0,
-			"remoteCount":        len(remotes),
-			"defaultDestination": settings["default_remote"],
+			"remoteCount": len(remotes),
 		},
 		"premium": map[string]interface{}{
 			"providers": providers,
-		},
-		"network": map[string]interface{}{
-			"proxyEnabled": settings["proxy_enabled"] == "true",
-		},
-		"torrents": map[string]interface{}{
-			"seedingEnabled": settings["seed_ratio"] != "0",
 		},
 	}
 
@@ -200,19 +153,18 @@ func (h *SettingsHandler) Export(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *SettingsHandler) Import(w http.ResponseWriter, r *http.Request) {
-	var settings map[string]string
-	if err := json.NewDecoder(r.Body).Decode(&settings); err != nil {
-		http.Error(w, "invalid request", http.StatusBadRequest)
+	var settings model.Settings
+	if !decodeAndValidate(w, r, &settings) {
 		return
 	}
 
-	if err := h.repo.SetMany(r.Context(), settings); err != nil {
+	if err := h.repo.Save(r.Context(), &settings); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	// Re-apply to engine
-	go h.engine.Configure(context.Background(), settings)
+	// Apply
+	h.engine.Configure(r.Context(), &settings)
 
 	w.WriteHeader(http.StatusOK)
 }
@@ -222,38 +174,34 @@ func (h *SettingsHandler) Reset(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.WriteHeader(http.StatusOK)
-}
 
-func (h *SettingsHandler) Update(w http.ResponseWriter, r *http.Request) {
-	var s model.Settings
-	if err := json.NewDecoder(r.Body).Decode(&s); err != nil {
-		// Fallback to flat map for partial updates or legacy support?
-		// User specifically asked for refactoring, so let's try to support the new model.
-		// If it's a flat map, the Decode might fail or result in empty object.
-		// Let's support both if possible or just stick to the new model.
-		http.Error(w, "invalid request: expected structured settings object", http.StatusBadRequest)
-		return
-	}
-
-	flat := h.mapFromModel(s)
-
-	if err := h.repo.SetMany(r.Context(), flat); err != nil {
+	// Save defaults back to DB
+	defaults := model.DefaultSettings()
+	if err := h.repo.Save(r.Context(), defaults); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	// Apply settings to engine
-	if err := h.engine.Configure(r.Context(), flat); err != nil {
-		http.Error(w, "Saved but failed to apply to download engine: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	if err := h.uploadEngine.Configure(r.Context(), flat); err != nil {
-		http.Error(w, "Saved but failed to apply to upload engine: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-
 	w.WriteHeader(http.StatusOK)
 }
 
+func (h *SettingsHandler) getChangedFields(old, new model.Settings) []string {
+	var changes []string
+
+	valOld := reflect.ValueOf(old)
+	valNew := reflect.ValueOf(new)
+	typ := valOld.Type()
+
+	for i := 0; i < valOld.NumField(); i++ {
+		field := typ.Field(i)
+		if field.Name == "UpdatedAt" || field.Name == "ID" {
+			continue
+		}
+
+		if !reflect.DeepEqual(valOld.Field(i).Interface(), valNew.Field(i).Interface()) {
+			changes = append(changes, field.Tag.Get("json"))
+		}
+	}
+
+	return changes
+}

@@ -11,14 +11,14 @@ const (
 )
 
 type Provider struct {
-	Name          string            `json:"name"`
+	Name          string            `json:"name" gorm:"primaryKey"`
 	DisplayName   string            `json:"displayName"`
 	Type          ProviderType      `json:"type"`
 	Enabled       bool              `json:"enabled"`
 	Priority      int               `json:"priority"`
-	Config        map[string]string `json:"config,omitempty"`
-	CachedHosts   []string          `json:"cachedHosts,omitempty"`
-	CachedAccount *AccountInfo      `json:"cachedAccount,omitempty"`
+	Config        map[string]string `json:"config,omitempty" gorm:"serializer:json"`
+	CachedHosts   []string          `json:"cachedHosts,omitempty" gorm:"serializer:json"`
+	CachedAccount *AccountInfo      `json:"cachedAccount,omitempty" gorm:"serializer:json"`
 	UpdatedAt     time.Time         `json:"updatedAt"`
 }
 

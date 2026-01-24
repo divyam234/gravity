@@ -43,8 +43,39 @@ function ServerManagement() {
 								<h3 className="text-lg font-bold">Engine Status</h3>
 							</div>
 
-							<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-								{/* Aria2 Engine */}
+								<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+									{/* Native Engine */}
+									<Card className="bg-background/50 border-border">
+										<Card.Header className="flex flex-row items-start justify-between">
+											<div className="flex items-center gap-3">
+												<div className="p-3 rounded-2xl bg-orange-500/10 text-orange-500">
+													<IconServer className="w-6 h-6" />
+												</div>
+												<div className="flex flex-col">
+													<Card.Title className="text-lg">Native</Card.Title>
+													<Card.Description className="text-xs">Go Torrent Engine</Card.Description>
+												</div>
+											</div>
+											<Chip size="sm" color="success" variant="soft">Running</Chip>
+										</Card.Header>
+										<Card.Content className="space-y-4">
+											<div className="flex justify-between text-sm">
+												<span className="text-muted">Version</span>
+												<span className="font-mono">{systemInfo?.native || "Unknown"}</span>
+											</div>
+											<Button
+												fullWidth
+												variant="secondary"
+												className="font-bold rounded-xl"
+												isDisabled
+											>
+												<IconCircleCheck className="w-4 h-4" />
+												Built-in
+											</Button>
+										</Card.Content>
+									</Card>
+
+									{/* Aria2 Engine */}
 								<Card className="bg-background/50 border-border">
 									<Card.Header className="flex flex-row items-start justify-between">
 										<div className="flex items-center gap-3">

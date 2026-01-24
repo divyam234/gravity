@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -12,11 +11,21 @@ import (
 	"time"
 
 	"gravity/internal/engine"
+	"gravity/internal/model"
+
+	"github.com/anacrolix/torrent"
+	"go.uber.org/zap"
 )
 
 type Engine struct {
-	runner *Runner
-	client *Client
+	runner         *Runner
+	client         *Client
+	metadataClient *torrent.Client
+	dataDir        string
+	logger         *zap.Logger
+
+	settings *model.Settings
+	appCtx   context.Context
 
 	onProgress func(id string, progress engine.Progress)
 	onComplete func(id string, filePath string)
@@ -36,15 +45,17 @@ type Engine struct {
 	done          chan struct{}
 }
 
-func NewEngine(port int, dataDir string) *Engine {
+func NewEngine(port int, dataDir string, l *zap.Logger) *Engine {
 	runner := NewRunner(port, dataDir)
 	// WebSocket URL for local aria2 instance
 	wsUrl := fmt.Sprintf("ws://localhost:%d/jsonrpc", port)
 	client := NewClient(wsUrl)
 
 	e := &Engine{
+		dataDir:       dataDir,
 		runner:        runner,
 		client:        client,
+		logger:        l.With(zap.String("engine", "aria2")),
 		reportedGids:  make(map[string]bool),
 		activeGids:    make(map[string]bool),
 		pollingPaused: true,
@@ -59,6 +70,7 @@ func NewEngine(port int, dataDir string) *Engine {
 }
 
 func (e *Engine) Start(ctx context.Context) error {
+	e.appCtx = ctx
 	if err := e.runner.Start(); err != nil {
 		return err
 	}
@@ -85,16 +97,34 @@ func (e *Engine) Start(ctx context.Context) error {
 	if _, err := e.client.Call(ctx, "system.multicall", []interface{}{
 		[]interface{}{"aria2.changeGlobalOption", map[string]interface{}{"listen-port": strconv.Itoa(e.runner.port)}},
 	}); err != nil {
-		log.Printf("Warning: Failed to set options via multicall: %v", err)
+		e.logger.Warn("failed to set options via multicall", zap.Error(err))
+	}
+
+	// Start metadata client
+	cfg := torrent.NewDefaultClientConfig()
+	cfg.DataDir = filepath.Join(e.dataDir, ".metadata")
+	cfg.NoUpload = true
+	cfg.ListenPort = 0 // Random port
+	tc, err := torrent.NewClient(cfg)
+	if err != nil {
+		e.logger.Warn("failed to start metadata client", zap.Error(err))
+	} else {
+		e.metadataClient = tc
 	}
 
 	// Start optimized poller for active downloads only
+	e.mu.Lock()
+	e.pollingPaused = false
+	e.mu.Unlock()
 	go e.poll()
 
 	return nil
 }
 
 func (e *Engine) Stop() error {
+	if e.metadataClient != nil {
+		e.metadataClient.Close()
+	}
 	e.client.Close()
 	close(e.done)
 	e.mu.Lock()
@@ -108,7 +138,7 @@ func (e *Engine) PausePolling() {
 	defer e.mu.Unlock()
 	if !e.pollingPaused {
 		e.pollingPaused = true
-		log.Println("Aria2: Progress polling paused")
+		e.logger.Debug("progress polling paused")
 	}
 }
 
@@ -118,12 +148,15 @@ func (e *Engine) ResumePolling() {
 	if e.pollingPaused {
 		e.pollingPaused = false
 		e.pollingCond.Broadcast() // Wake up poller
-		log.Println("Aria2: Progress polling resumed")
+		e.logger.Debug("progress polling resumed")
 	}
 }
 
 func (e *Engine) Add(ctx context.Context, url string, opts engine.DownloadOptions) (string, error) {
 	ariaOpts := make(map[string]interface{})
+	if opts.ID != "" {
+		ariaOpts["gid"] = opts.ID
+	}
 	if opts.Filename != "" {
 		ariaOpts["out"] = opts.Filename
 	}
@@ -145,6 +178,37 @@ func (e *Engine) Add(ctx context.Context, url string, opts engine.DownloadOption
 		ariaOpts["max-connection-per-server"] = strconv.Itoa(opts.Connections)
 	}
 
+	// Proxy
+	if opts.ProxyURL != "" {
+		ariaOpts["all-proxy"] = opts.ProxyURL
+		if opts.ProxyUser != "" {
+			ariaOpts["all-proxy-user"] = opts.ProxyUser
+			ariaOpts["all-proxy-passwd"] = opts.ProxyPassword
+		}
+	} else {
+		// Auto-configure proxy based on settings
+		e.mu.RLock()
+		s := e.settings
+		e.mu.RUnlock()
+
+		if s != nil && s.Network.ProxyMode == "granular" {
+			var p model.ProxyConfig
+			if strings.HasPrefix(url, "magnet:") || opts.TorrentData != "" {
+				p = s.Network.MagnetProxy
+			} else {
+				p = s.Network.DownloadProxy
+			}
+
+			if p.Enabled && p.URL != "" {
+				ariaOpts["all-proxy"] = p.URL
+				if p.User != "" {
+					ariaOpts["all-proxy-user"] = p.User
+					ariaOpts["all-proxy-passwd"] = p.Password
+				}
+			}
+		}
+	}
+
 	// File selection for torrents/magnets
 	if len(opts.SelectedFiles) > 0 {
 		var indexes []string
@@ -156,6 +220,17 @@ func (e *Engine) Add(ctx context.Context, url string, opts engine.DownloadOption
 
 	var method string
 	var params []interface{}
+
+	if strings.HasPrefix(url, "magnet:") && opts.TorrentData == "" {
+		// Resolve metadata via native lib to avoid Aria2 dual-ID
+		e.logger.Debug("resolving magnet metadata via native lib", zap.String("url", url))
+		b64, err := e.resolveMetadata(ctx, url)
+		if err == nil {
+			opts.TorrentData = b64
+		} else {
+			e.logger.Warn("failed to resolve metadata natively, falling back to aria2", zap.Error(err))
+		}
+	}
 
 	if opts.TorrentData != "" {
 		method = "aria2.addTorrent"
@@ -178,6 +253,7 @@ func (e *Engine) Add(ctx context.Context, url string, opts engine.DownloadOption
 	// Mark as active immediately so poller picks it up
 	e.mu.Lock()
 	e.activeGids[gid] = true
+	e.pollingCond.Broadcast()
 	e.mu.Unlock()
 
 	return gid, nil
@@ -292,40 +368,95 @@ func (e *Engine) Sync(ctx context.Context) error {
 	return nil
 }
 
-func (e *Engine) Configure(ctx context.Context, options map[string]string) error {
-	keyMap := map[string]string{
-		"download_dir":              "dir",
-		"max_concurrent_downloads":  "max-concurrent-downloads",
-		"max_download_speed":        "max-overall-download-limit",
-		"max_upload_speed":          "max-overall-upload-limit",
-		"max_connection_per_server": "max-connection-per-server",
-		"split":                     "split",
-		"user_agent":                "user-agent",
-		"proxy_url":                 "all-proxy",
-		"proxy_user":                "all-proxy-user",
-		"proxy_password":            "all-proxy-passwd",
-		"seed_ratio":                "seed-ratio",
-		"seed_time":                 "seed-time",
-		"connect_timeout":           "connect-timeout",
-		"max_tries":                 "max-tries",
-		"check_integrity":           "check-integrity",
-		"continue_downloads":        "continue",
-		"check_certificate":         "check-certificate",
-		"listen_port":               "listen-port",
-		"enable_dht":                "enable-dht",
-		"enable_pex":                "bt-enable-pex",
-		"enable_lpd":                "bt-enable-lpd",
-		"bt_encryption":             "bt-encryption",
+func (e *Engine) Configure(ctx context.Context, settings *model.Settings) error {
+	e.mu.Lock()
+	e.settings = settings
+	e.mu.Unlock()
+
+	if settings == nil {
+		return nil
 	}
 
 	ariaOpts := make(map[string]interface{})
-	for k, v := range options {
-		if ariaKey, ok := keyMap[k]; ok {
-			ariaOpts[ariaKey] = v
-		} else {
-			ariaOpts[k] = v
-		}
+
+	// Download
+	if settings.Download.DownloadDir != "" {
+		ariaOpts["dir"] = settings.Download.DownloadDir
 	}
+	if settings.Download.MaxConcurrentDownloads > 0 {
+		ariaOpts["max-concurrent-downloads"] = strconv.Itoa(settings.Download.MaxConcurrentDownloads)
+	}
+	if settings.Download.MaxDownloadSpeed != "" {
+		ariaOpts["max-overall-download-limit"] = settings.Download.MaxDownloadSpeed
+	}
+	if settings.Download.MaxUploadSpeed != "" {
+		ariaOpts["max-overall-upload-limit"] = settings.Download.MaxUploadSpeed
+	}
+	if settings.Download.MaxConnectionPerServer > 0 {
+		ariaOpts["max-connection-per-server"] = strconv.Itoa(settings.Download.MaxConnectionPerServer)
+	}
+	if settings.Download.Split > 0 {
+		ariaOpts["split"] = strconv.Itoa(settings.Download.Split)
+	}
+	if settings.Download.UserAgent != "" {
+		ariaOpts["user-agent"] = settings.Download.UserAgent
+	}
+	if settings.Download.ConnectTimeout > 0 {
+		ariaOpts["connect-timeout"] = strconv.Itoa(settings.Download.ConnectTimeout)
+	}
+	if settings.Download.MaxTries > 0 {
+		ariaOpts["max-tries"] = strconv.Itoa(settings.Download.MaxTries)
+	}
+	ariaOpts["check-integrity"] = strconv.FormatBool(settings.Download.CheckCertificate)
+	ariaOpts["file-allocation"] = "falloc" // Default to falloc for performance
+	if settings.Download.PreAllocateSpace {
+		ariaOpts["file-allocation"] = "prealloc"
+	}
+	if settings.Download.DiskCache != "" {
+		ariaOpts["disk-cache"] = settings.Download.DiskCache
+	}
+	if settings.Download.MinSplitSize != "" {
+		ariaOpts["min-split-size"] = settings.Download.MinSplitSize
+	}
+
+	// Network
+	if settings.Network.ProxyMode == "global" && settings.Network.GlobalProxy.Enabled {
+		ariaOpts["all-proxy"] = settings.Network.GlobalProxy.URL
+		ariaOpts["all-proxy-user"] = settings.Network.GlobalProxy.User
+		ariaOpts["all-proxy-passwd"] = settings.Network.GlobalProxy.Password
+	} else {
+		// Clear global proxy if disabled or granular
+		ariaOpts["all-proxy"] = ""
+		ariaOpts["all-proxy-user"] = ""
+		ariaOpts["all-proxy-passwd"] = ""
+	}
+	if settings.Network.InterfaceBinding != "" {
+		ariaOpts["interface"] = settings.Network.InterfaceBinding
+	}
+
+	// Torrent
+	if settings.Torrent.SeedRatio != "" {
+		ariaOpts["seed-ratio"] = settings.Torrent.SeedRatio
+	}
+	if settings.Torrent.SeedTime > 0 {
+		ariaOpts["seed-time"] = strconv.Itoa(settings.Torrent.SeedTime)
+	}
+	if settings.Torrent.ListenPort > 0 {
+		ariaOpts["listen-port"] = strconv.Itoa(settings.Torrent.ListenPort)
+	}
+	if settings.Network.TCPPortRange != "" {
+		ariaOpts["peer-id-prefix"] = "A2-" // Just a marker
+		// aria2 uses --listen-port for range
+		ariaOpts["listen-port"] = settings.Network.TCPPortRange
+	}
+	ariaOpts["enable-dht"] = strconv.FormatBool(settings.Torrent.EnableDht)
+	ariaOpts["bt-enable-pex"] = strconv.FormatBool(settings.Torrent.EnablePex)
+	ariaOpts["bt-enable-lpd"] = strconv.FormatBool(settings.Torrent.EnableLpd)
+	ariaOpts["bt-encryption"] = settings.Torrent.Encryption
+	if settings.Torrent.MaxPeers > 0 {
+		ariaOpts["bt-max-peers"] = strconv.Itoa(settings.Torrent.MaxPeers)
+	}
+
 	_, err := e.client.Call(ctx, "aria2.changeGlobalOption", ariaOpts)
 	return err
 }
@@ -344,6 +475,10 @@ func (e *Engine) Version(ctx context.Context) (string, error) {
 
 func (e *Engine) GetClient() *Client {
 	return e.client
+}
+
+func (e *Engine) GetRunner() *Runner {
+	return e.runner
 }
 
 func (e *Engine) OnProgress(h func(string, engine.Progress)) {
@@ -370,6 +505,13 @@ type Aria2Task struct {
 	ErrorMessage    string      `json:"errorMessage"`
 	Dir             string      `json:"dir"`
 	Files           []Aria2File `json:"files"`
+	FollowedBy      []string    `json:"followedBy"`
+	Seeder          string      `json:"seeder"`
+	BitTorrent      *struct {
+		Info *struct {
+			Name string `json:"name"`
+		} `json:"info"`
+	} `json:"bittorrent,omitempty"`
 }
 
 type Aria2File struct {
@@ -412,20 +554,28 @@ func (e *Engine) mapStatus(t *Aria2Task) *engine.DownloadStatus {
 		}
 	}
 
+	isMetadata := false
+	if t.BitTorrent != nil && (t.BitTorrent.Info == nil || t.BitTorrent.Info.Name == "") {
+		isMetadata = true
+	}
+
 	return &engine.DownloadStatus{
-		ID:          t.Gid,
-		Status:      status,
-		Filename:    filename,
-		Dir:         t.Dir,
-		Size:        total,
-		Downloaded:  completed,
-		Speed:       speed,
-		Connections: conn,
-		Seeders:     seeders,
-		Peers:       conn - seeders,
-		Eta:         eta,
-		Error:       t.ErrorMessage,
-		Files:       files,
+		ID:               t.Gid,
+		Status:           status,
+		Filename:         filename,
+		Dir:              t.Dir,
+		Size:             total,
+		Downloaded:       completed,
+		Speed:            speed,
+		Connections:      conn,
+		Seeders:          seeders,
+		Peers:            conn - seeders,
+		Eta:              eta,
+		Error:            t.ErrorMessage,
+		Files:            files,
+		FollowedBy:       t.FollowedBy,
+		IsSeeder:         t.Seeder == "true",
+		MetadataFetching: isMetadata,
 	}
 }
 
@@ -446,27 +596,31 @@ func (e *Engine) handleNotification(method string, params []interface{}) {
 		return
 	}
 
-	ctx := context.Background()
+	ctx := e.appCtx
+	if ctx == nil {
+		ctx = context.Background()
+	}
 
 	switch method {
 	case "aria2.onDownloadStart":
 		e.mu.Lock()
 		e.activeGids[gid] = true
+		e.pollingCond.Broadcast()
 		e.mu.Unlock()
-		log.Printf("Aria2: Download started %s", gid)
+		e.logger.Debug("download started", zap.String("gid", gid))
 
 	case "aria2.onDownloadPause":
 		e.mu.Lock()
 		delete(e.activeGids, gid)
 		e.mu.Unlock()
-		log.Printf("Aria2: Download paused %s", gid)
+		e.logger.Debug("download paused", zap.String("gid", gid))
 
 	case "aria2.onDownloadStop":
 		e.mu.Lock()
 		delete(e.activeGids, gid)
 		e.mu.Unlock()
-		log.Printf("Aria2: Download stopped %s", gid)
-		go e.client.Call(ctx, "aria2.removeDownloadResult", gid)
+		e.logger.Debug("download stopped", zap.String("gid", gid))
+		// Service layer must handle removal
 
 	case "aria2.onDownloadComplete":
 		e.mu.Lock()
@@ -488,8 +642,8 @@ func (e *Engine) handleNotification(method string, params []interface{}) {
 				go onComplete(gid, path)
 			}
 		}
-		log.Printf("Aria2: Download complete %s", gid)
-		go e.client.Call(ctx, "aria2.removeDownloadResult", gid)
+		e.logger.Debug("download complete", zap.String("gid", gid))
+		// Service layer must handle removal
 
 	case "aria2.onDownloadError":
 		e.mu.Lock()
@@ -508,8 +662,8 @@ func (e *Engine) handleNotification(method string, params []interface{}) {
 			}
 			go onError(gid, fmt.Errorf("%s", errMsg))
 		}
-		log.Printf("Aria2: Download error %s", gid)
-		go e.client.Call(ctx, "aria2.removeDownloadResult", gid)
+		e.logger.Debug("download error", zap.String("gid", gid))
+		// Service layer must handle removal
 	}
 }
 
@@ -518,14 +672,13 @@ func (e *Engine) poll() {
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 
-	// We need a context to know when to stop
-	// But the current signature doesn't take context.
-	// Since poll is called in Start, we can use a channel controlled by Stop.
-	// We'll add a 'done' channel to Engine struct.
+	var emptyCycles int
 
 	for {
 		e.mu.Lock()
-		for e.pollingPaused {
+		for e.pollingPaused || len(e.activeGids) == 0 {
+			// Reset empty cycles when we go to sleep
+			emptyCycles = 0
 			// Check if we should stop while paused
 			select {
 			case <-e.done:
@@ -545,68 +698,75 @@ func (e *Engine) poll() {
 		}
 
 		e.mu.RLock()
-		activeList := make([]string, 0, len(e.activeGids))
-		for gid := range e.activeGids {
-			activeList = append(activeList, gid)
-		}
 		onProgress := e.onProgress
 		e.mu.RUnlock()
 
-		if len(activeList) == 0 {
+		if onProgress == nil {
 			continue
 		}
 
-		ctx := context.Background()
+		ctx := e.appCtx
+		if ctx == nil {
+			ctx = context.Background()
+		}
 
-		// For each active download, fetch status and report progress
-		// We could optimize this further with multicall if needed
-		for _, gid := range activeList {
-			status, err := e.Status(ctx, gid)
-			if err != nil {
-				// If error fetching status, it might have disappeared or finished
-				// Verify if it still exists via handleNotification events logic,
-				// or let the next List/Sync catch it.
-				// For now, if tellStatus fails, we might want to remove it from activeGids
-				// but let's be conservative.
-				continue
-			}
+		// Optimize: Use tellActive to get all active downloads in one call
+		res, err := e.client.Call(ctx, "aria2.tellActive")
+		if err != nil {
+			e.logger.Error("failed to poll active tasks", zap.Error(err))
+			continue
+		}
 
-			if status.Status != "active" {
-				// Status changed but we missed the event?
-				// handleNotification should handle transitions.
-				// Just ignore here.
-				continue
-			}
+		var activeTasks []*Aria2Task
+		if err := json.Unmarshal(res, &activeTasks); err != nil {
+			e.logger.Error("failed to unmarshal active tasks", zap.Error(err))
+			continue
+		}
 
-			if onProgress != nil {
-				onProgress(gid, engine.Progress{
-					Downloaded: status.Downloaded,
-					Size:       status.Size,
-					Speed:      status.Speed,
-					ETA:        status.Eta,
-					Seeders:    status.Seeders,
-					Peers:      status.Peers,
-				})
-
-				// File progress
-				for _, f := range status.Files {
-					if f.Selected {
-						onProgress(fmt.Sprintf("%s:%d", gid, f.Index), engine.Progress{
-							Downloaded: f.Size, // Note: Aria2File struct in mapStatus maps CompletedLength to Size
-							Size:       f.Size, // logic in mapStatus seems slightly off for partial file progress
-							// Let's rely on mapStatus implementation for now:
-							// mapStatus: Size=Length, Downloaded=CompletedLength?
-							// Actually mapStatus: Size=total, Downloaded=completed for main task.
-							// For files: Size=Length. We need CompletedLength.
-						})
-					}
+		// Cleanup Ghost Tasks:
+		// If aria2 reports NO active tasks, but we think we have some (activeGids > 0),
+		// it might mean we missed a Stop/Complete event.
+		// We allow a few empty cycles (6 seconds) to account for startup race conditions
+		// before forcibly clearing our active list to allow sleeping.
+		if len(activeTasks) == 0 {
+			emptyCycles++
+			if emptyCycles >= 3 {
+				e.mu.Lock()
+				if len(e.activeGids) > 0 {
+					e.logger.Warn("detected ghost tasks (idle for 6s), resetting active list")
+					e.activeGids = make(map[string]bool)
 				}
+				e.mu.Unlock()
+			}
+		} else {
+			emptyCycles = 0
+		}
 
-				// Re-read mapStatus logic for files to be precise
-				// In mapStatus:
-				// files = append(files, engine.DownloadFileStatus{ ... Size: length ... })
-				// It doesn't seem to export CompletedLength for files in engine.DownloadFileStatus?
-				// Let's check engine definition if we need file progress.
+		for _, t := range activeTasks {
+			// Convert Aria2 task to engine status
+			status := e.mapStatus(t)
+
+			onProgress(status.ID, engine.Progress{
+				Downloaded:       status.Downloaded,
+				Size:             status.Size,
+				Speed:            status.Speed,
+				ETA:              status.Eta,
+				Seeders:          status.Seeders,
+				Peers:            status.Peers,
+				MetadataFetching: status.MetadataFetching,
+				IsSeeder:         status.IsSeeder,
+			})
+
+			// File progress
+			for _, f := range t.Files {
+				if f.Selected == "true" {
+					completed, _ := strconv.ParseInt(f.CompletedLength, 10, 64)
+					length, _ := strconv.ParseInt(f.Length, 10, 64)
+					onProgress(fmt.Sprintf("%s:%s", status.ID, f.Index), engine.Progress{
+						Downloaded: completed,
+						Size:       length,
+					})
+				}
 			}
 		}
 	}

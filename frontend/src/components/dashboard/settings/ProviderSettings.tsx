@@ -1,6 +1,6 @@
 import { Button, Card, Input, Label, Switch, TextField } from "@heroui/react";
 import type React from "react";
-import { useState } from "react";
+import { useForm } from "@tanstack/react-form";
 import IconNodesDown from "~icons/gravity-ui/nodes-down";
 import IconCheck from "~icons/gravity-ui/check";
 import { useProviderActions, useProviders } from "../../../hooks/useProviders";
@@ -26,8 +26,15 @@ export const ProviderSettings: React.FC = () => {
 }
 
 function ProviderCard({ provider, onSave, isPending }: { provider: any, onSave: (config: any, enabled: boolean) => void, isPending: boolean }) {
-  const [config, setConfig] = useState<Record<string, string>>(provider.config || {});
-  const [enabled, setEnabled] = useState(provider.enabled);
+  const form = useForm({
+    defaultValues: {
+      config: provider.config || {},
+      enabled: provider.enabled,
+    },
+    onSubmit: async ({ value }) => {
+      onSave(value.config, value.enabled);
+    },
+  });
 
   return (
     <Card className="border border-border shadow-sm overflow-hidden">
@@ -43,23 +50,33 @@ function ProviderCard({ provider, onSave, isPending }: { provider: any, onSave: 
             </Card.Description>
           </div>
         </div>
-        <Switch isSelected={enabled} onChange={setEnabled} />
+        <form.Field
+          name="enabled"
+          children={(field: any) => (
+            <Switch isSelected={field.state.value} onChange={(v) => field.handleChange(v)} />
+          )}
+        />
       </Card.Header>
 
       <Card.Content className="p-6 space-y-6">
         {provider.name === 'alldebrid' || provider.name === 'realdebrid' ? (
-          <TextField className="flex flex-col gap-2">
-            <Label className="text-xs font-black uppercase tracking-widest text-muted px-1">
-              API Key / Token
-            </Label>
-            <Input
-              type="password"
-              placeholder="Enter your API token"
-              value={config.api_key || ''}
-              onChange={(e) => setConfig({ ...config, api_key: e.target.value })}
-              className="w-full h-12 px-4 bg-default/10 rounded-2xl text-sm border-none focus:bg-default/15 transition-all outline-none"
-            />
-          </TextField>
+          <form.Field
+            name="config.api_key"
+            children={(field: any) => (
+              <TextField className="flex flex-col gap-2">
+                <Label className="text-xs font-black uppercase tracking-widest text-muted px-1">
+                  API Key / Token
+                </Label>
+                <Input
+                  type="password"
+                  placeholder="Enter your API token"
+                  value={(field.state.value as string) || ''}
+                  onChange={(e) => field.handleChange(e.target.value)}
+                  className="w-full h-12 px-4 bg-default/10 rounded-2xl text-sm border-none focus:bg-default/15 transition-all outline-none"
+                />
+              </TextField>
+            )}
+          />
         ) : (
           <p className="text-sm text-muted italic">This provider does not require configuration.</p>
         )}
@@ -83,10 +100,10 @@ function ProviderCard({ provider, onSave, isPending }: { provider: any, onSave: 
         <div className="flex justify-end">
           <Button
             className="px-8 h-10 rounded-xl font-bold bg-accent text-accent-foreground shadow-lg shadow-accent/20"
-            onPress={() => onSave(config, enabled)}
+            onPress={() => form.handleSubmit()}
             isPending={isPending}
           >
-            {({ isPending }) => isPending ? "Saving..." : "Save Configuration"}
+            Save Configuration
           </Button>
         </div>
       </Card.Content>

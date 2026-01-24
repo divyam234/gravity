@@ -2,27 +2,35 @@ package rclone
 
 import (
 	"fmt"
-	"log"
 	"strings"
+
+	"gravity/internal/logger"
 
 	_ "github.com/rclone/rclone/backend/combine"
 	_ "github.com/rclone/rclone/backend/memory"
 	"github.com/rclone/rclone/fs/config"
 	"github.com/rclone/rclone/fs/config/configfile"
+	"go.uber.org/zap"
 )
 
 const GravityRootRemote = "GravityRoot"
 
 // SyncGravityRoot ensures the "GravityRoot" combine remote is configured with all current remotes
-func SyncGravityRoot() error {
+func SyncGravityRoot(configPath string) error {
 	// Install the config file handler and load from disk
+	if configPath != "" {
+		config.SetConfigPath(configPath)
+	}
 	configfile.Install()
 	if err := config.Data().Load(); err != nil {
-		log.Printf("Warning: Failed to load rclone config: %v", err)
+		logger.L.Warn("failed to load rclone config", zap.Error(err), zap.String("path", config.GetConfigPath()))
 	}
 
 	remotes := config.GetRemoteNames()
-	log.Printf("Rclone: Found %d remotes in config: %v", len(remotes), remotes)
+	logger.L.Info("rclone remotes loaded", 
+		zap.Int("count", len(remotes)), 
+		zap.Strings("remotes", remotes),
+		zap.String("config_path", config.GetConfigPath()))
 
 	var upstreams []string
 	for _, r := range remotes {

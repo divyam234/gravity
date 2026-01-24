@@ -1,4 +1,4 @@
-import { Button, Card, Kbd, Tooltip } from "@heroui/react";
+import { Button, Card, Chip, Kbd, Tooltip } from "@heroui/react";
 import { Link } from "@tanstack/react-router";
 import type React from "react";
 import IconListUl from "~icons/gravity-ui/list-ul";
@@ -72,6 +72,16 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
                 status={task.status}
                 className="h-5 text-[10px] px-2"
               />
+              {task.metadataFetching && (
+                <Chip
+                  color="warning"
+                  size="sm"
+                  variant="soft"
+                  className="h-5 text-[10px] px-2 font-black uppercase tracking-widest animate-pulse"
+                >
+                  Metadata
+                </Chip>
+              )}
               <span className="text-xs text-muted font-bold">
                 {isUploading
                   ? `${formatBytes(uploadedBytes)} / ${formatBytes(task.size)}`
@@ -116,11 +126,6 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
             {!isUploading && isActive && (
               <span className="text-[10px] text-muted font-bold uppercase tracking-wider">
                 {formatTime(task.eta)}
-              </span>
-            )}
-            {isUploading && task.destination && (
-              <span className="text-[9px] text-muted font-black truncate max-w-full uppercase tracking-tighter">
-                → {task.destination}
               </span>
             )}
           </div>
@@ -180,6 +185,16 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
             </h3>
             <div className="flex items-center gap-2 mt-1.5">
               <StatusChip status={task.status} />
+              {task.metadataFetching && (
+                <Chip
+                  color="warning"
+                  size="sm"
+                  variant="soft"
+                  className="h-5 text-[10px] px-2 font-black uppercase tracking-widest animate-pulse"
+                >
+                  Metadata
+                </Chip>
+              )}
               <span className="text-sm text-muted font-medium">
                 {isUploading
                   ? `${formatBytes(uploadedBytes)} / ${formatBytes(task.size)}`
@@ -286,12 +301,7 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
             )}
           </div>
 
-          <div className="flex gap-4 font-medium">
-            {isUploading && task.destination && (
-              <span className="bg-cyan-500/20 text-cyan-600 px-2 py-0.5 rounded text-[10px] uppercase font-black">
-                → {task.destination}
-              </span>
-            )}
+          <div className="flex gap-4 font-medium items-center">
             {!isUploading && isActive && (
               <span>ETA: {formatTime(task.eta)}</span>
             )}

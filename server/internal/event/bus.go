@@ -5,48 +5,40 @@ import (
 )
 
 type Bus struct {
-	subscribers map[chan Event]struct{}
-	mu          sync.RWMutex
+	subscribers sync.Map // map[chan Event]struct{}
 }
 
 func NewBus() *Bus {
-	return &Bus{
-		subscribers: make(map[chan Event]struct{}),
-	}
+	return &Bus{}
 }
 
 func (b *Bus) Subscribe() <-chan Event {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
 	ch := make(chan Event, 100)
-	b.subscribers[ch] = struct{}{}
+	b.subscribers.Store(ch, struct{}{})
 	return ch
 }
 
 func (b *Bus) Unsubscribe(ch <-chan Event) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	// Convert receiver channel to sender channel for deletion
-	for s := range b.subscribers {
+	// We need to find the specific sender channel that matches the receiver
+	b.subscribers.Range(func(key, value any) bool {
+		s := key.(chan Event)
 		if (<-chan Event)(s) == ch {
-			delete(b.subscribers, s)
+			b.subscribers.Delete(s)
 			close(s)
-			break
+			return false
 		}
-	}
+		return true
+	})
 }
 
 func (b *Bus) Publish(event Event) {
-	b.mu.RLock()
-	defer b.mu.RUnlock()
-
-	for ch := range b.subscribers {
+	b.subscribers.Range(func(key, value any) bool {
+		ch := key.(chan Event)
 		select {
 		case ch <- event:
 		default:
-			// Subscriber slow, skip or drop? For now just skip to avoid blocking bus
+			// Subscriber slow, drop to prevent blocking
 		}
-	}
+		return true
+	})
 }

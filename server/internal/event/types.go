@@ -20,6 +20,7 @@ const (
 	UploadCompleted EventType = "upload.completed"
 	UploadError     EventType = "upload.error"
 
+	SettingsUpdated EventType = "settings.updated"
 	StatsUpdate EventType = "stats"
 )
 

@@ -12,6 +12,7 @@ export interface Download {
   eta: number;
   seeders?: number;
   peers?: number;
+  downloadDir?: string;
   destination?: string;
   uploadStatus?: string;
   uploadProgress: number;
@@ -22,6 +23,7 @@ export interface Download {
   startedAt?: string;
   completedAt?: string;
   updatedAt: string;
+  metadataFetching?: boolean;
 
   // Multi-file support
   isMagnet?: boolean;
@@ -39,6 +41,15 @@ export interface Peer {
   downloadSpeed: number;
   uploadSpeed: number;
   isSeeder: boolean;
+}
+
+export interface TaskOptions {
+  maxDownloadSpeed?: number;
+  connections?: number;
+  split?: number;
+  proxyUrl?: string;
+  uploadRemote?: string;
+  headers?: Record<string, string>;
 }
 
 export interface Provider {
@@ -92,8 +103,10 @@ export interface MagnetDownloadRequest {
   magnetId?: string;
   name: string;
   selectedFiles: string[];
+  downloadDir?: string;
   destination?: string;
   files: any[];
+  options?: TaskOptions;
 }
 
 export interface AccountInfo {
@@ -161,11 +174,55 @@ export interface Settings {
   network: NetworkSettings;
   torrent: TorrentSettings;
   vfs: VfsSettings;
+  search: SearchSettings;
+  advanced: AdvancedSettings;
+  automation: AutomationSettings;
+  updatedAt: string;
+}
+
+export interface SearchSettings {
+  configs: SearchConfig[];
+}
+
+export interface AdvancedSettings {
+  logLevel: "debug" | "info" | "warn" | "error";
+  debugMode: boolean;
+  saveInterval: number;
+}
+
+export interface AutomationSettings {
+  scheduleEnabled: boolean;
+  rules: ScheduleRule[];
+  onCompleteAction: "none" | "shutdown" | "sleep" | "run_script";
+  scriptPath: string;
+  categories: Category[];
+}
+
+export interface ScheduleRule {
+  id: string;
+  enabled: boolean;
+  label: string;
+  days: number[];
+  startTime: string;
+  endTime: string;
+  downloadLimit: string;
+  uploadLimit: string;
+}
+
+export interface Category {
+  id: string;
+  name: string;
+  path: string;
+  extensions: string[];
+  icon: string;
+  isDefault: boolean;
 }
 
 export interface DownloadSettings {
   downloadDir: string;
   maxConcurrentDownloads: number;
+  preferredEngine: "aria2" | "native";
+  preferredMagnetEngine: "aria2" | "native";
   maxDownloadSpeed: string;
   maxUploadSpeed: string;
   maxConnectionPerServer: number;
@@ -174,19 +231,39 @@ export interface DownloadSettings {
   connectTimeout: number;
   maxTries: number;
   checkCertificate: boolean;
+  autoResume: boolean;
+  preAllocateSpace: boolean;
+  diskCache: string;
+  minSplitSize: string;
+  lowestSpeedLimit: string;
 }
 
 export interface UploadSettings {
   defaultRemote: string;
   autoUpload: boolean;
   removeLocal: boolean;
+  concurrentUploads: number;
+  uploadBandwidth: string;
+  maxRetryAttempts: number;
+  chunkSize: string;
+}
+
+export interface ProxyConfig {
+  enabled: boolean;
+  url: string;
+  user?: string;
+  password?: string;
 }
 
 export interface NetworkSettings {
-  proxyEnabled: boolean;
-  proxyUrl: string;
-  proxyUser: string;
-  proxyPassword: string;
+  proxyMode: "global" | "granular";
+  globalProxy: ProxyConfig;
+  magnetProxy: ProxyConfig;
+  downloadProxy: ProxyConfig;
+  uploadProxy: ProxyConfig;
+  dnsOverHttps: string;
+  interfaceBinding: string;
+  tcpPortRange: string;
 }
 
 export interface TorrentSettings {
@@ -197,11 +274,12 @@ export interface TorrentSettings {
   enablePex: boolean;
   enableDht: boolean;
   enableLpd: boolean;
-  encryption: string;
+  encryption: "forced" | "enabled" | "disabled";
+  maxPeers: number;
 }
 
 export interface VfsSettings {
-  cacheMode: string;
+  cacheMode: "off" | "minimal" | "writes" | "full";
   cacheMaxSize: string;
   cacheMaxAge: string;
   writeBack: string;

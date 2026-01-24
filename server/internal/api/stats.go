@@ -23,6 +23,14 @@ func (h *StatsHandler) Routes() chi.Router {
 	return r
 }
 
+// GetCurrent godoc
+// @Summary Get live system statistics
+// @Description Get real-time download/upload speeds, storage usage, and active task counts
+// @Tags stats
+// @Produce json
+// @Success 200 {object} model.Stats
+// @Failure 500 {string} string "Internal Server Error"
+// @Router /stats [get]
 func (h *StatsHandler) GetCurrent(w http.ResponseWriter, r *http.Request) {
 	stats, err := h.service.GetCurrent(r.Context())
 	if err != nil {

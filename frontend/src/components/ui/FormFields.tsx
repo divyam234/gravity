@@ -1,7 +1,62 @@
-import { Label, TextField, Select, ListBox, InputGroup, FieldError, type TextFieldProps, type SelectRootProps, cn } from "@heroui/react";
+import { Label, TextField, Select, ListBox, InputGroup, FieldError, Switch, type TextFieldProps, type SelectRootProps, type SwitchProps, cn } from "@heroui/react";
 import type { ReactFormApi } from "@tanstack/react-form";
 import IconChevronDown from "~icons/gravity-ui/chevron-down";
 import React from "react";
+
+// Generic FormSwitch component
+interface FormSwitchProps<TName> extends Omit<SwitchProps, "name" | "form" | "children" | "onChange" | "isSelected" | "defaultSelected"> {
+  form: ReactFormApi<any, any, any, any, any, any, any, any, any, any, any, any>;
+  name: TName;
+  label?: React.ReactNode;
+  description?: string;
+  validators?: {
+    onChange?: any;
+    onBlur?: any;
+  };
+}
+
+export function FormSwitch<TName>({
+  form,
+  name,
+  label,
+  description,
+  validators,
+  className,
+  ...props
+}: FormSwitchProps<TName>) {
+  return (
+    <form.Field
+      name={name as any}
+      validators={validators}
+    >
+      {(field: any) => (
+        <div className={cn("flex items-center justify-between", className)}>
+          <div className="flex flex-col gap-0.5">
+            {label && (
+              <Label className="text-sm font-bold tracking-tight">
+                {label}
+              </Label>
+            )}
+            {description && (
+              <p className="text-xs text-muted">
+                {description}
+              </p>
+            )}
+          </div>
+          <Switch
+            isSelected={!!field.state.value}
+            onChange={(isSelected) => field.handleChange(isSelected)}
+            {...props}
+          >
+            <Switch.Control>
+              <Switch.Thumb />
+            </Switch.Control>
+          </Switch>
+        </div>
+      )}
+    </form.Field>
+  );
+}
 
 // Generic FormTextField component
 interface FormTextFieldProps<TName> extends Omit<TextFieldProps, "name" | "form" | "children" | "onChange" | "value" | "defaultValue"> {
@@ -9,6 +64,7 @@ interface FormTextFieldProps<TName> extends Omit<TextFieldProps, "name" | "form"
   name: TName;
   label?: React.ReactNode;
   placeholder?: string;
+  description?: string;
   validators?: {
     onChange?: any;
     onBlur?: any;
@@ -54,6 +110,11 @@ export function FormTextField<TName>({
               <Label className="text-sm font-bold mb-1.5 block text-foreground/80">
                 {label}
               </Label>
+            )}
+            {props.description && (
+                <p className="text-[10px] text-muted mb-2 -mt-1 font-medium leading-relaxed">
+                    {props.description}
+                </p>
             )}
             <InputGroup className="relative">
               {startContent && (

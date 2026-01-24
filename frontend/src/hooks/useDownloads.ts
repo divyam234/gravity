@@ -22,13 +22,13 @@ export function useDownloadActions() {
   const queryClient = useQueryClient();
 
   const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ['downloads'] });
-    queryClient.invalidateQueries({ queryKey: ['stats'] });
+    queryClient.invalidateQueries({ queryKey: ['gravity', 'downloads'] });
+    queryClient.invalidateQueries({ queryKey: ['gravity', 'stats'] });
   };
 
   const create = useMutation({
-    mutationFn: ({ url, destination, filename }: { url: string; destination?: string; filename?: string }) =>
-      api.createDownload(url, destination, filename),
+    mutationFn: ({ url, downloadDir, destination, filename, options }: { url: string; downloadDir?: string; destination?: string; filename?: string; options?: any }) =>
+      api.createDownload(url, downloadDir, destination, filename, options),
     onSuccess: () => {
       invalidate();
       toast.success('Download started');

@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -12,26 +11,37 @@ import (
 
 	"gravity/internal/api"
 	"gravity/internal/config"
+	"gravity/internal/engine"
 	"gravity/internal/engine/aria2"
+	"gravity/internal/engine/hybrid"
+	"gravity/internal/engine/native"
 	"gravity/internal/engine/rclone"
 	"gravity/internal/event"
+	"gravity/internal/logger"
+	"gravity/internal/model"
 	"gravity/internal/provider"
 	"gravity/internal/provider/alldebrid"
+	"gravity/internal/provider/debridlink"
 	"gravity/internal/provider/direct"
+	"gravity/internal/provider/megadebrid"
+	"gravity/internal/provider/premiumize"
 	"gravity/internal/provider/realdebrid"
+	"gravity/internal/provider/torbox"
 	"gravity/internal/service"
 	"gravity/internal/store"
 
 	"github.com/go-chi/chi/v5"
+	"go.uber.org/zap"
 )
 
 type App struct {
 	config *config.Config
 	store  *store.Store
 	bus    *event.Bus
+	logger *zap.Logger
 
-	downloadEngine *aria2.Engine
-	uploadEngine   *rclone.Engine
+	DownloadEngine engine.DownloadEngine
+	UploadEngine   engine.UploadEngine
 
 	downloadService *service.DownloadService
 	uploadService   *service.UploadService
@@ -41,13 +51,32 @@ type App struct {
 	searchService   *service.SearchService
 
 	httpServer *http.Server
-	router     *api.Router
+	Router     *api.Router
 }
 
-func New(ctx context.Context) (*App, error) {
+func (a *App) Config() *config.Config {
+	return a.config
+}
+
+func (a *App) SetDownloadEngine(de engine.DownloadEngine) {
+	a.DownloadEngine = de
+}
+
+func (a *App) SetUploadEngine(ue engine.UploadEngine) {
+	a.UploadEngine = ue
+}
+
+func New(ctx context.Context, de engine.DownloadEngine, ue engine.UploadEngine) (*App, error) {
 	cfg := config.Load()
 
-	s, err := store.New(cfg.DataDir)
+	// Initialize logger
+	l := logger.New(cfg.LogLevel, cfg.LogLevel == "debug")
+	l.Info("starting gravity", 
+		zap.Int("port", cfg.Port), 
+		zap.String("data_dir", cfg.DataDir),
+		zap.String("log_level", cfg.LogLevel))
+
+	s, err := store.New(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -58,10 +87,18 @@ func New(ctx context.Context) (*App, error) {
 	dr := store.NewDownloadRepo(s.GetDB())
 	pr := store.NewProviderRepo(s.GetDB())
 	sr := store.NewStatsRepo(s.GetDB())
+	setr := store.NewSettingsRepo(s.GetDB())
+	searchRepo := store.NewSearchRepo(s.GetDB())
 
-	// Engines
-	de := aria2.NewEngine(cfg.Aria2RPCPort, cfg.DataDir)
-	ue := rclone.NewEngine(ctx)
+	// Engines (Initialize both for Hybrid support)
+	if de == nil {
+		de1 := aria2.NewEngine(cfg.Aria2RPCPort, cfg.DataDir, l)
+		de2 := native.NewNativeEngine(cfg.DataDir, l)
+		de = hybrid.NewHybridRouter(de1, de2, l)
+	}
+	if ue == nil {
+		ue = rclone.NewEngine(ctx, l, cfg.RcloneConfigPath)
+	}
 
 	// Providers
 	registry := provider.NewRegistry()
@@ -69,15 +106,18 @@ func New(ctx context.Context) (*App, error) {
 	ad := alldebrid.New()
 	registry.Register(ad)
 	registry.Register(realdebrid.New())
+	registry.Register(premiumize.New())
+	registry.Register(debridlink.New())
+	registry.Register(torbox.New())
+	registry.Register(megadebrid.New())
 
 	// Services
-	ps := service.NewProviderService(pr, registry)
-	setr := store.NewSettingsRepo(s.GetDB())
-	ds := service.NewDownloadService(dr, setr, de, ue, bus, ps)
-	us := service.NewUploadService(dr, setr, ue, bus)
-	ms := service.NewMagnetService(dr, setr, de, ad, ue, bus)
-	ss := service.NewStatsService(sr, setr, dr, de, ue, bus)
-	searchService := service.NewSearchService(store.NewSearchRepo(s.GetDB()), ue)
+	ps := service.NewProviderService(pr, registry, l)
+	ds := service.NewDownloadService(dr, setr, de, ue, bus, ps, l)
+	us := service.NewUploadService(dr, setr, ue, bus, l)
+	ms := service.NewMagnetService(dr, setr, de, ad, ue, bus, l)
+	ss := service.NewStatsService(sr, setr, dr, de, ue, bus, l)
+	searchService := service.NewSearchService(searchRepo, setr, ue, l)
 
 	// API
 	router := api.NewRouter(cfg.APIKey)
@@ -86,16 +126,17 @@ func New(ctx context.Context) (*App, error) {
 	ph := api.NewProviderHandler(ps)
 	rh := api.NewRemoteHandler(ue)
 	sh := api.NewStatsHandler(ss)
-	seth := api.NewSettingsHandler(setr, pr, de, ue)
-	sysh := api.NewSystemHandler(de, ue)
+	seth := api.NewSettingsHandler(setr, pr, de, ue, bus)
+	sysh := api.NewSystemHandler(ctx, de, ue)
 	mh := api.NewMagnetHandler(ms)
 	fh := api.NewFileHandler(ue, ue)
-	searchHandler := api.NewSearchHandler(searchService)
+	searchHandler := api.NewSearchHandler(ctx, searchService)
 	eh := api.NewEventHandler(bus, de, ss)
 
 	// V1 Router
 	v1 := chi.NewRouter()
 	v1.Use(router.Auth)
+	v1.Use(logger.Middleware(l)) // Use structured request logger
 	v1.Mount("/downloads", dh.Routes())
 	v1.Mount("/providers", ph.Routes())
 	v1.Mount("/remotes", rh.Routes())
@@ -108,6 +149,7 @@ func New(ctx context.Context) (*App, error) {
 	v1.Mount("/events", eh.Routes())
 
 	// Mount V1 to root
+	api.MountSwagger(router)
 	router.Mount("/api/v1", v1)
 	router.Handle("/*", AssetsHandler())
 
@@ -120,8 +162,9 @@ func New(ctx context.Context) (*App, error) {
 		config:          cfg,
 		store:           s,
 		bus:             bus,
-		downloadEngine:  de,
-		uploadEngine:    ue,
+		logger:          l,
+		DownloadEngine:  de,
+		UploadEngine:    ue,
 		downloadService: ds,
 		uploadService:   us,
 		providerService: ps,
@@ -129,7 +172,7 @@ func New(ctx context.Context) (*App, error) {
 		statsService:    ss,
 		searchService:   searchService,
 		httpServer:      srv,
-		router:          router,
+		Router:          router,
 	}, nil
 }
 
@@ -139,6 +182,14 @@ func (a *App) Events() *event.Bus {
 
 func (a *App) Port() int {
 	return a.config.Port
+}
+
+func (a *App) DownloadService() *service.DownloadService {
+	return a.downloadService
+}
+
+func (a *App) StatsService() *service.StatsService {
+	return a.statsService
 }
 
 func (a *App) Start(ctx context.Context) error {
@@ -153,15 +204,29 @@ func (a *App) StartEngines(ctx context.Context) error {
 	setr := store.NewSettingsRepo(a.store.GetDB())
 	settings, _ := setr.Get(ctx)
 
+	// First run: Initialize defaults if missing
+	if settings == nil {
+		a.logger.Debug("first run detected: initializing default settings")
+		settings = model.DefaultSettings()
+		if err := setr.Save(ctx, settings); err != nil {
+			a.logger.Warn("failed to save default settings", zap.Error(err))
+		}
+	}
+
 	// Start engines
-	if err := a.downloadEngine.Start(ctx); err != nil {
+	if err := a.DownloadEngine.Start(ctx); err != nil {
 		return err
 	}
 
-	// Configure and start upload engine (Rclone VFS)
-	a.uploadEngine.Configure(ctx, settings)
-	if err := a.uploadEngine.Start(ctx); err != nil {
-		log.Printf("Warning: Upload engine failed to start: %v", err)
+	// Configure engines
+	if settings != nil {
+		a.DownloadEngine.Configure(ctx, settings)
+		a.UploadEngine.Configure(ctx, settings)
+	}
+
+	// Start upload engine (Rclone VFS)
+	if err := a.UploadEngine.Start(ctx); err != nil {
+		a.logger.Warn("upload engine failed to start", zap.Error(err))
 	}
 
 	// Init provider configs
@@ -169,14 +234,15 @@ func (a *App) StartEngines(ctx context.Context) error {
 
 	// Sync engine state
 	if err := a.downloadService.Sync(ctx); err != nil {
-		log.Printf("Warning: Engine sync failed: %v", err)
+		a.logger.Warn("engine sync failed", zap.Error(err))
 	}
 
 	// Start background services
-	a.downloadService.Start()
-	a.uploadService.Start()
-	a.statsService.Start()
-	a.searchService.Start()
+	a.downloadService.Start(ctx)
+	a.uploadService.Start(ctx)
+	a.statsService.Start(ctx)
+	a.searchService.Start(ctx)
+	a.magnetService.Start(ctx)
 
 	return nil
 }
@@ -184,9 +250,9 @@ func (a *App) StartEngines(ctx context.Context) error {
 func (a *App) StartServer() error {
 	// Start HTTP server
 	go func() {
-		log.Printf("Gravity listening on http://localhost%s", a.httpServer.Addr)
+		a.logger.Info("server listening", zap.String("addr", a.httpServer.Addr))
 		if err := a.httpServer.ListenAndServe(); err != http.ErrServerClosed {
-			log.Printf("HTTP server closed: %v", err)
+			a.logger.Error("http server failed", zap.Error(err))
 		}
 	}()
 
@@ -194,19 +260,26 @@ func (a *App) StartServer() error {
 }
 
 func (a *App) Stop() {
-	log.Println("Shutting down Gravity...")
+	a.logger.Info("shutting down gravity...")
 
 	// Signal services to stop background routines
 	a.downloadService.StopGracefully()
 	a.statsService.Stop()
 
-	a.downloadEngine.Stop()
-	a.uploadEngine.Stop()
+	a.DownloadEngine.Stop()
+	a.UploadEngine.Stop()
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	a.httpServer.Shutdown(shutdownCtx)
+	
+	if err := a.httpServer.Shutdown(shutdownCtx); err != nil {
+		a.logger.Error("server shutdown failed", zap.Error(err))
+	}
+	
 	a.store.Close()
+	
+	// Sync logger before exit
+	_ = a.logger.Sync()
 }
 
 func (a *App) Run() error {

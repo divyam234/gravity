@@ -6,6 +6,7 @@ import {
   Button,
   Checkbox,
   type Key,
+  type Selection,
 } from "react-aria-components";
 import { useState, useMemo } from "react";
 import IconChevronRight from "~icons/gravity-ui/chevron-right";
@@ -49,7 +50,8 @@ export function FileTree({
     return { nodeMap: nMap, parentMap: pMap };
   }, [files]);
 
-  const handleSelectionChange = (keys: Set<Key>) => {
+  const handleSelectionChange = (keys: Selection) => {
+    if (keys === "all") return;
     const next = new Set(Array.from(keys).map(String));
     const current = selectedKeys;
 

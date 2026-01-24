@@ -1,5 +1,6 @@
 import { Button, Card, Input, Label, Spinner } from "@heroui/react";
 import React, { useState } from "react";
+import { useForm } from "@tanstack/react-form";
 import IconTrashBin from "~icons/gravity-ui/trash-bin";
 import IconPlus from "~icons/gravity-ui/plus";
 import { useRemoteActions, useRemotes } from "../../../hooks/useRemotes";
@@ -11,35 +12,37 @@ export const RemoteSettings: React.FC = () => {
 	const { deleteRemote, createRemote } = useRemoteActions();
 
 	const [isAdding, setIsAdding] = useState(false);
-	const [newName, setNewName] = useState("");
-	const [newType, setNewType] = useState("");
-	const [newParams, setNewParams] = useState("{}");
 
-    const defaultRemote = serverSettings?.upload.defaultRemote || "";
-    const setDefaultRemote = (val: string) => {
-        updateServerSettings(prev => ({
-            ...prev,
-            upload: { ...prev.upload, defaultRemote: val }
-        }));
-    };
-
-	const handleCreate = async () => {
-		try {
-			const parameters = JSON.parse(newParams);
-			createRemote.mutate(
-				{ name: newName, type: newType, parameters },
-				{
-					onSuccess: () => {
-						setIsAdding(false);
-						setNewName("");
-						setNewType("");
-						setNewParams("{}");
+	const form = useForm({
+		defaultValues: {
+			name: "",
+			type: "",
+			parameters: "{}",
+		},
+		onSubmit: async ({ value }) => {
+			try {
+				const parameters = JSON.parse(value.parameters);
+				createRemote.mutate(
+					{ name: value.name, type: value.type, parameters },
+					{
+						onSuccess: () => {
+							setIsAdding(false);
+							form.reset();
+						},
 					},
-				},
-			);
-		} catch (e) {
-			console.error("Invalid JSON in parameters");
-		}
+				);
+			} catch (e) {
+				console.error("Invalid JSON in parameters");
+			}
+		},
+	});
+
+	const defaultRemote = serverSettings?.upload.defaultRemote || "";
+	const setDefaultRemote = (val: string) => {
+		updateServerSettings(prev => ({
+			...prev,
+			upload: { ...prev.upload, defaultRemote: val }
+		}));
 	};
 
 	return (
@@ -90,47 +93,62 @@ export const RemoteSettings: React.FC = () => {
 				{isAdding && (
 					<Card className="p-4 bg-default/5 border-border shadow-none rounded-2xl space-y-4">
 						<div className="grid grid-cols-2 gap-4">
-							<div className="space-y-1.5">
-								<Label className="text-xs font-bold uppercase tracking-wider text-muted">
-									Name
-								</Label>
-								<Input
-									value={newName}
-									onChange={(e) => setNewName(e.target.value)}
-									placeholder="my-gdrive"
-									className="bg-background/50 rounded-lg"
-								/>
-							</div>
-							<div className="space-y-1.5">
-								<Label className="text-xs font-bold uppercase tracking-wider text-muted">
-									Type
-								</Label>
-								<Input
-									value={newType}
-									onChange={(e) => setNewType(e.target.value)}
-									placeholder="drive, s3, dropbox..."
-									className="bg-background/50 rounded-lg"
-								/>
-							</div>
-						</div>
-						<div className="space-y-1.5">
-							<Label className="text-xs font-bold uppercase tracking-wider text-muted">
-								Parameters (JSON)
-							</Label>
-							<Input
-								value={newParams}
-								onChange={(e) => setNewParams(e.target.value)}
-								placeholder='{"token": "..."}'
-								className="bg-background/50 rounded-lg font-mono"
+							<form.Field
+								name="name"
+								children={(field) => (
+									<div className="space-y-1.5">
+										<Label className="text-xs font-bold uppercase tracking-wider text-muted">
+											Name
+										</Label>
+										<Input
+											value={field.state.value}
+											onChange={(e) => field.handleChange(e.target.value)}
+											placeholder="my-gdrive"
+											className="bg-background/50 rounded-lg"
+										/>
+									</div>
+								)}
+							/>
+							<form.Field
+								name="type"
+								children={(field) => (
+									<div className="space-y-1.5">
+										<Label className="text-xs font-bold uppercase tracking-wider text-muted">
+											Type
+										</Label>
+										<Input
+											value={field.state.value}
+											onChange={(e) => field.handleChange(e.target.value)}
+											placeholder="drive, s3, dropbox..."
+											className="bg-background/50 rounded-lg"
+										/>
+									</div>
+								)}
 							/>
 						</div>
+						<form.Field
+							name="parameters"
+							children={(field) => (
+								<div className="space-y-1.5">
+									<Label className="text-xs font-bold uppercase tracking-wider text-muted">
+										Parameters (JSON)
+									</Label>
+									<Input
+										value={field.state.value}
+										onChange={(e) => field.handleChange(e.target.value)}
+										placeholder='{"token": "..."}'
+										className="bg-background/50 rounded-lg font-mono"
+									/>
+								</div>
+							)}
+						/>
 						<div className="flex justify-end gap-2">
 							<Button variant="ghost" onPress={() => setIsAdding(false)}>
 								Cancel
 							</Button>
 							<Button
 								className="bg-accent text-accent-foreground"
-								onPress={handleCreate}
+								onPress={() => form.handleSubmit()}
 								isPending={createRemote.isPending}
 							>
 								Create

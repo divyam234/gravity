@@ -1,0 +1,2466 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "API for Gravity Download Manager",
+        "title": "Gravity API",
+        "contact": {},
+        "version": "1.0"
+    },
+    "host": "localhost:8080",
+    "basePath": "/api/v1",
+    "paths": {
+        "/downloads": {
+            "get": {
+                "description": "Get a paginated list of downloads with optional status filtering",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "downloads"
+                ],
+                "summary": "List downloads",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Comma-separated statuses to filter by",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Max number of items to return",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Offset for pagination",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.ListResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Start a new download from a URL",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "downloads"
+                ],
+                "summary": "Create download",
+                "parameters": [
+                    {
+                        "description": "Download request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.CreateDownloadRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/model.Download"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid Request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/downloads/{id}": {
+            "get": {
+                "description": "Get details of a specific download by ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "downloads"
+                ],
+                "summary": "Get download",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Download ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/model.Download"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Stop and delete a download, optionally removing files",
+                "tags": [
+                    "downloads"
+                ],
+                "summary": "Delete download",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Download ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "If true, deletes files from disk",
+                        "name": "delete_files",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/downloads/{id}/pause": {
+            "post": {
+                "description": "Pause an active download",
+                "tags": [
+                    "downloads"
+                ],
+                "summary": "Pause download",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Download ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/downloads/{id}/resume": {
+            "post": {
+                "description": "Resume a paused download",
+                "tags": [
+                    "downloads"
+                ],
+                "summary": "Resume download",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Download ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/downloads/{id}/retry": {
+            "post": {
+                "description": "Retry a failed or completed download",
+                "tags": [
+                    "downloads"
+                ],
+                "summary": "Retry download",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Download ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/events": {
+            "get": {
+                "description": "Open a Server-Sent Events (SSE) connection to receive real-time updates on downloads, uploads, and system status",
+                "produces": [
+                    "text/event-stream"
+                ],
+                "tags": [
+                    "events"
+                ],
+                "summary": "Subscribe to real-time events",
+                "responses": {
+                    "200": {
+                        "description": "SSE connection established",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/files/cat": {
+            "get": {
+                "description": "Stream file content (supports Range requests)",
+                "tags": [
+                    "files"
+                ],
+                "summary": "Read file content",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Virtual path to file",
+                        "name": "path",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "File content",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid Path",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/files/delete": {
+            "post": {
+                "description": "Delete a file or directory",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "files"
+                ],
+                "summary": "Delete file/directory",
+                "parameters": [
+                    {
+                        "description": "Path to delete",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.DeleteFileRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Invalid Path",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/files/list": {
+            "get": {
+                "description": "List files and directories at a path",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "files"
+                ],
+                "summary": "List files",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Virtual path (default root)",
+                        "name": "path",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/definitions/engine.FileInfo"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/files/mkdir": {
+            "post": {
+                "description": "Create a new directory",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "files"
+                ],
+                "summary": "Create directory",
+                "parameters": [
+                    {
+                        "description": "Directory path",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.MkdirRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created"
+                    },
+                    "400": {
+                        "description": "Invalid Path",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/files/operate": {
+            "post": {
+                "description": "Copy, Move, or Rename files",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "files"
+                ],
+                "summary": "File operations",
+                "parameters": [
+                    {
+                        "description": "Operation request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.FileOperationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Job ID if async",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid Request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/files/restart": {
+            "post": {
+                "description": "Restart the Virtual File System engine",
+                "tags": [
+                    "files"
+                ],
+                "summary": "Restart VFS",
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/magnets/check": {
+            "post": {
+                "description": "Check availability and retrieve file list for a magnet link",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "magnets"
+                ],
+                "summary": "Check magnet link",
+                "parameters": [
+                    {
+                        "description": "Magnet check request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.CheckMagnetRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/model.MagnetInfo"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid Request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/magnets/check-torrent": {
+            "post": {
+                "description": "Check availability and retrieve file list for a .torrent file (base64)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "magnets"
+                ],
+                "summary": "Check torrent file",
+                "parameters": [
+                    {
+                        "description": "Torrent check request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.CheckTorrentRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/model.MagnetInfo"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid Request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/magnets/download": {
+            "post": {
+                "description": "Start a download using selected files from a magnet or torrent",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "magnets"
+                ],
+                "summary": "Download from magnet/torrent",
+                "parameters": [
+                    {
+                        "description": "Magnet download request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.DownloadMagnetRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/model.Download"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid Request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/providers": {
+            "get": {
+                "description": "Get a list of all configured download providers",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "providers"
+                ],
+                "summary": "List providers",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/definitions/model.Provider"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/providers/resolve": {
+            "post": {
+                "description": "Resolve a download URL through providers to get direct links",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "providers"
+                ],
+                "summary": "Resolve URL",
+                "parameters": [
+                    {
+                        "description": "Resolve request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.ResolveURLRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid Request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/providers/{name}": {
+            "get": {
+                "description": "Get the configuration schema for a specific provider",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "providers"
+                ],
+                "summary": "Get provider config schema",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Provider name",
+                        "name": "name",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Enable/disable or update configuration settings for a provider",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "providers"
+                ],
+                "summary": "Update provider configuration",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Provider name",
+                        "name": "name",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Configuration request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.ConfigureProviderRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "400": {
+                        "description": "Invalid Request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Delete configuration for a specific provider",
+                "tags": [
+                    "providers"
+                ],
+                "summary": "Remove provider configuration",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Provider name",
+                        "name": "name",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/providers/{name}/hosts": {
+            "get": {
+                "description": "Get list of file hosts supported by a debrid provider",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "providers"
+                ],
+                "summary": "Get supported hosts",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Provider name",
+                        "name": "name",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/providers/{name}/status": {
+            "get": {
+                "description": "Get current status and account info for a provider",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "providers"
+                ],
+                "summary": "Get provider status",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Provider name",
+                        "name": "name",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/model.AccountInfo"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/remotes": {
+            "get": {
+                "description": "Get a list of all configured rclone remotes",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "remotes"
+                ],
+                "summary": "List cloud remotes",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/definitions/engine.Remote"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Add a new cloud storage remote configuration",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "remotes"
+                ],
+                "summary": "Create remote",
+                "parameters": [
+                    {
+                        "description": "Remote creation request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.CreateRemoteRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created"
+                    },
+                    "400": {
+                        "description": "Invalid Request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/remotes/{name}": {
+            "delete": {
+                "description": "Remove a cloud storage remote configuration",
+                "tags": [
+                    "remotes"
+                ],
+                "summary": "Delete remote",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Remote name",
+                        "name": "name",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/remotes/{name}/test": {
+            "post": {
+                "description": "Verify connectivity to a configured cloud storage remote",
+                "tags": [
+                    "remotes"
+                ],
+                "summary": "Test remote connection",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Remote name",
+                        "name": "name",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/search": {
+            "get": {
+                "description": "Global search across all indexed cloud remotes",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "search"
+                ],
+                "summary": "Search indexed files",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Search query string",
+                        "name": "query",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Max number of results",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Offset for pagination",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.ListResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Missing Query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/search/config": {
+            "get": {
+                "description": "Get indexing settings and status for all remotes",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "search"
+                ],
+                "summary": "Get all indexing configurations",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/definitions/store.RemoteIndexConfig"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Update indexing settings for multiple remotes at once",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "search"
+                ],
+                "summary": "Batch update indexing configurations",
+                "parameters": [
+                    {
+                        "description": "Batch configuration request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.BatchUpdateConfigRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "400": {
+                        "description": "Invalid Request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/search/config/{remote}": {
+            "post": {
+                "description": "Update indexing settings for a specific remote",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "search"
+                ],
+                "summary": "Update indexing configuration",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Remote name",
+                        "name": "remote",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Configuration request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.UpdateConfigRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "400": {
+                        "description": "Invalid Request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/search/index/{remote}": {
+            "post": {
+                "description": "Manually start indexing process for a specific remote",
+                "tags": [
+                    "search"
+                ],
+                "summary": "Trigger indexing",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Remote name",
+                        "name": "remote",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted"
+                    }
+                }
+            }
+        },
+        "/settings": {
+            "get": {
+                "description": "Retrieve all application settings organized by category",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "settings"
+                ],
+                "summary": "Get application settings",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/model.Settings"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "description": "Update configuration settings category by category",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "settings"
+                ],
+                "summary": "Update application settings",
+                "parameters": [
+                    {
+                        "description": "Structured settings object",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/model.Settings"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "400": {
+                        "description": "Invalid Request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/settings/export": {
+            "post": {
+                "description": "Download all application settings as a JSON file",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "settings"
+                ],
+                "summary": "Export settings",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/settings/import": {
+            "post": {
+                "description": "Upload application settings from a flat JSON map",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "settings"
+                ],
+                "summary": "Import settings",
+                "parameters": [
+                    {
+                        "description": "Settings map",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "400": {
+                        "description": "Invalid Request",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/settings/reset": {
+            "post": {
+                "description": "Delete all application settings and revert to defaults",
+                "tags": [
+                    "settings"
+                ],
+                "summary": "Reset settings",
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/settings/status": {
+            "get": {
+                "description": "Check configuration status of various system components (downloads, cloud, providers)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "settings"
+                ],
+                "summary": "Get system setup status",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/stats": {
+            "get": {
+                "description": "Get real-time download/upload speeds, storage usage, and active task counts",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "stats"
+                ],
+                "summary": "Get live system statistics",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/model.Stats"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/system/restart/aria2": {
+            "post": {
+                "description": "Stop and restart the underlying Aria2 download engine",
+                "tags": [
+                    "system"
+                ],
+                "summary": "Restart Aria2 engine",
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/system/restart/rclone": {
+            "post": {
+                "description": "Stop and restart the underlying Rclone upload engine",
+                "tags": [
+                    "system"
+                ],
+                "summary": "Restart Rclone engine",
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/system/restart/server": {
+            "post": {
+                "description": "Exit the current process (expects supervisor to restart)",
+                "tags": [
+                    "system"
+                ],
+                "summary": "Restart Gravity server",
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/system/version": {
+            "get": {
+                "description": "Get versions of Gravity, Aria2, and Rclone",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "Get system versions",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "api.BatchUpdateConfigRequest": {
+            "type": "object",
+            "properties": {
+                "configs": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/api.UpdateConfigRequest"
+                    }
+                }
+            }
+        },
+        "api.CheckMagnetRequest": {
+            "type": "object",
+            "required": [
+                "magnet"
+            ],
+            "properties": {
+                "magnet": {
+                    "type": "string",
+                    "example": "magnet:?xt=urn:btih:..."
+                }
+            }
+        },
+        "api.CheckTorrentRequest": {
+            "type": "object",
+            "required": [
+                "torrentBase64"
+            ],
+            "properties": {
+                "torrentBase64": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.ConfigureProviderRequest": {
+            "type": "object",
+            "properties": {
+                "config": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "enabled": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "api.CreateDownloadRequest": {
+            "type": "object",
+            "required": [
+                "url"
+            ],
+            "properties": {
+                "destination": {
+                    "type": "string",
+                    "example": "movies"
+                },
+                "filename": {
+                    "type": "string",
+                    "example": "my_file.zip"
+                },
+                "url": {
+                    "type": "string",
+                    "example": "http://example.com/file.zip"
+                }
+            }
+        },
+        "api.CreateRemoteRequest": {
+            "type": "object",
+            "required": [
+                "name",
+                "type"
+            ],
+            "properties": {
+                "config": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "type": "string",
+                    "example": "my-gdrive"
+                },
+                "type": {
+                    "type": "string",
+                    "example": "drive"
+                }
+            }
+        },
+        "api.DeleteFileRequest": {
+            "type": "object",
+            "required": [
+                "path"
+            ],
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "example": "/movies/old_file.txt"
+                }
+            }
+        },
+        "api.DownloadMagnetRequest": {
+            "type": "object",
+            "required": [
+                "source"
+            ],
+            "properties": {
+                "destination": {
+                    "type": "string",
+                    "example": "movies"
+                },
+                "files": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.MagnetFileRequest"
+                    }
+                },
+                "magnet": {
+                    "type": "string",
+                    "example": "magnet:?xt=urn:btih:..."
+                },
+                "magnetId": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "My Movie"
+                },
+                "selectedFiles": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "example": [
+                        "1",
+                        "2"
+                    ]
+                },
+                "source": {
+                    "type": "string",
+                    "enum": [
+                        "alldebrid",
+                        "aria2"
+                    ]
+                },
+                "torrentBase64": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.FileOperationRequest": {
+            "type": "object",
+            "required": [
+                "dst",
+                "op",
+                "src"
+            ],
+            "properties": {
+                "dst": {
+                    "type": "string",
+                    "example": "/movies/file.txt"
+                },
+                "op": {
+                    "type": "string",
+                    "enum": [
+                        "copy",
+                        "move",
+                        "rename"
+                    ],
+                    "example": "copy"
+                },
+                "src": {
+                    "type": "string",
+                    "example": "/downloads/file.txt"
+                }
+            }
+        },
+        "api.ListResponse": {
+            "type": "object",
+            "properties": {
+                "data": {},
+                "meta": {
+                    "$ref": "#/definitions/api.Meta"
+                }
+            }
+        },
+        "api.MagnetFileRequest": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "example": "1"
+                },
+                "index": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "link": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "movie.mp4"
+                },
+                "path": {
+                    "type": "string",
+                    "example": "Release/movie.mp4"
+                },
+                "size": {
+                    "type": "integer",
+                    "example": 1048576
+                }
+            }
+        },
+        "api.Meta": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer",
+                    "example": 10
+                },
+                "offset": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 100
+                }
+            }
+        },
+        "api.MkdirRequest": {
+            "type": "object",
+            "required": [
+                "path"
+            ],
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "example": "/movies"
+                }
+            }
+        },
+        "api.ResolveURLRequest": {
+            "type": "object",
+            "required": [
+                "url"
+            ],
+            "properties": {
+                "url": {
+                    "type": "string",
+                    "example": "http://example.com/file.zip"
+                }
+            }
+        },
+        "api.UpdateConfigRequest": {
+            "type": "object",
+            "properties": {
+                "excludedPatterns": {
+                    "type": "string"
+                },
+                "includedExtensions": {
+                    "type": "string"
+                },
+                "interval": {
+                    "type": "integer"
+                },
+                "minSizeBytes": {
+                    "type": "integer"
+                }
+            }
+        },
+        "engine.FileInfo": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "description": "Optional ID for some systems",
+                    "type": "string"
+                },
+                "isDir": {
+                    "description": "Helper boolean",
+                    "type": "boolean"
+                },
+                "mimeType": {
+                    "description": "Mime type",
+                    "type": "string"
+                },
+                "modTime": {
+                    "description": "Modification time",
+                    "type": "string"
+                },
+                "name": {
+                    "description": "Display name",
+                    "type": "string"
+                },
+                "path": {
+                    "description": "Full virtual path",
+                    "type": "string"
+                },
+                "size": {
+                    "description": "Bytes",
+                    "type": "integer"
+                },
+                "type": {
+                    "description": "\"file\" or \"folder\"",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/engine.FileType"
+                        }
+                    ]
+                }
+            }
+        },
+        "engine.FileType": {
+            "type": "string",
+            "enum": [
+                "folder",
+                "file"
+            ],
+            "x-enum-varnames": [
+                "FileTypeFolder",
+                "FileTypeFile"
+            ]
+        },
+        "engine.Remote": {
+            "type": "object",
+            "properties": {
+                "connected": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "model.AccountInfo": {
+            "type": "object",
+            "properties": {
+                "expiresAt": {
+                    "type": "string"
+                },
+                "isPremium": {
+                    "type": "boolean"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "model.Download": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string"
+                },
+                "completedAt": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "destination": {
+                    "type": "string"
+                },
+                "downloaded": {
+                    "type": "integer",
+                    "example": 5242880
+                },
+                "error": {
+                    "type": "string"
+                },
+                "eta": {
+                    "type": "integer",
+                    "example": 10
+                },
+                "filename": {
+                    "type": "string"
+                },
+                "files": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.DownloadFile"
+                    }
+                },
+                "filesComplete": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "d_a1b2c3d4"
+                },
+                "isMagnet": {
+                    "description": "Multi-file support for magnets/torrents",
+                    "type": "boolean"
+                },
+                "localPath": {
+                    "type": "string"
+                },
+                "magnetHash": {
+                    "type": "string"
+                },
+                "magnetSource": {
+                    "description": "\"alldebrid\" or \"aria2\"",
+                    "type": "string",
+                    "enum": [
+                        "alldebrid",
+                        "aria2"
+                    ]
+                },
+                "peerDetails": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.Peer"
+                    }
+                },
+                "peers": {
+                    "type": "integer"
+                },
+                "provider": {
+                    "type": "string"
+                },
+                "resolvedUrl": {
+                    "type": "string"
+                },
+                "seeders": {
+                    "type": "integer"
+                },
+                "size": {
+                    "type": "integer",
+                    "example": 10485760
+                },
+                "speed": {
+                    "type": "integer",
+                    "example": 1024000
+                },
+                "startedAt": {
+                    "type": "string"
+                },
+                "status": {
+                    "enum": [
+                        "active",
+                        "waiting",
+                        "paused",
+                        "uploading",
+                        "complete",
+                        "error"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/model.DownloadStatus"
+                        }
+                    ],
+                    "example": "active"
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "totalFiles": {
+                    "type": "integer"
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "uploadProgress": {
+                    "type": "integer",
+                    "example": 50
+                },
+                "uploadSpeed": {
+                    "type": "integer",
+                    "example": 512000
+                },
+                "uploadStatus": {
+                    "type": "string",
+                    "enum": [
+                        "idle",
+                        "running",
+                        "complete",
+                        "error"
+                    ]
+                },
+                "url": {
+                    "type": "string",
+                    "example": "http://example.com/file.zip"
+                }
+            }
+        },
+        "model.DownloadFile": {
+            "type": "object",
+            "properties": {
+                "downloaded": {
+                    "type": "integer"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "path": {
+                    "description": "relative path: \"ubuntu/iso/file.iso\"",
+                    "type": "string"
+                },
+                "progress": {
+                    "description": "0-100",
+                    "type": "integer"
+                },
+                "size": {
+                    "type": "integer"
+                },
+                "status": {
+                    "$ref": "#/definitions/model.DownloadStatus"
+                }
+            }
+        },
+        "model.DownloadSettings": {
+            "type": "object",
+            "properties": {
+                "checkCertificate": {
+                    "type": "boolean"
+                },
+                "connectTimeout": {
+                    "type": "integer"
+                },
+                "downloadDir": {
+                    "type": "string"
+                },
+                "maxConcurrentDownloads": {
+                    "type": "integer"
+                },
+                "maxConnectionPerServer": {
+                    "type": "integer"
+                },
+                "maxDownloadSpeed": {
+                    "type": "string"
+                },
+                "maxTries": {
+                    "type": "integer"
+                },
+                "maxUploadSpeed": {
+                    "type": "string"
+                },
+                "split": {
+                    "type": "integer"
+                },
+                "userAgent": {
+                    "type": "string"
+                }
+            }
+        },
+        "model.DownloadStatus": {
+            "description": "active, waiting, paused, uploading, complete, error",
+            "type": "string",
+            "enum": [
+                "active",
+                "waiting",
+                "paused",
+                "uploading",
+                "complete",
+                "error"
+            ],
+            "x-enum-varnames": [
+                "StatusActive",
+                "StatusWaiting",
+                "StatusPaused",
+                "StatusUploading",
+                "StatusComplete",
+                "StatusError"
+            ]
+        },
+        "model.MagnetFile": {
+            "type": "object",
+            "properties": {
+                "children": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.MagnetFile"
+                    }
+                },
+                "id": {
+                    "description": "AllDebrid file ID or aria2c 1-indexed file number",
+                    "type": "string"
+                },
+                "index": {
+                    "description": "1-indexed file number for aria2c --select-file",
+                    "type": "integer"
+                },
+                "isFolder": {
+                    "type": "boolean"
+                },
+                "link": {
+                    "description": "direct download link (AllDebrid only)",
+                    "type": "string"
+                },
+                "name": {
+                    "description": "filename only",
+                    "type": "string"
+                },
+                "path": {
+                    "description": "full path within torrent",
+                    "type": "string"
+                },
+                "size": {
+                    "type": "integer"
+                }
+            }
+        },
+        "model.MagnetInfo": {
+            "type": "object",
+            "properties": {
+                "cached": {
+                    "description": "true if cached on debrid service",
+                    "type": "boolean"
+                },
+                "files": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.MagnetFile"
+                    }
+                },
+                "hash": {
+                    "type": "string"
+                },
+                "magnetId": {
+                    "description": "debrid service magnet ID",
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "size": {
+                    "type": "integer"
+                },
+                "source": {
+                    "description": "\"alldebrid\" or \"aria2\"",
+                    "type": "string"
+                }
+            }
+        },
+        "model.NetworkSettings": {
+            "type": "object",
+            "properties": {
+                "proxyEnabled": {
+                    "type": "boolean"
+                },
+                "proxyPassword": {
+                    "type": "string"
+                },
+                "proxyUrl": {
+                    "type": "string"
+                },
+                "proxyUser": {
+                    "type": "string"
+                }
+            }
+        },
+        "model.Peer": {
+            "type": "object",
+            "properties": {
+                "downloadSpeed": {
+                    "type": "integer"
+                },
+                "ip": {
+                    "type": "string"
+                },
+                "isSeeder": {
+                    "type": "boolean"
+                },
+                "port": {
+                    "type": "string"
+                },
+                "uploadSpeed": {
+                    "type": "integer"
+                }
+            }
+        },
+        "model.Provider": {
+            "type": "object",
+            "properties": {
+                "cachedAccount": {
+                    "$ref": "#/definitions/model.AccountInfo"
+                },
+                "cachedHosts": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "config": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "displayName": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "priority": {
+                    "type": "integer"
+                },
+                "type": {
+                    "$ref": "#/definitions/model.ProviderType"
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "model.ProviderType": {
+            "type": "string",
+            "enum": [
+                "direct",
+                "debrid",
+                "filehost"
+            ],
+            "x-enum-varnames": [
+                "ProviderTypeDirect",
+                "ProviderTypeDebrid",
+                "ProviderTypeFileHost"
+            ]
+        },
+        "model.Settings": {
+            "type": "object",
+            "properties": {
+                "download": {
+                    "$ref": "#/definitions/model.DownloadSettings"
+                },
+                "network": {
+                    "$ref": "#/definitions/model.NetworkSettings"
+                },
+                "torrent": {
+                    "$ref": "#/definitions/model.TorrentSettings"
+                },
+                "upload": {
+                    "$ref": "#/definitions/model.UploadSettings"
+                },
+                "vfs": {
+                    "$ref": "#/definitions/model.VfsSettings"
+                }
+            }
+        },
+        "model.Speeds": {
+            "type": "object",
+            "properties": {
+                "download": {
+                    "type": "integer"
+                },
+                "upload": {
+                    "type": "integer"
+                }
+            }
+        },
+        "model.Stats": {
+            "type": "object",
+            "properties": {
+                "speeds": {
+                    "$ref": "#/definitions/model.Speeds"
+                },
+                "system": {
+                    "$ref": "#/definitions/model.SystemStats"
+                },
+                "tasks": {
+                    "$ref": "#/definitions/model.TaskCounts"
+                },
+                "usage": {
+                    "$ref": "#/definitions/model.UsageStats"
+                }
+            }
+        },
+        "model.SystemStats": {
+            "type": "object",
+            "properties": {
+                "diskFree": {
+                    "type": "integer"
+                },
+                "diskTotal": {
+                    "type": "integer"
+                },
+                "diskUsage": {
+                    "description": "Percentage",
+                    "type": "number"
+                },
+                "uptime": {
+                    "description": "Seconds",
+                    "type": "integer"
+                }
+            }
+        },
+        "model.TaskCounts": {
+            "type": "object",
+            "properties": {
+                "active": {
+                    "type": "integer"
+                },
+                "completed": {
+                    "type": "integer"
+                },
+                "failed": {
+                    "type": "integer"
+                },
+                "paused": {
+                    "type": "integer"
+                },
+                "uploading": {
+                    "type": "integer"
+                },
+                "waiting": {
+                    "type": "integer"
+                }
+            }
+        },
+        "model.TorrentSettings": {
+            "type": "object",
+            "properties": {
+                "enableDht": {
+                    "type": "boolean"
+                },
+                "enableLpd": {
+                    "type": "boolean"
+                },
+                "enablePex": {
+                    "type": "boolean"
+                },
+                "encryption": {
+                    "type": "string"
+                },
+                "forceSave": {
+                    "type": "boolean"
+                },
+                "listenPort": {
+                    "type": "integer"
+                },
+                "seedRatio": {
+                    "type": "string"
+                },
+                "seedTime": {
+                    "type": "integer"
+                }
+            }
+        },
+        "model.UploadSettings": {
+            "type": "object",
+            "properties": {
+                "autoUpload": {
+                    "type": "boolean"
+                },
+                "defaultRemote": {
+                    "type": "string"
+                },
+                "removeLocal": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "model.UsageStats": {
+            "type": "object",
+            "properties": {
+                "sessionDownloaded": {
+                    "type": "integer"
+                },
+                "sessionUploaded": {
+                    "type": "integer"
+                },
+                "totalDownloaded": {
+                    "type": "integer"
+                },
+                "totalUploaded": {
+                    "type": "integer"
+                }
+            }
+        },
+        "model.VfsSettings": {
+            "type": "object",
+            "properties": {
+                "cacheMaxAge": {
+                    "type": "string"
+                },
+                "cacheMaxSize": {
+                    "type": "string"
+                },
+                "cacheMode": {
+                    "type": "string"
+                },
+                "dirCacheTime": {
+                    "type": "string"
+                },
+                "pollInterval": {
+                    "type": "string"
+                },
+                "readAhead": {
+                    "type": "string"
+                },
+                "readChunkSize": {
+                    "type": "string"
+                },
+                "readChunkSizeLimit": {
+                    "type": "string"
+                },
+                "readChunkStreams": {
+                    "type": "integer"
+                },
+                "writeBack": {
+                    "type": "string"
+                }
+            }
+        },
+        "store.RemoteIndexConfig": {
+            "type": "object",
+            "properties": {
+                "autoIndexIntervalMin": {
+                    "type": "integer"
+                },
+                "errorMsg": {
+                    "type": "string"
+                },
+                "excludedPatterns": {
+                    "description": "Comma-separated regex",
+                    "type": "string"
+                },
+                "includedExtensions": {
+                    "description": "Comma-separated extensions",
+                    "type": "string"
+                },
+                "lastIndexedAt": {
+                    "type": "string"
+                },
+                "minSizeBytes": {
+                    "type": "integer"
+                },
+                "remote": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        }
+    }
+}

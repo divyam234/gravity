@@ -14,7 +14,7 @@ func NewResolver(registry *Registry) *Resolver {
 	return &Resolver{registry: registry}
 }
 
-func (r *Resolver) Resolve(ctx context.Context, url string) (*ResolveResult, string, error) {
+func (r *Resolver) Resolve(ctx context.Context, url string, headers map[string]string) (*ResolveResult, string, error) {
 	providers := r.registry.List()
 
 	// Sort by priority descending
@@ -24,7 +24,7 @@ func (r *Resolver) Resolve(ctx context.Context, url string) (*ResolveResult, str
 
 	for _, p := range providers {
 		if p.IsConfigured() && p.Supports(url) {
-			res, err := p.Resolve(ctx, url)
+			res, err := p.Resolve(ctx, url, headers)
 			if err == nil && res != nil {
 				return res, p.Name(), nil
 			}
@@ -32,4 +32,14 @@ func (r *Resolver) Resolve(ctx context.Context, url string) (*ResolveResult, str
 	}
 
 	return nil, "", fmt.Errorf("no provider could resolve the URL")
+}
+
+func (r *Resolver) IsSupported(url string) bool {
+	providers := r.registry.List()
+	for _, p := range providers {
+		if p.IsConfigured() && p.Supports(url) {
+			return true
+		}
+	}
+	return false
 }

@@ -4,6 +4,8 @@ import (
 	"context"
 	"io"
 	"time"
+
+	"gravity/internal/model"
 )
 
 type FileType string
@@ -112,6 +114,6 @@ type UploadEngine interface {
 	TestRemote(ctx context.Context, name string) error
 
 	// Config
-	Configure(ctx context.Context, options map[string]string) error
+	Configure(ctx context.Context, settings *model.Settings) error
 	Restart(ctx context.Context) error
 }

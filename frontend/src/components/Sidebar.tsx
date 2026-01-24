@@ -7,7 +7,6 @@ import IconThunderbolt from "~icons/gravity-ui/thunderbolt";
 import IconCheck from "~icons/gravity-ui/check";
 import IconCircleXmark from "~icons/gravity-ui/circle-xmark";
 import IconClock from "~icons/gravity-ui/clock";
-import IconCloud from "~icons/gravity-ui/cloud";
 import IconCloudArrowUpIn from "~icons/gravity-ui/cloud-arrow-up-in";
 import IconDisplay from "~icons/gravity-ui/display";
 import IconFolder from "~icons/gravity-ui/folder";
@@ -148,17 +147,17 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
         count: null,
       },
       {
-        key: "cloud",
-        label: "Cloud Storage",
-        icon: <IconCloud className="w-4 h-4" />,
-        to: "/settings/cloud",
+        key: "uploads",
+        label: "Uploads",
+        icon: <IconCloudArrowUpIn className="w-4 h-4" />,
+        to: "/settings/uploads",
         count: null,
       },
       {
-        key: "premium",
-        label: "Premium Services",
-        icon: <IconThunderbolt className="w-4 h-4" />,
-        to: "/settings/premium",
+        key: "torrents",
+        label: "Torrents",
+        icon: <IconMagnet className="w-4 h-4" />,
+        to: "/settings/torrents",
         count: null,
       },
       {
@@ -169,10 +168,10 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
         count: null,
       },
       {
-        key: "torrents",
-        label: "Torrents",
-        icon: <IconMagnet className="w-4 h-4" />,
-        to: "/settings/torrents",
+        key: "automation",
+        label: "Automation",
+        icon: <IconClock className="w-4 h-4" />,
+        to: "/settings/automation",
         count: null,
       },
       {
@@ -190,10 +189,24 @@ export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
         count: null,
       },
       {
+        key: "advanced",
+        label: "Advanced",
+        icon: <IconGear className="w-4 h-4" />,
+        to: "/settings/advanced",
+        count: null,
+      },
+      {
         key: "server",
         label: "Server",
         icon: <IconServer className="w-4 h-4" />,
         to: "/settings/server",
+        count: null,
+      },
+      {
+        key: "premium",
+        label: "Premium Services",
+        icon: <IconThunderbolt className="w-4 h-4" />,
+        to: "/settings/premium",
         count: null,
       },
     ],

@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"math/rand"
 	"sync"
 	"time"
 
+	"gravity/internal/logger"
+
+	"go.uber.org/zap"
 	"nhooyr.io/websocket"
 	"nhooyr.io/websocket/wsjson"
 )
@@ -94,7 +96,11 @@ func (c *Client) listen() {
 
 		err := wsjson.Read(context.Background(), c.conn, &resp)
 		if err != nil {
-			log.Printf("Aria2 websocket read error: %v", err)
+			if websocket.CloseStatus(err) == websocket.StatusNormalClosure || websocket.CloseStatus(err) == websocket.StatusGoingAway {
+				// Normal closure
+			} else {
+				logger.L.Warn("Aria2 websocket read error", zap.Error(err))
+			}
 			c.mu.Lock()
 			c.conn = nil
 			c.mu.Unlock()

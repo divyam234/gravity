@@ -2,13 +2,13 @@ package alldebrid
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
+	"github.com/rclone/rclone/lib/rest"
+	"gravity/internal/client"
 	"gravity/internal/model"
 	"gravity/internal/provider"
 )
@@ -19,15 +19,14 @@ const (
 )
 
 type AllDebridProvider struct {
-	apiKey     string
-	httpClient *http.Client
-	hosts      []string
+	apiKey   string
+	proxyURL string
+	client   *client.Client
+	hosts    []string
 }
 
 func New() *AllDebridProvider {
-	return &AllDebridProvider{
-		httpClient: &http.Client{Timeout: 10 * time.Second},
-	}
+	return &AllDebridProvider{}
 }
 
 func (p *AllDebridProvider) Name() string        { return "alldebrid" }
@@ -45,14 +44,36 @@ func (p *AllDebridProvider) ConfigSchema() []provider.ConfigField {
 			Required:    true,
 			Description: "Get your API key from alldebrid.com/apikeys",
 		},
+		{
+			Key:         "proxy_url",
+			Label:       "Proxy URL",
+			Type:        "text",
+			Required:    false,
+			Description: "Optional proxy (http://user:pass@host:port)",
+		},
 	}
 }
 
-func (p *AllDebridProvider) Configure(config map[string]string) error {
+func (p *AllDebridProvider) Configure(ctx context.Context, config map[string]string) error {
 	p.apiKey = config["api_key"]
+	p.proxyURL = config["proxy_url"]
+
+	opts := []client.Option{
+		client.WithTimeout(10 * time.Second),
+	}
+
+	if p.proxyURL != "" {
+		opts = append(opts, client.WithProxy(p.proxyURL))
+	}
+
+	p.client = client.New(ctx, baseURL, opts...)
+
 	if p.apiKey != "" {
 		// Try to fetch hosts to verify key
-		hosts, err := p.fetchHosts(context.Background())
+		// Use a timeout context
+		ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
+		defer cancel()
+		hosts, err := p.fetchHosts(ctx)
 		if err == nil {
 			p.hosts = hosts
 		}
@@ -88,23 +109,24 @@ func (p *AllDebridProvider) Priority() int {
 	return 100 // High priority
 }
 
-func (p *AllDebridProvider) Resolve(ctx context.Context, rawURL string) (*provider.ResolveResult, error) {
-	endpoint := fmt.Sprintf("%s/link/unlock?agent=%s&apikey=%s&link=%s",
-		baseURL, agent, p.apiKey, url.QueryEscape(rawURL))
+func (p *AllDebridProvider) Resolve(ctx context.Context, rawURL string, headers map[string]string) (*provider.ResolveResult, error) {
+	// If it's already an AllDebrid direct link, we might not need to unlock it.
+	// But we still want filename and size. Unlock is the best way to get metadata.
 
-	req, err := http.NewRequestWithContext(ctx, "GET", endpoint, nil)
-	if err != nil {
-		return nil, err
-	}
+	params := url.Values{}
+	params.Set("agent", agent)
+	params.Set("apikey", p.apiKey)
+	params.Set("link", rawURL)
 
-	resp, err := p.httpClient.Do(req)
-	if err != nil {
-		return nil, err
+	opts := rest.Opts{
+		Method:     "GET",
+		Path:       "/link/unlock",
+		Parameters: params,
 	}
-	defer resp.Body.Close()
 
 	var result LinkUnlockResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	_, err := p.client.CallJSON(ctx, &opts, nil, &result)
+	if err != nil {
 		return nil, err
 	}
 
@@ -120,21 +142,19 @@ func (p *AllDebridProvider) Resolve(ctx context.Context, rawURL string) (*provid
 }
 
 func (p *AllDebridProvider) Test(ctx context.Context) (*model.AccountInfo, error) {
-	endpoint := fmt.Sprintf("%s/user?agent=%s&apikey=%s", baseURL, agent, p.apiKey)
+	params := url.Values{}
+	params.Set("agent", agent)
+	params.Set("apikey", p.apiKey)
 
-	req, err := http.NewRequestWithContext(ctx, "GET", endpoint, nil)
-	if err != nil {
-		return nil, err
+	opts := rest.Opts{
+		Method:     "GET",
+		Path:       "/user",
+		Parameters: params,
 	}
-
-	resp, err := p.httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
 
 	var result UserResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	_, err := p.client.CallJSON(ctx, &opts, nil, &result)
+	if err != nil {
 		return nil, err
 	}
 
@@ -151,21 +171,18 @@ func (p *AllDebridProvider) Test(ctx context.Context) (*model.AccountInfo, error
 }
 
 func (p *AllDebridProvider) fetchHosts(ctx context.Context) ([]string, error) {
-	endpoint := fmt.Sprintf("%s/hosts?agent=%s", baseURL, agent)
+	params := url.Values{}
+	params.Set("agent", agent)
 
-	req, err := http.NewRequestWithContext(ctx, "GET", endpoint, nil)
-	if err != nil {
-		return nil, err
+	opts := rest.Opts{
+		Method:     "GET",
+		Path:       "/hosts",
+		Parameters: params,
 	}
-
-	resp, err := p.httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
 
 	var result HostsResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	_, err := p.client.CallJSON(ctx, &opts, nil, &result)
+	if err != nil {
 		return nil, err
 	}
 

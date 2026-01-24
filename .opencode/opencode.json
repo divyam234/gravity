@@ -1,0 +1,6 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "watcher": {
+    "ignore": ["frontend/node_modules/**", "server/internal/app/dist"]
+  }
+}

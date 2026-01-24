@@ -29,6 +29,14 @@ func (h *ProviderHandler) Routes() chi.Router {
 	return r
 }
 
+// List godoc
+// @Summary List providers
+// @Description Get a list of all configured download providers
+// @Tags providers
+// @Produce json
+// @Success 200 {object} map[string][]model.Provider
+// @Failure 500 {string} string "Internal Server Error"
+// @Router /providers [get]
 func (h *ProviderHandler) List(w http.ResponseWriter, r *http.Request) {
 	list, err := h.service.List(r.Context())
 	if err != nil {
@@ -38,6 +46,14 @@ func (h *ProviderHandler) List(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]interface{}{"data": list})
 }
 
+// Delete godoc
+// @Summary Remove provider configuration
+// @Description Delete configuration for a specific provider
+// @Tags providers
+// @Param name path string true "Provider name"
+// @Success 204 "No Content"
+// @Failure 500 {string} string "Internal Server Error"
+// @Router /providers/{name} [delete]
 func (h *ProviderHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
 	if err := h.service.Delete(r.Context(), name); err != nil {
@@ -47,6 +63,15 @@ func (h *ProviderHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// GetStatus godoc
+// @Summary Get provider status
+// @Description Get current status and account info for a provider
+// @Tags providers
+// @Produce json
+// @Param name path string true "Provider name"
+// @Success 200 {object} model.AccountInfo
+// @Failure 500 {string} string "Internal Server Error"
+// @Router /providers/{name}/status [get]
 func (h *ProviderHandler) GetStatus(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
 	status, err := h.service.GetStatus(r.Context(), name)
@@ -57,6 +82,15 @@ func (h *ProviderHandler) GetStatus(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(status)
 }
 
+// GetHosts godoc
+// @Summary Get supported hosts
+// @Description Get list of file hosts supported by a debrid provider
+// @Tags providers
+// @Produce json
+// @Param name path string true "Provider name"
+// @Success 200 {object} map[string][]string
+// @Failure 500 {string} string "Internal Server Error"
+// @Router /providers/{name}/hosts [get]
 func (h *ProviderHandler) GetHosts(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
 	hosts, err := h.service.GetHosts(r.Context(), name)
@@ -67,6 +101,15 @@ func (h *ProviderHandler) GetHosts(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]interface{}{"hosts": hosts})
 }
 
+// Get godoc
+// @Summary Get provider config schema
+// @Description Get the configuration schema for a specific provider
+// @Tags providers
+// @Produce json
+// @Param name path string true "Provider name"
+// @Success 200 {object} map[string]interface{}
+// @Failure 404 {string} string "Not Found"
+// @Router /providers/{name} [get]
 func (h *ProviderHandler) Get(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
 	schema, err := h.service.GetConfigSchema(name)
@@ -82,14 +125,21 @@ func (h *ProviderHandler) Get(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// Configure godoc
+// @Summary Update provider configuration
+// @Description Enable/disable or update configuration settings for a provider
+// @Tags providers
+// @Accept json
+// @Param name path string true "Provider name"
+// @Param request body ConfigureProviderRequest true "Configuration request"
+// @Success 200 "OK"
+// @Failure 400 {string} string "Invalid Request"
+// @Failure 500 {string} string "Internal Server Error"
+// @Router /providers/{name} [put]
 func (h *ProviderHandler) Configure(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
-	var req struct {
-		Config  map[string]string `json:"config"`
-		Enabled bool              `json:"enabled"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request", http.StatusBadRequest)
+	var req ConfigureProviderRequest
+	if !decodeAndValidate(w, r, &req) {
 		return
 	}
 
@@ -101,16 +151,25 @@ func (h *ProviderHandler) Configure(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+// Resolve godoc
+// @Summary Resolve URL
+// @Description Resolve a download URL through providers to get direct links
+// @Tags providers
+// @Accept json
+// @Produce json
+// @Param request body ResolveURLRequest true "Resolve request"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {string} string "Invalid Request"
+// @Failure 404 {string} string "Not Found"
+// @Router /providers/resolve [post]
+
 func (h *ProviderHandler) Resolve(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		URL string `json:"url"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request", http.StatusBadRequest)
+	var req ResolveURLRequest
+	if !decodeAndValidate(w, r, &req) {
 		return
 	}
 
-	res, provider, err := h.service.Resolve(r.Context(), req.URL)
+	res, provider, err := h.service.Resolve(r.Context(), req.URL, req.Headers)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return

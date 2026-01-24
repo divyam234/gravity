@@ -3,16 +3,15 @@ package rclone
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"path"
 	"path/filepath"
-	"strconv"
 	"strings"
 	stdSync "sync"
 	"time"
 
 	"gravity/internal/engine"
+	"gravity/internal/model"
 
 	"github.com/rclone/rclone/fs"
 	"github.com/rclone/rclone/fs/accounting"
@@ -22,6 +21,7 @@ import (
 	_ "github.com/rclone/rclone/fs/sync"
 	"github.com/rclone/rclone/vfs"
 	"github.com/rclone/rclone/vfs/vfscommon"
+	"go.uber.org/zap"
 
 	_ "github.com/rclone/rclone/backend/all"
 )
@@ -32,10 +32,12 @@ type Engine struct {
 	onComplete func(jobID string)
 	onError    func(jobID string, err error)
 
-	activeJobs map[string]*job
-	mu         stdSync.RWMutex
-	cacheTTL   time.Duration
-	appCtx     context.Context
+	activeJobs  map[string]*job
+	mu          stdSync.RWMutex
+	pollingCond *stdSync.Cond
+	appCtx      context.Context
+	logger      *zap.Logger
+	configPath  string
 }
 
 type job struct {
@@ -46,17 +48,20 @@ type job struct {
 	cancel  context.CancelFunc
 }
 
-func NewEngine(ctx context.Context) *Engine {
-	return &Engine{
+func NewEngine(ctx context.Context, l *zap.Logger, configPath string) *Engine {
+	e := &Engine{
 		activeJobs: make(map[string]*job),
-		cacheTTL:   5 * time.Minute,
 		appCtx:     ctx,
+		logger:     l.With(zap.String("engine", "rclone")),
+		configPath: configPath,
 	}
+	e.pollingCond = stdSync.NewCond(&e.mu)
+	return e
 }
 
 func (e *Engine) Start(ctx context.Context) error {
-	log.Printf("Rclone: Using config file: %s", rclConfig.GetConfigPath())
-	if err := SyncGravityRoot(); err != nil {
+	e.logger.Info("starting rclone engine", zap.String("config_path", e.configPath))
+	if err := SyncGravityRoot(e.configPath); err != nil {
 		return fmt.Errorf("failed to sync gravity root: %w", err)
 	}
 
@@ -217,6 +222,7 @@ func (e *Engine) Upload(ctx context.Context, src, dst string, opts engine.Upload
 
 	e.mu.Lock()
 	e.activeJobs[jobID] = j
+	e.pollingCond.Broadcast()
 	e.mu.Unlock()
 
 	go func() {
@@ -265,7 +271,29 @@ func (e *Engine) removeJob(id string) {
 
 func (e *Engine) pollAccounting() {
 	ticker := time.NewTicker(1 * time.Second)
-	for range ticker.C {
+	defer ticker.Stop()
+
+	for {
+		e.mu.Lock()
+		for len(e.activeJobs) == 0 {
+			// Check context before waiting
+			select {
+			case <-e.appCtx.Done():
+				e.mu.Unlock()
+				return
+			default:
+			}
+			e.pollingCond.Wait()
+		}
+		e.mu.Unlock()
+
+		select {
+		case <-e.appCtx.Done():
+			return
+		case <-ticker.C:
+			// continue
+		}
+
 		e.mu.RLock()
 		if len(e.activeJobs) == 0 {
 			e.mu.RUnlock()
@@ -281,7 +309,7 @@ func (e *Engine) pollAccounting() {
 		// Get core/stats function
 		call := rc.Calls.Get("core/stats")
 		if call == nil {
-			log.Println("Rclone: core/stats RC command not found")
+			e.logger.Error("core/stats RC command not found")
 			continue
 		}
 
@@ -407,7 +435,7 @@ func (e *Engine) CreateRemote(ctx context.Context, name, rtype string, config ma
 	rclConfig.Data().SetValue(name, "type", rtype)
 	err := rclConfig.Data().Save()
 	if err == nil {
-		SyncGravityRoot()
+		SyncGravityRoot(e.configPath)
 	}
 	return err
 }
@@ -416,7 +444,7 @@ func (e *Engine) DeleteRemote(ctx context.Context, name string) error {
 	rclConfig.Data().DeleteSection(name)
 	err := rclConfig.Data().Save()
 	if err == nil {
-		SyncGravityRoot()
+		SyncGravityRoot(e.configPath)
 	}
 	return err
 }
@@ -438,6 +466,7 @@ func (e *Engine) Copy(ctx context.Context, srcPath, dstPath string) (string, err
 
 	e.mu.Lock()
 	e.activeJobs[jobID] = j
+	e.pollingCond.Broadcast()
 	e.mu.Unlock()
 
 	go func() {
@@ -501,6 +530,7 @@ func (e *Engine) Move(ctx context.Context, srcPath, dstPath string) (string, err
 
 	e.mu.Lock()
 	e.activeJobs[jobID] = j
+	e.pollingCond.Broadcast()
 	e.mu.Unlock()
 
 	go func() {
@@ -562,72 +592,76 @@ func (e *Engine) Cancel(ctx context.Context, jobID string) error {
 	return nil
 }
 
-func (e *Engine) Configure(ctx context.Context, options map[string]string) error {
-	// Helper for Booleans
-	parseBool := func(key string, target *bool) {
-		if val, ok := options[key]; ok {
-			*target = val == "true" || val == "1" || val == "yes"
-		}
-	}
-
-	// Helper for Durations
-	parseDuration := func(key string, target *fs.Duration) {
-		if val, ok := options[key]; ok {
-			if d, err := fs.ParseDuration(val); err == nil {
-				*target = fs.Duration(d)
-			}
-		}
-	}
-
-	// Helper for Sizes
-	parseSize := func(key string, target *fs.SizeSuffix) {
-		if val, ok := options[key]; ok {
-			var size fs.SizeSuffix
-			if err := size.Set(val); err == nil {
-				*target = size
-			}
-		}
+func (e *Engine) Configure(ctx context.Context, settings *model.Settings) error {
+	if settings == nil {
+		return nil
 	}
 
 	// 1. Cache Mode
-	if val, ok := options["vfsCacheMode"]; ok {
+	if settings.Vfs.CacheMode != "" {
 		var mode vfscommon.CacheMode
-		if err := mode.Set(val); err == nil {
+		if err := mode.Set(settings.Vfs.CacheMode); err == nil {
 			vfscommon.Opt.CacheMode = mode
 		}
 	}
 
-	// 2. Flags / Booleans
-	parseBool("vfsNoChecksum", &vfscommon.Opt.NoChecksum)
-	parseBool("vfsRefresh", &vfscommon.Opt.Refresh)
-	parseBool("vfsCaseInsensitive", &vfscommon.Opt.CaseInsensitive)
-
 	// 3. Durations
-	parseDuration("vfsDirCacheTime", &vfscommon.Opt.DirCacheTime)
-	parseDuration("vfsPollInterval", &vfscommon.Opt.PollInterval)
-	parseDuration("vfsWriteBack", &vfscommon.Opt.WriteBack)
-	parseDuration("vfsCacheMaxAge", &vfscommon.Opt.CacheMaxAge)
-	parseDuration("vfsCachePollInterval", &vfscommon.Opt.CachePollInterval)
-	parseDuration("vfsWriteWait", &vfscommon.Opt.WriteWait)
-	parseDuration("vfsReadWait", &vfscommon.Opt.ReadWait)
-
-	// 4. Sizes
-	parseSize("vfsCacheMaxSize", &vfscommon.Opt.CacheMaxSize)
-	parseSize("vfsCacheMinFreeSpace", &vfscommon.Opt.CacheMinFreeSpace)
-	parseSize("vfsReadChunkSize", &vfscommon.Opt.ChunkSize)
-	parseSize("vfsReadChunkSizeLimit", &vfscommon.Opt.ChunkSizeLimit)
-	parseSize("vfsReadAhead", &vfscommon.Opt.ReadAhead)
-	parseSize("vfsDiskSpaceTotalSize", &vfscommon.Opt.DiskSpaceTotalSize)
-
-	// 5. Integers
-	if val, ok := options["vfsReadChunkStreams"]; ok {
-		if i, err := strconv.Atoi(val); err == nil {
-			vfscommon.Opt.ChunkStreams = i
+	if settings.Vfs.DirCacheTime != "" {
+		if d, err := fs.ParseDuration(settings.Vfs.DirCacheTime); err == nil {
+			vfscommon.Opt.DirCacheTime = fs.Duration(d)
+		}
+	}
+	if settings.Vfs.PollInterval != "" {
+		if d, err := fs.ParseDuration(settings.Vfs.PollInterval); err == nil {
+			vfscommon.Opt.PollInterval = fs.Duration(d)
+		}
+	}
+	if settings.Vfs.WriteBack != "" {
+		if d, err := fs.ParseDuration(settings.Vfs.WriteBack); err == nil {
+			vfscommon.Opt.WriteBack = fs.Duration(d)
+		}
+	}
+	if settings.Vfs.CacheMaxAge != "" {
+		if d, err := fs.ParseDuration(settings.Vfs.CacheMaxAge); err == nil {
+			vfscommon.Opt.CacheMaxAge = fs.Duration(d)
 		}
 	}
 
-	log.Printf("Rclone: VFS configured (CacheMode=%v, WriteBack=%v, ReadAhead=%v)",
-		vfscommon.Opt.CacheMode, vfscommon.Opt.WriteBack, vfscommon.Opt.ReadAhead)
+	// 4. Sizes
+	if settings.Vfs.CacheMaxSize != "" {
+		var size fs.SizeSuffix
+		if err := size.Set(settings.Vfs.CacheMaxSize); err == nil {
+			vfscommon.Opt.CacheMaxSize = size
+		}
+	}
+	if settings.Vfs.ReadChunkSize != "" {
+		var size fs.SizeSuffix
+		if err := size.Set(settings.Vfs.ReadChunkSize); err == nil {
+			vfscommon.Opt.ChunkSize = size
+		}
+	}
+	if settings.Vfs.ReadChunkSizeLimit != "" {
+		var size fs.SizeSuffix
+		if err := size.Set(settings.Vfs.ReadChunkSizeLimit); err == nil {
+			vfscommon.Opt.ChunkSizeLimit = size
+		}
+	}
+	if settings.Vfs.ReadAhead != "" {
+		var size fs.SizeSuffix
+		if err := size.Set(settings.Vfs.ReadAhead); err == nil {
+			vfscommon.Opt.ReadAhead = size
+		}
+	}
+
+	// 5. Integers
+	if settings.Vfs.ReadChunkStreams > 0 {
+		vfscommon.Opt.ChunkStreams = settings.Vfs.ReadChunkStreams
+	}
+
+	e.logger.Debug("VFS configured",
+		zap.Any("cache_mode", vfscommon.Opt.CacheMode),
+		zap.Any("write_back", vfscommon.Opt.WriteBack),
+		zap.Any("read_ahead", vfscommon.Opt.ReadAhead))
 
 	return e.Restart(ctx)
 }
@@ -645,13 +679,14 @@ func (e *Engine) Restart(ctx context.Context) error {
 	// Re-initialize Root FS
 	f, err := fs.NewFs(ctx, GravityRootRemote+":")
 	if err != nil {
+		e.logger.Error("failed to recreate root fs", zap.Error(err))
 		return fmt.Errorf("failed to recreate root fs: %w", err)
 	}
 
 	// Create new VFS with updated global options
 	e.vfs = vfs.New(f, &vfscommon.Opt)
 
-	log.Println("Rclone: VFS restarted successfully")
+	e.logger.Debug("VFS restarted successfully")
 	return nil
 }
 

@@ -2,12 +2,14 @@ package aria2
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"syscall"
 	"time"
+
+	"gravity/internal/logger"
+	"go.uber.org/zap"
 )
 
 type Runner struct {
@@ -15,6 +17,7 @@ type Runner struct {
 	sessionFile string
 	downloadDir string
 	cmd         *exec.Cmd
+	Verbose     bool
 }
 
 func NewRunner(port int, dataDir string) *Runner {
@@ -43,23 +46,29 @@ func (r *Runner) Start() error {
 		fmt.Sprintf("--input-file=%s", r.sessionFile),
 		fmt.Sprintf("--save-session=%s", r.sessionFile),
 		"--save-session-interval=60",
-		fmt.Sprintf("--dir=%s", r.downloadDir),
+		"--dir=" + r.downloadDir,
 		"--continue=true",
 		"--max-connection-per-server=16",
 		"--split=16",
 		"--min-split-size=1M",
+		"--disable-ipv6=true",
 	}
 
 	r.cmd = exec.Command("aria2c", args...)
-	// Suppress aria2c console output
-	r.cmd.Stdout = nil
-	r.cmd.Stderr = nil
+
+	if r.Verbose {
+		r.cmd.Stdout = os.Stdout
+		r.cmd.Stderr = os.Stderr
+	} else {
+		r.cmd.Stdout = nil
+		r.cmd.Stderr = nil
+	}
 
 	if err := r.cmd.Start(); err != nil {
 		return fmt.Errorf("failed to start aria2c: %w", err)
 	}
 
-	log.Printf("Aria2 started on port %d (PID %d)", r.port, r.cmd.Process.Pid)
+	logger.L.Info("aria2 started", zap.Int("port", r.port), zap.Int("pid", r.cmd.Process.Pid))
 	return nil
 }
 

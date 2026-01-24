@@ -3,19 +3,21 @@ import {
   Card,
   Input,
   Label,
-  Modal,
   ScrollShadow,
   Switch,
   Spinner,
+  Chip,
 } from "@heroui/react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
+import { useForm } from "@tanstack/react-form";
 import IconChevronLeft from "~icons/gravity-ui/chevron-left";
-import IconCheck from "~icons/gravity-ui/check";
 import IconThunderbolt from "~icons/gravity-ui/thunderbolt";
 import IconArrowUpRightFromSquare from "~icons/gravity-ui/arrow-up-right-from-square";
+import IconTrashBin from "~icons/gravity-ui/trash-bin";
 import { useProviders, useProviderActions } from "../hooks/useProviders";
 import { cn } from "../lib/utils";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/settings/premium")({
   component: PremiumServicesPage,
@@ -31,7 +33,10 @@ const PREMIUM_PROVIDERS = [
     color: "bg-green-500/10 text-green-500 border-green-500/20",
     icon: "AD",
     website: "https://alldebrid.com",
-    configFields: [{ key: "api_key", label: "API Key", type: "password" }],
+    configFields: [
+      { key: "api_key", label: "API Key", type: "password", required: true },
+      { key: "proxy_url", label: "Proxy URL", type: "text", placeholder: "http://user:pass@host:port" }
+    ],
   },
   {
     id: "realdebrid",
@@ -40,7 +45,10 @@ const PREMIUM_PROVIDERS = [
     color: "bg-red-500/10 text-red-500 border-red-500/20",
     icon: "RD",
     website: "https://real-debrid.com",
-    configFields: [{ key: "api_key", label: "API Key", type: "password" }],
+    configFields: [
+      { key: "api_key", label: "API Key", type: "password", required: true },
+      { key: "proxy_url", label: "Proxy URL", type: "text", placeholder: "http://user:pass@host:port" }
+    ],
   },
   {
     id: "premiumize",
@@ -49,7 +57,10 @@ const PREMIUM_PROVIDERS = [
     color: "bg-orange-500/10 text-orange-500 border-orange-500/20",
     icon: "PM",
     website: "https://premiumize.me",
-    configFields: [{ key: "api_key", label: "API Key", type: "password" }],
+    configFields: [
+      { key: "api_key", label: "API Key", type: "password", required: true },
+      { key: "proxy_url", label: "Proxy URL", type: "text", placeholder: "http://user:pass@host:port" }
+    ],
   },
   {
     id: "debridlink",
@@ -58,7 +69,10 @@ const PREMIUM_PROVIDERS = [
     color: "bg-blue-500/10 text-blue-500 border-blue-500/20",
     icon: "DL",
     website: "https://debrid-link.com",
-    configFields: [{ key: "api_key", label: "API Key", type: "password" }],
+    configFields: [
+      { key: "api_key", label: "API Key", type: "password", required: true },
+      { key: "proxy_url", label: "Proxy URL", type: "text", placeholder: "http://user:pass@host:port" }
+    ],
   },
   {
     id: "torbox",
@@ -67,76 +81,38 @@ const PREMIUM_PROVIDERS = [
     color: "bg-purple-500/10 text-purple-500 border-purple-500/20",
     icon: "TB",
     website: "https://torbox.app",
-    configFields: [{ key: "api_key", label: "API Key", type: "password" }],
+    configFields: [
+      { key: "api_key", label: "API Key", type: "password", required: true },
+      { key: "proxy_url", label: "Proxy URL", type: "text", placeholder: "http://user:pass@host:port" }
+    ],
   },
+  {
+    id: "megadebrid",
+    name: "MegaDebrid.eu",
+    description: "Premium link generator with high speed and multiple hosters",
+    color: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
+    icon: "MD",
+    website: "https://www.mega-debrid.eu",
+    configFields: [
+      { key: "username", label: "Username", type: "text" },
+      { key: "password", label: "Password", type: "password" },
+      { key: "token", label: "API Token (Optional)", type: "password", placeholder: "Permanent API Token" },
+      { key: "proxy_url", label: "Proxy URL", type: "text", placeholder: "http://user:pass@host:port" }
+    ],
+  },
+  // Other providers can be added here with similar structure
 ];
-
-interface ConnectModalState {
-  isOpen: boolean;
-  provider: (typeof PREMIUM_PROVIDERS)[number] | null;
-  config: Record<string, string>;
-}
 
 function PremiumServicesPage() {
   const navigate = useNavigate();
   const { data: providersResponse, isLoading } = useProviders();
   const { configure } = useProviderActions();
 
-  const providers = providersResponse?.data || [];
-
-  const [connectModal, setConnectModal] = useState<ConnectModalState>({
-    isOpen: false,
-    provider: null,
-    config: {},
-  });
-
-  // Preferences (these would ideally be stored in settings)
+  // Preferences (mock state for now, should be connected to backend settings)
   const [usePremium, setUsePremium] = useState(true);
   const [usePremiumForMagnets, setUsePremiumForMagnets] = useState(true);
-  const [fallbackToDirect, setFallbackToDirect] = useState(true);
 
-  const openConnectModal = (provider: (typeof PREMIUM_PROVIDERS)[number]) => {
-    setConnectModal({
-      isOpen: true,
-      provider,
-      config: {},
-    });
-  };
-
-  const closeConnectModal = () => {
-    setConnectModal({ isOpen: false, provider: null, config: {} });
-  };
-
-  const handleConnect = async () => {
-    if (!connectModal.provider) return;
-
-    configure.mutate(
-      {
-        name: connectModal.provider.id,
-        config: connectModal.config,
-        enabled: true,
-      },
-      {
-        onSuccess: () => closeConnectModal(),
-      },
-    );
-  };
-
-  const handleDisconnect = (providerId: string) => {
-    if (
-      confirm(
-        "Disconnect this service? You'll need to re-enter your API key to use it again.",
-      )
-    ) {
-      configure.mutate({
-        name: providerId,
-        config: {},
-        enabled: false,
-      });
-    }
-  };
-
-  const connectedProviders = providers.filter((p: any) => p.enabled);
+  const providers = providersResponse?.data || [];
 
   return (
     <div className="flex flex-col h-full space-y-6">
@@ -168,11 +144,10 @@ function PremiumServicesPage() {
                   <IconThunderbolt className="w-5 h-5 text-accent" />
                 </div>
                 <div>
-                  <h4 className="font-bold mb-1">What are Premium Services?</h4>
+                  <h4 className="font-bold mb-1">Supercharge Downloads</h4>
                   <p className="text-sm text-muted">
-                    Premium services like AllDebrid and Real-Debrid unlock
-                    high-speed downloads from 100+ file hosts and provide
-                    instant torrent/magnet caching - no waiting for peers!
+                    Connect your debrid account to unlock high-speed downloads from file hosts and instant torrent caching.
+                    Now with proxy support for better connectivity.
                   </p>
                 </div>
               </div>
@@ -182,13 +157,13 @@ function PremiumServicesPage() {
             <section>
               <div className="flex items-center gap-3 mb-6">
                 <div className="w-1.5 h-6 bg-accent rounded-full" />
-                <h3 className="text-lg font-bold">Download Preferences</h3>
+                <h3 className="text-lg font-bold">Preferences</h3>
               </div>
               <Card className="p-6 bg-background/50 border-border space-y-5">
                 <div className="flex items-center justify-between">
                   <div>
                     <Label className="text-sm font-bold">
-                      Use premium services when available
+                      Use premium services
                     </Label>
                     <p className="text-xs text-muted mt-0.5">
                       Automatically use debrid for supported links
@@ -206,7 +181,7 @@ function PremiumServicesPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <Label className="text-sm font-bold">
-                      Use premium for magnets & torrents
+                      Cache Torrents
                     </Label>
                     <p className="text-xs text-muted mt-0.5">
                       Download cached torrents via debrid instead of P2P
@@ -221,126 +196,14 @@ function PremiumServicesPage() {
                     </Switch.Control>
                   </Switch>
                 </div>
-
-                <div className="h-px bg-border" />
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label className="text-sm font-bold">
-                      Fallback to direct download
-                    </Label>
-                    <p className="text-xs text-muted mt-0.5">
-                      Use direct/P2P download if premium fails
-                    </p>
-                  </div>
-                  <Switch
-                    isSelected={fallbackToDirect}
-                    onChange={setFallbackToDirect}
-                  >
-                    <Switch.Control>
-                      <Switch.Thumb />
-                    </Switch.Control>
-                  </Switch>
-                </div>
               </Card>
             </section>
 
-            {/* Connected Services */}
-            {connectedProviders.length > 0 && (
-              <section>
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="w-1.5 h-6 bg-success rounded-full" />
-                  <h3 className="text-lg font-bold">Connected Services</h3>
-                </div>
-                <div className="space-y-3">
-                  {connectedProviders.map((provider: any) => {
-                    const def = PREMIUM_PROVIDERS.find(
-                      (p) => p.id === provider.name || p.id === provider.id,
-                    );
-                    if (!def) return null;
-
-                    return (
-                      <Card
-                        key={def.id}
-                        className={cn("p-5", def.color, "border")}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-2xl bg-background/50 flex items-center justify-center font-black text-lg">
-                              {def.icon}
-                            </div>
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <h4 className="font-bold text-base">
-                                  {def.name}
-                                </h4>
-                                <span className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-success bg-success/10 px-2 py-0.5 rounded-full">
-                                  <IconCheck className="w-3 h-3" />
-                                  Connected
-                                </span>
-                              </div>
-                              {provider.expiresAt && (
-                                <p className="text-xs text-muted mt-0.5">
-                                  Premium until:{" "}
-                                  {new Date(
-                                    provider.expiresAt,
-                                  ).toLocaleDateString()}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onPress={() => handleDisconnect(def.id)}
-                              className="rounded-xl font-bold text-danger"
-                            >
-                              Disconnect
-                            </Button>
-                          </div>
-                        </div>
-
-                        {/* Usage stats if available */}
-                        {provider.usage && (
-                          <div className="mt-4 pt-4 border-t border-current/10 grid grid-cols-2 gap-4">
-                            <div>
-                              <p className="text-[10px] font-black uppercase tracking-widest opacity-70">
-                                Magnets Today
-                              </p>
-                              <p className="font-bold">
-                                {provider.usage.magnets?.used || 0} /{" "}
-                                {provider.usage.magnets?.limit || "∞"}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-[10px] font-black uppercase tracking-widest opacity-70">
-                                Links Today
-                              </p>
-                              <p className="font-bold">
-                                {provider.usage.links?.used || 0} /{" "}
-                                {provider.usage.links?.limit || "∞"}
-                              </p>
-                            </div>
-                          </div>
-                        )}
-                      </Card>
-                    );
-                  })}
-                </div>
-              </section>
-            )}
-
-            {/* Available Services */}
+            {/* Providers Grid */}
             <section>
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-1.5 h-6 bg-accent rounded-full" />
-                <h3 className="text-lg font-bold">
-                  {connectedProviders.length > 0
-                    ? "Add More Services"
-                    : "Available Services"}
-                </h3>
+                <div className="w-1.5 h-6 bg-primary rounded-full" />
+                <h3 className="text-lg font-bold">Providers</h3>
               </div>
 
               {isLoading ? (
@@ -348,156 +211,183 @@ function PremiumServicesPage() {
                   <Spinner size="md" />
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {PREMIUM_PROVIDERS.filter(
-                    (def) =>
-                      !connectedProviders.some(
-                        (p: any) => p.name === def.id || p.id === def.id,
-                      ),
-                  ).map((provider) => (
-                    <Card
-                      key={provider.id}
-                      className="p-5 bg-background/50 border-border hover:border-accent/30 transition-colors"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                          <div
-                            className={cn(
-                              "w-12 h-12 rounded-2xl flex items-center justify-center font-black text-lg",
-                              provider.color,
-                            )}
-                          >
-                            {provider.icon}
-                          </div>
-                          <div>
-                            <h4 className="font-bold text-base">
-                              {provider.name}
-                            </h4>
-                            <p className="text-xs text-muted mt-0.5 max-w-md">
-                              {provider.description}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onPress={() =>
-                              window.open(provider.website, "_blank")
-                            }
-                            className="rounded-xl"
-                            isIconOnly
-                          >
-                            <IconArrowUpRightFromSquare className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="primary"
-                            onPress={() => openConnectModal(provider)}
-                            className="rounded-xl font-bold"
-                          >
-                            Connect
-                          </Button>
-                        </div>
-                      </div>
-                    </Card>
-                  ))}
+                <div className="grid grid-cols-1 gap-6">
+                  {PREMIUM_PROVIDERS.map((def) => {
+                    const connectedProvider = providers.find(
+                      (p: any) => p.name === def.id || p.id === def.id
+                    );
+                    
+                    return (
+                      <ProviderCard
+                        key={def.id}
+                        def={def}
+                        provider={connectedProvider}
+                        onConfigure={(config: any, enabled: boolean) => configure.mutate({ name: def.id, config, enabled })}
+                        isPending={configure.isPending}
+                      />
+                    );
+                  })}
                 </div>
               )}
             </section>
           </div>
         </ScrollShadow>
       </div>
-
-      {/* Connect Modal */}
-      <Modal.Backdrop
-        variant="opaque"
-        isOpen={connectModal.isOpen}
-        onOpenChange={(open) => !open && closeConnectModal()}
-      >
-        <Modal.Container className="will-change-auto">
-          <Modal.Dialog className="bg-surface border border-border  rounded-3xl w-full max-w-md">
-            <Modal.Header className="p-6 pb-2">
-              <Modal.Heading className="text-xl font-bold">
-                Connect {connectModal.provider?.name}
-              </Modal.Heading>
-            </Modal.Header>
-
-            <Modal.Body className="px-6 py-4 space-y-6">
-              <p className="text-sm text-muted">
-                Enter your API key to connect your {connectModal.provider?.name}{" "}
-                account.
-              </p>
-
-              {connectModal.provider?.configFields.map((field) => (
-                <div key={field.key}>
-                  <Label className="text-sm font-bold mb-2 block">
-                    {field.label}
-                  </Label>
-                  <Input
-                    type={field.type}
-                    value={connectModal.config[field.key] || ""}
-                    onChange={(e) =>
-                      setConnectModal({
-                        ...connectModal,
-                        config: {
-                          ...connectModal.config,
-                          [field.key]: e.target.value,
-                        },
-                      })
-                    }
-                    placeholder="Paste your API key here..."
-                    className="h-12 bg-default/10 rounded-2xl border-none"
-                  />
-                </div>
-              ))}
-
-              <Card className="p-4 bg-default/5 border-border">
-                <p className="text-xs text-muted mb-2">
-                  💡 How to get your API key:
-                </p>
-                <ol className="text-xs text-muted space-y-1 list-decimal list-inside">
-                  <li>Go to {connectModal.provider?.website}</li>
-                  <li>Log in to your account</li>
-                  <li>Navigate to Account/API settings</li>
-                  <li>Copy your API key or token</li>
-                </ol>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onPress={() =>
-                    window.open(connectModal.provider?.website, "_blank")
-                  }
-                  className="mt-3 text-accent font-bold"
-                >
-                  Open {connectModal.provider?.name}{" "}
-                  <IconArrowUpRightFromSquare className="w-3 h-3 ml-1" />
-                </Button>
-              </Card>
-            </Modal.Body>
-
-            <Modal.Footer className="p-6 pt-2 flex gap-2">
-              <Button
-                variant="ghost"
-                className="flex-1 rounded-xl font-bold"
-                onPress={closeConnectModal}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="primary"
-                className="flex-1 rounded-xl font-bold"
-                onPress={handleConnect}
-                isDisabled={!connectModal.config.api_key}
-                isPending={configure.isPending}
-              >
-                Connect
-              </Button>
-            </Modal.Footer>
-          </Modal.Dialog>
-        </Modal.Container>
-      </Modal.Backdrop>
     </div>
+  );
+}
+
+function ProviderCard({ def, provider, onConfigure, isPending }: any) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const isConnected = provider?.enabled;
+
+  const form = useForm({
+    defaultValues: def.configFields.reduce((acc: any, field: any) => {
+      acc[field.key] = provider?.config?.[field.key] || "";
+      return acc;
+    }, {}),
+    onSubmit: async ({ value }) => {
+      onConfigure(value, true);
+      toast.success(`${def.name} configuration saved`);
+      setIsExpanded(false);
+    },
+  });
+
+  const handleDisconnect = () => {
+    if (confirm(`Disconnect ${def.name}?`)) {
+      onConfigure({}, false);
+      form.reset();
+    }
+  };
+
+  return (
+    <Card className={cn(
+        "bg-background/50 border-border overflow-hidden transition-all duration-300",
+        isConnected && "border-success/30 bg-success/5"
+    )}>
+      <div className="p-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-5">
+            <div className={cn(
+              "w-14 h-14 rounded-2xl flex items-center justify-center font-black text-xl shadow-sm",
+              isConnected ? "bg-success/10 text-success" : def.color
+            )}>
+              {def.icon}
+            </div>
+            <div>
+              <div className="flex items-center gap-3">
+                <h4 className="font-bold text-lg">{def.name}</h4>
+                {isConnected ? (
+                  <Chip size="sm" variant="soft" color="success" className="font-bold uppercase tracking-wider text-[10px] h-5">
+                    Connected
+                  </Chip>
+                ) : (
+                  <Chip size="sm" variant="soft" className="font-bold uppercase tracking-wider text-[10px] h-5 opacity-50">
+                    Not Configured
+                  </Chip>
+                )}
+              </div>
+              <p className="text-sm text-muted mt-1 max-w-md line-clamp-1">
+                {def.description}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <Button
+                size="sm"
+                variant="ghost"
+                isIconOnly
+                onPress={() => window.open(def.website, "_blank")}
+                className="rounded-xl text-muted hover:text-foreground"
+            >
+                <IconArrowUpRightFromSquare className="w-4 h-4" />
+            </Button>
+            <Button
+              variant={isConnected ? "secondary" : "primary"}
+              className="rounded-xl font-bold"
+              onPress={() => setIsExpanded(!isExpanded)}
+            >
+              {isConnected ? "Configure" : "Connect"}
+            </Button>
+          </div>
+        </div>
+
+        {/* Inline Configuration Form */}
+        {isExpanded && (
+            <div className="mt-6 pt-6 border-t border-border animate-in slide-in-from-top-2 duration-200">
+                {def.configFields.map((field: any) => (
+                    <form.Field key={field.key} name={field.key}>
+                        {(f: any) => (
+                            <div className="mb-4 last:mb-6">
+                                <Label className="text-sm font-bold mb-1.5 block">{field.label}</Label>
+                                <Input 
+                                    type={field.type || "text"}
+                                    value={f.state.value} 
+                                    onChange={(e) => f.handleChange(e.target.value)}
+                                    className={cn(
+                                        "bg-default/10 border-none rounded-xl",
+                                        field.key === "proxy_url" && "font-mono text-xs"
+                                    )}
+                                    placeholder={field.placeholder || `Enter ${field.label}`}
+                                />
+                                {field.key === "api_key" && (
+                                    <p className="text-xs text-muted mt-1.5 flex items-center gap-1">
+                                        Need a key? <a href={def.website} target="_blank" rel="noreferrer" className="text-accent hover:underline">Get it here</a>
+                                    </p>
+                                )}
+                                {field.key === "proxy_url" && (
+                                    <p className="text-xs text-muted mt-1.5">
+                                        Use a proxy if the service is blocked in your region. Supports HTTP/HTTPS/SOCKS5.
+                                    </p>
+                                )}
+                            </div>
+                        )}
+                    </form.Field>
+                ))}
+
+                <div className="flex items-center justify-between">
+                    {isConnected ? (
+                        <Button 
+                            variant="ghost" 
+                            className="rounded-xl font-bold text-danger"
+                            onPress={handleDisconnect}
+                        >
+                            <IconTrashBin className="w-4 h-4 mr-2" />
+                            Disconnect
+                        </Button>
+                    ) : <div />}
+                    
+                    <div className="flex gap-3">
+                        <Button 
+                            variant="ghost" 
+                            className="rounded-xl font-bold"
+                            onPress={() => setIsExpanded(false)}
+                        >
+                            Cancel
+                        </Button>
+                        <form.Subscribe selector={(state: any) => [state.canSubmit, state.isSubmitting]}>
+                            {(state: any) => {
+                                const canSubmit = state[0];
+                                const isSubmitting = state[1];
+                                return (
+                                    <Button 
+                                        variant="primary" 
+                                        className="rounded-xl font-bold px-6"
+                                        onPress={form.handleSubmit}
+                                        isDisabled={!canSubmit}
+                                        isPending={isPending || isSubmitting}
+                                    >
+                                        Save Configuration
+                                    </Button>
+                                );
+                            }}
+                        </form.Subscribe>
+                    </div>
+                </div>
+            </div>
+        )}
+      </div>
+    </Card>
   );
 }

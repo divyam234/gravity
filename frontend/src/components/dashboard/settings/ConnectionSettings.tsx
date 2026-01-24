@@ -1,6 +1,7 @@
-import { Button, Card, Chip, Input, Label, Form, TextField } from "@heroui/react";
+import { Button, Card, Chip, Input, Label, TextField } from "@heroui/react";
 import type React from "react";
 import { useState } from "react";
+import { useForm } from "@tanstack/react-form";
 import IconCheck from "~icons/gravity-ui/check";
 import IconPencil from "~icons/gravity-ui/pencil";
 import IconPlus from "~icons/gravity-ui/plus";
@@ -16,21 +17,26 @@ export const ConnectionSettings: React.FC = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
 
-  // Form state
-  const [formData, setFormData] = useState<Omit<ServerConfig, "id">>({
-    name: "",
-    serverUrl: "http://localhost:8080/api/v1",
-    apiKey: "",
+  const form = useForm({
+    defaultValues: {
+      name: "",
+      serverUrl: "http://localhost:8080/api/v1",
+      apiKey: "",
+    },
+    onSubmit: async ({ value }) => {
+      if (editingId) {
+        updateServer(editingId, value);
+      } else {
+        addServer(value);
+      }
+      resetForm();
+    },
   });
 
   const activeServer = servers.find(s => s.id === activeServerId);
 
   const resetForm = () => {
-    setFormData({
-      name: "",
-      serverUrl: "http://localhost:8080/api/v1",
-      apiKey: "",
-    });
+    form.reset();
     setEditingId(null);
     setIsAdding(false);
   };
@@ -41,23 +47,11 @@ export const ConnectionSettings: React.FC = () => {
   };
 
   const startEdit = (server: ServerConfig) => {
-    setFormData({
-      name: server.name,
-      serverUrl: server.serverUrl,
-      apiKey: server.apiKey,
-    });
+    form.setFieldValue("name", server.name);
+    form.setFieldValue("serverUrl", server.serverUrl);
+    form.setFieldValue("apiKey", server.apiKey);
     setEditingId(server.id);
     setIsAdding(false);
-  };
-
-  const handleSave = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (editingId) {
-      updateServer(editingId, formData);
-    } else {
-      addServer(formData);
-    }
-    resetForm();
   };
 
   const handleDelete = (id: string) => {
@@ -119,27 +113,46 @@ export const ConnectionSettings: React.FC = () => {
               {isAdding ? "Add New Server" : "Edit Server"}
             </h4>
 
-            <Form className="space-y-4" onSubmit={handleSave}>
-              <TextField isRequired value={formData.name} onChange={(val) => setFormData({...formData, name: val})}>
-                <Label className="text-sm font-bold">Name</Label>
-                <Input className="bg-background" placeholder="My Home Server" />
-              </TextField>
+            <form.Subscribe selector={(s: any) => [s.canSubmit, s.isSubmitting]}>
+              {() => (
+                <div className="space-y-4">
+                  <form.Field
+                    name="name"
+                    children={(field: any) => (
+                      <TextField isRequired value={field.state.value} onChange={(v) => field.handleChange(v)}>
+                        <Label className="text-sm font-bold">Name</Label>
+                        <Input className="bg-background" placeholder="My Home Server" />
+                      </TextField>
+                    )}
+                  />
 
-              <TextField isRequired value={formData.serverUrl} onChange={(val) => setFormData({...formData, serverUrl: val})}>
-                <Label className="text-sm font-bold">Server URL</Label>
-                <Input className="bg-background" placeholder="http://localhost:8080/api/v1" />
-              </TextField>
+                  <form.Field
+                    name="serverUrl"
+                    children={(field: any) => (
+                      <TextField isRequired value={field.state.value} onChange={(v) => field.handleChange(v)}>
+                        <Label className="text-sm font-bold">Server URL</Label>
+                        <Input className="bg-background" placeholder="http://localhost:8080/api/v1" />
+                      </TextField>
+                    )}
+                  />
 
-              <TextField value={formData.apiKey} onChange={(val) => setFormData({...formData, apiKey: val})}>
-                <Label className="text-sm font-bold">API Key</Label>
-                <Input className="bg-background" type="password" placeholder="Optional" />
-              </TextField>
+                  <form.Field
+                    name="apiKey"
+                    children={(field: any) => (
+                      <TextField value={field.state.value} onChange={(v) => field.handleChange(v)}>
+                        <Label className="text-sm font-bold">API Key</Label>
+                        <Input className="bg-background" type="password" placeholder="Optional" />
+                      </TextField>
+                    )}
+                  />
 
-              <div className="flex justify-end gap-2 pt-2">
-                <Button size="sm" variant="secondary" onPress={resetForm}>Cancel</Button>
-                <Button size="sm" variant="primary" type="submit">Save Server</Button>
-              </div>
-            </Form>
+                  <div className="flex justify-end gap-2 pt-2">
+                    <Button size="sm" variant="secondary" onPress={resetForm}>Cancel</Button>
+                    <Button size="sm" variant="primary" onPress={() => form.handleSubmit()}>Save Server</Button>
+                  </div>
+                </div>
+              )}
+            </form.Subscribe>
           </Card>
         )}
 

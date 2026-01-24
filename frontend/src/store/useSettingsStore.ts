@@ -193,7 +193,8 @@ const syncApi = (state: SettingsState) => {
 
 useSettingsStore.subscribe(syncApi);
 
-// Debounced server settings sync
+// Debounced server settings sync - DISABLED as we moved to explicit form save
+/*
 let syncTimeout: any = null;
 useSettingsStore.subscribe((state, prevState) => {
     if (!state.serverSettings || state.serverSettings === prevState.serverSettings) return;
@@ -207,6 +208,7 @@ useSettingsStore.subscribe((state, prevState) => {
         }
     }, 1000);
 });
+*/
 
 // Initial sync
 const initialState = useSettingsStore.getState();
