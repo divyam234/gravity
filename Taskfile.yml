@@ -11,12 +11,28 @@ tasks:
       - cd frontend && bun install
       - cd server && go mod download
 
+  docs:
+    desc: Generate OpenAPI documentation
+    dir: server
+    cmds:
+      - go run github.com/swaggo/swag/v2/cmd/swag init -g cmd/gravity/main.go --v3.1 --parseInternal --ot yml
+      - mv docs/swagger.yaml docs/openapi.yml
+
   dev:
     desc: Run development server
     deps: [install]
     cmds:
       - task: dev:frontend
       - task: dev:backend
+
+  tidy:
+    desc: Go Tidy
+    dir: server
+    cmd: go mod tidy
+
+  ui:gen:
+    desc: Generate OpenAPI Types
+    cmd: bunx openapi-typescript ./server/docs/openapi.yml -o ./frontend/src/gen/api.d.ts
 
   dev:frontend:
     dir: frontend
@@ -37,12 +53,6 @@ tasks:
   build:backend:
     dir: server
     cmd: go build -o ../bin/gravity cmd/gravity/main.go
-
-  build:desktop:
-    desc: Build desktop application (Wails v3)
-    dir: server
-    cmds:
-      - go build -tags webkit2_41 -ldflags "-w -s" -o ../bin/gravity-desktop cmd/desktop/main.go
 
   test:
     desc: Run tests

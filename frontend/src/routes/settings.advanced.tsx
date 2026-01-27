@@ -3,10 +3,11 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useForm } from "@tanstack/react-form";
 import IconChevronLeft from "~icons/gravity-ui/chevron-left";
 import { useSettingsStore } from "../store/useSettingsStore";
-import { api } from "../lib/api";
+import { useEngineActions } from "../hooks/useEngine";
 import { FormTextField, FormSwitch, FormSelect } from "../components/ui/FormFields";
-import { toast } from "sonner";
-import type { Settings } from "../lib/types";
+import type { components } from "../gen/api";
+
+type Settings = components["schemas"]["model.Settings"];
 
 export const Route = createFileRoute("/settings/advanced")({
   component: AdvancedSettingsPage,
@@ -35,32 +36,31 @@ function AdvancedSettingsForm({
   updateServerSettings: (settings: Settings) => void;
 }) {
   const navigate = useNavigate();
-  const { advanced } = serverSettings;
+  const advanced = serverSettings.advanced;
+  const { changeGlobalOption } = useEngineActions();
 
   const form = useForm({
     defaultValues: {
-      logLevel: advanced.logLevel,
-      debugMode: advanced.debugMode,
-      saveInterval: Number(advanced.saveInterval),
+      logLevel: advanced?.logLevel || "info",
+      debugMode: !!advanced?.debugMode,
+      saveInterval: Number(advanced?.saveInterval || 60),
     },
     onSubmit: async ({ value }) => {
-      const updated = {
+      const updated: Settings = {
         ...serverSettings,
         advanced: {
           ...serverSettings.advanced,
-          logLevel: value.logLevel,
+          logLevel: value.logLevel as NonNullable<Settings["advanced"]>["logLevel"],
           debugMode: value.debugMode,
           saveInterval: Number(value.saveInterval),
         },
       };
 
       try {
-        await api.updateSettings(updated);
+        await changeGlobalOption.mutateAsync({ body: updated });
         updateServerSettings(updated);
-        toast.success("Settings saved successfully");
       } catch (err) {
-        console.error(err);
-        toast.error("Failed to save settings");
+        // Error toast handled by mutation
       }
     },
   });
@@ -90,7 +90,7 @@ function AdvancedSettingsForm({
                 variant="primary"
                 onPress={() => form.handleSubmit()}
                 isDisabled={!canSubmit}
-                isPending={isSubmitting}
+                isPending={isSubmitting as boolean}
                 className="rounded-xl font-bold"
               >
                 Save Changes

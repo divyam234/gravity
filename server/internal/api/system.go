@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"os"
 	"time"
@@ -37,7 +36,7 @@ func (h *SystemHandler) Routes() chi.Router {
 // @Description Get versions of Gravity, Aria2, and Rclone
 // @Tags system
 // @Produce json
-// @Success 200 {object} map[string]interface{}
+// @Success 200 {object} SystemVersionResponse
 // @Router /system/version [get]
 func (h *SystemHandler) Version(w http.ResponseWriter, r *http.Request) {
 	var aria2Ver, nativeVer string
@@ -51,11 +50,13 @@ func (h *SystemHandler) Version(w http.ResponseWriter, r *http.Request) {
 
 	uv, _ := h.uploadEngine.Version(r.Context())
 
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"version": "0.1.0", // Gravity version
-		"aria2":   aria2Ver,
-		"native":  nativeVer,
-		"rclone":  uv,
+	sendJSON(w, SystemVersionResponse{
+		Data: SystemVersion{
+			Version: "0.1.0", // Gravity version
+			Aria2:   aria2Ver,
+			Native:  nativeVer,
+			Rclone:  uv,
+		},
 	})
 }
 
@@ -64,15 +65,15 @@ func (h *SystemHandler) Version(w http.ResponseWriter, r *http.Request) {
 // @Description Stop and restart the underlying Aria2 download engine
 // @Tags system
 // @Success 200 "OK"
-// @Failure 500 {string} string "Internal Server Error"
+// @Failure 500 {object} ErrorResponse
 // @Router /system/restart/aria2 [post]
 func (h *SystemHandler) RestartAria2(w http.ResponseWriter, r *http.Request) {
 	if err := h.downloadEngine.Stop(); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		sendError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	if err := h.downloadEngine.Start(h.appCtx); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		sendError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusOK)
@@ -83,15 +84,15 @@ func (h *SystemHandler) RestartAria2(w http.ResponseWriter, r *http.Request) {
 // @Description Stop and restart the underlying Rclone upload engine
 // @Tags system
 // @Success 200 "OK"
-// @Failure 500 {string} string "Internal Server Error"
+// @Failure 500 {object} ErrorResponse
 // @Router /system/restart/rclone [post]
 func (h *SystemHandler) RestartRclone(w http.ResponseWriter, r *http.Request) {
 	if err := h.uploadEngine.Stop(); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		sendError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	if err := h.uploadEngine.Start(h.appCtx); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		sendError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusOK)

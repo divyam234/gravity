@@ -3,10 +3,11 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useForm } from "@tanstack/react-form";
 import IconChevronLeft from "~icons/gravity-ui/chevron-left";
 import { useSettingsStore } from "../store/useSettingsStore";
-import { api } from "../lib/api";
+import { useEngineActions } from "../hooks/useEngine";
 import { FormTextField, FormSwitch, FormSelect } from "../components/ui/FormFields";
-import { toast } from "sonner";
-import type { Settings } from "../lib/types";
+import type { components } from "../gen/api";
+
+type Settings = components["schemas"]["model.Settings"];
 
 export const Route = createFileRoute("/settings/automation")({
   component: AutomationSettingsPage,
@@ -35,32 +36,31 @@ function AutomationSettingsForm({
   updateServerSettings: (settings: Settings) => void;
 }) {
   const navigate = useNavigate();
-  const { automation } = serverSettings;
+  const automation = serverSettings.automation;
+  const { changeGlobalOption } = useEngineActions();
 
   const form = useForm({
     defaultValues: {
-      scheduleEnabled: automation.scheduleEnabled,
-      onCompleteAction: automation.onCompleteAction,
-      scriptPath: automation.scriptPath,
+      scheduleEnabled: !!automation?.scheduleEnabled,
+      onCompleteAction: automation?.onCompleteAction || "none",
+      scriptPath: automation?.scriptPath || "",
     },
     onSubmit: async ({ value }) => {
-      const updated = {
+      const updated: Settings = {
         ...serverSettings,
         automation: {
           ...serverSettings.automation,
           scheduleEnabled: value.scheduleEnabled,
-          onCompleteAction: value.onCompleteAction,
+          onCompleteAction: value.onCompleteAction as NonNullable<Settings["automation"]>["onCompleteAction"],
           scriptPath: value.scriptPath,
         },
       };
 
       try {
-        await api.updateSettings(updated);
+        await changeGlobalOption.mutateAsync({ body: updated });
         updateServerSettings(updated);
-        toast.success("Settings saved successfully");
       } catch (err) {
-        console.error(err);
-        toast.error("Failed to save settings");
+        // Error toast handled by mutation
       }
     },
   });
@@ -90,7 +90,7 @@ function AutomationSettingsForm({
                 variant="primary"
                 onPress={() => form.handleSubmit()}
                 isDisabled={!canSubmit}
-                isPending={isSubmitting}
+                isPending={isSubmitting as boolean}
                 className="rounded-xl font-bold"
               >
                 Save Changes
@@ -148,7 +148,7 @@ function AutomationSettingsForm({
                   />
 
                   <form.Subscribe
-                    selector={(state) => [state.values.onCompleteAction]}
+                    selector={(state: any) => [state.values.onCompleteAction]}
                   >
                     {([action]) => (
                         action === "run_script" && (

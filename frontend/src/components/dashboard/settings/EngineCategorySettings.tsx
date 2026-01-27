@@ -24,7 +24,7 @@ export const EngineCategorySettings: React.FC<{
 		.filter((opt) => !!opt.type);
 
 	const handleUpdate = (name: string, value: string) => {
-		changeGlobalOption.mutate({ [name]: value });
+		changeGlobalOption.mutate({ body: { [name]: value } } as any);
 	};
 
 	// Some specific options are read-only at runtime
@@ -41,7 +41,7 @@ export const EngineCategorySettings: React.FC<{
 				{metadata.map((opt) => (
 					<SettingField
 						key={opt.name}
-						opt={opt as any}
+						opt={opt as typeof engineAllOptions[string] & { name: string }}
 						value={options[opt.name] ?? opt.defaultValue ?? ""}
 						onUpdate={handleUpdate}
 						isReadOnly={isReadOnly(opt.name)}

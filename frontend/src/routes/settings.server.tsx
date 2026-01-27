@@ -99,7 +99,7 @@ function ServerManagement() {
 											variant="secondary"
 											className="font-bold rounded-xl"
 											isPending={restartAria2.isPending}
-											onPress={() => restartAria2.mutate()}
+											onPress={() => restartAria2.mutate({})}
 										>
 											{({ isPending }) => (
 												<>
@@ -135,7 +135,7 @@ function ServerManagement() {
 											variant="secondary"
 											className="font-bold rounded-xl"
 											isPending={restartRclone.isPending}
-											onPress={() => restartRclone.mutate()}
+											onPress={() => restartRclone.mutate({})}
 										>
 											{({ isPending }) => (
 												<>
@@ -175,7 +175,7 @@ function ServerManagement() {
 											isPending={restartServer.isPending}
 											onPress={() => {
 												if (confirm("Are you sure you want to restart the server?")) {
-													restartServer.mutate();
+													restartServer.mutate({});
 												}
 											}}
 										>

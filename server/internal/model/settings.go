@@ -160,6 +160,10 @@ type AdvancedSettings struct {
 	SaveInterval int    `json:"saveInterval" example:"60"` // Seconds
 }
 
+type SettingsUpdatedEventData struct {
+	Changes []string `json:"changes"`
+}
+
 func DefaultSettings() *Settings {
 	home, _ := os.UserHomeDir()
 	defaultDir := filepath.Join(home, ".gravity", "downloads")

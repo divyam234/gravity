@@ -6,10 +6,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rclone/rclone/lib/rest"
 	"gravity/internal/client"
 	"gravity/internal/model"
 	"gravity/internal/provider"
+
+	"github.com/rclone/rclone/lib/rest"
 )
 
 const baseURL = "https://api.torbox.app/v1"
@@ -95,8 +96,8 @@ func (p *TorBoxProvider) Test(ctx context.Context) (*model.AccountInfo, error) {
 	}
 
 	var result struct {
-		Success bool        `json:"success"`
-		Error   interface{} `json:"error"`
+		Success bool `json:"success"`
+		Error   any  `json:"error"`
 		Data    struct {
 			Email      string `json:"email"`
 			Plan       int    `json:"plan"`       // 0=free, >0=premium?

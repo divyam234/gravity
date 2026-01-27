@@ -1,7 +1,7 @@
 
 import { PhotoProvider, PhotoView } from "react-photo-view";
 import "react-photo-view/dist/react-photo-view.css";
-import { api } from "../../../lib/api";
+import { getFileUrl } from "../../../lib/openapi";
 
 interface PreviewProps {
   file: {
@@ -11,7 +11,7 @@ interface PreviewProps {
 }
 
 export function ImagePreview({ file }: PreviewProps) {
-  const url = api.getFileUrl(file.path);
+  const url = getFileUrl(file.path);
 
   return (
     <div className="h-full w-full flex items-center justify-center p-8 overflow-auto">

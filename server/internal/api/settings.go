@@ -1,7 +1,6 @@
 package api
 
 import (
-	"encoding/json"
 	"net/http"
 	"reflect"
 	"time"
@@ -48,13 +47,13 @@ func (h *SettingsHandler) Routes() chi.Router {
 // @Description Retrieve all application settings organized by category
 // @Tags settings
 // @Produce json
-// @Success 200 {object} model.Settings
-// @Failure 500 {string} string "Internal Server Error"
+// @Success 200 {object} SettingsResponse
+// @Failure 500 {object} ErrorResponse
 // @Router /settings [get]
 func (h *SettingsHandler) Get(w http.ResponseWriter, r *http.Request) {
 	settings, err := h.repo.Get(r.Context())
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		sendError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -63,7 +62,7 @@ func (h *SettingsHandler) Get(w http.ResponseWriter, r *http.Request) {
 		settings = model.DefaultSettings()
 	}
 
-	json.NewEncoder(w).Encode(settings)
+	sendJSON(w, SettingsResponse{Data: settings})
 }
 
 // Update godoc
@@ -73,8 +72,8 @@ func (h *SettingsHandler) Get(w http.ResponseWriter, r *http.Request) {
 // @Accept json
 // @Param request body model.Settings true "Structured settings object"
 // @Success 200 "OK"
-// @Failure 400 {string} string "Invalid Request"
-// @Failure 500 {string} string "Internal Server Error"
+// @Failure 400 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
 // @Router /settings [patch]
 func (h *SettingsHandler) Update(w http.ResponseWriter, r *http.Request) {
 	var newSettings model.Settings
@@ -85,7 +84,7 @@ func (h *SettingsHandler) Update(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	oldSettings, err := h.repo.Get(ctx)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		sendError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -98,7 +97,7 @@ func (h *SettingsHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	// Save to DB
 	if err := h.repo.Save(ctx, &newSettings); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		sendError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -108,11 +107,11 @@ func (h *SettingsHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	// Emit event
 	if len(changedFields) > 0 {
-		h.bus.Publish(event.Event{
+		h.bus.PublishLifecycle(event.LifecycleEvent{
 			Type:      event.SettingsUpdated,
 			Timestamp: time.Now(),
-			Data: map[string]interface{}{
-				"changes": changedFields,
+			Data: model.SettingsUpdatedEventData{
+				Changes: changedFields,
 			},
 		})
 	}
@@ -120,38 +119,63 @@ func (h *SettingsHandler) Update(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+// GetStatus godoc
+// @Summary Get application settings status
+// @Description Retrieve the current configuration status of various modules
+// @Tags settings
+// @Produce json
+// @Success 200 {object} SettingsStatusResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /settings/status [get]
 func (h *SettingsHandler) GetStatus(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	settings, _ := h.repo.Get(ctx)
 	remotes, _ := h.uploadEngine.ListRemotes(ctx)
 	providers, _ := h.providerRepo.List(ctx)
 
-	status := map[string]interface{}{
-		"downloads": map[string]interface{}{
-			"configured": settings != nil && settings.Download.DownloadDir != "",
+	status := SettingsStatus{
+		Downloads: SettingsStatusDownloads{
+			Configured: settings != nil && settings.Download.DownloadDir != "",
 		},
-		"cloud": map[string]interface{}{
-			"remoteCount": len(remotes),
+		Cloud: SettingsStatusCloud{
+			RemoteCount: len(remotes),
 		},
-		"premium": map[string]interface{}{
-			"providers": providers,
+		Premium: SettingsStatusPremium{
+			Providers: providers,
 		},
 	}
 
-	json.NewEncoder(w).Encode(status)
+	sendJSON(w, SettingsStatusResponse{Data: status})
 }
 
+// Export godoc
+// @Summary Export application settings
+// @Description Export all configuration settings as a JSON file
+// @Tags settings
+// @Produce json
+// @Success 200 {object} model.Settings
+// @Failure 500 {object} ErrorResponse
+// @Router /settings/export [post]
 func (h *SettingsHandler) Export(w http.ResponseWriter, r *http.Request) {
 	settings, err := h.repo.Get(r.Context())
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		sendError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Content-Disposition", "attachment; filename=gravity-settings.json")
-	json.NewEncoder(w).Encode(settings)
+	sendJSON(w, settings)
 }
 
+// Import godoc
+// @Summary Import application settings
+// @Description Import configuration settings from a JSON object
+// @Tags settings
+// @Accept json
+// @Param request body model.Settings true "Settings to import"
+// @Success 200 "OK"
+// @Failure 400 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /settings/import [post]
 func (h *SettingsHandler) Import(w http.ResponseWriter, r *http.Request) {
 	var settings model.Settings
 	if !decodeAndValidate(w, r, &settings) {
@@ -159,7 +183,7 @@ func (h *SettingsHandler) Import(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.repo.Save(r.Context(), &settings); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		sendError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -169,16 +193,23 @@ func (h *SettingsHandler) Import(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+// Reset godoc
+// @Summary Reset application settings
+// @Description Reset all configuration settings to their default values
+// @Tags settings
+// @Success 200 "OK"
+// @Failure 500 {object} ErrorResponse
+// @Router /settings/reset [post]
 func (h *SettingsHandler) Reset(w http.ResponseWriter, r *http.Request) {
 	if err := h.repo.DeleteAll(r.Context()); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		sendError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	// Save defaults back to DB
 	defaults := model.DefaultSettings()
 	if err := h.repo.Save(r.Context(), defaults); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		sendError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 

@@ -94,8 +94,8 @@ func (e *Engine) Start(ctx context.Context) error {
 	}
 
 	// Subscribe to aria2 notifications
-	if _, err := e.client.Call(ctx, "system.multicall", []interface{}{
-		[]interface{}{"aria2.changeGlobalOption", map[string]interface{}{"listen-port": strconv.Itoa(e.runner.port)}},
+	if _, err := e.client.Call(ctx, "system.multicall", []any{
+		[]any{"aria2.changeGlobalOption", map[string]any{"listen-port": strconv.Itoa(e.runner.port)}},
 	}); err != nil {
 		e.logger.Warn("failed to set options via multicall", zap.Error(err))
 	}
@@ -153,7 +153,7 @@ func (e *Engine) ResumePolling() {
 }
 
 func (e *Engine) Add(ctx context.Context, url string, opts engine.DownloadOptions) (string, error) {
-	ariaOpts := make(map[string]interface{})
+	ariaOpts := make(map[string]any)
 	if opts.ID != "" {
 		ariaOpts["gid"] = opts.ID
 	}
@@ -219,7 +219,7 @@ func (e *Engine) Add(ctx context.Context, url string, opts engine.DownloadOption
 	}
 
 	var method string
-	var params []interface{}
+	var params []any
 
 	if strings.HasPrefix(url, "magnet:") && opts.TorrentData == "" {
 		// Resolve metadata via native lib to avoid Aria2 dual-ID
@@ -234,10 +234,10 @@ func (e *Engine) Add(ctx context.Context, url string, opts engine.DownloadOption
 
 	if opts.TorrentData != "" {
 		method = "aria2.addTorrent"
-		params = []interface{}{opts.TorrentData, []interface{}{}, ariaOpts}
+		params = []any{opts.TorrentData, []any{}, ariaOpts}
 	} else {
 		method = "aria2.addUri"
-		params = []interface{}{[]string{url}, ariaOpts}
+		params = []any{[]string{url}, ariaOpts}
 	}
 
 	res, err := e.client.Call(ctx, method, params...)
@@ -377,7 +377,7 @@ func (e *Engine) Configure(ctx context.Context, settings *model.Settings) error 
 		return nil
 	}
 
-	ariaOpts := make(map[string]interface{})
+	ariaOpts := make(map[string]any)
 
 	// Download
 	if settings.Download.DownloadDir != "" {
@@ -580,13 +580,13 @@ func (e *Engine) mapStatus(t *Aria2Task) *engine.DownloadStatus {
 }
 
 // handleNotification receives events from Aria2 via WebSocket
-func (e *Engine) handleNotification(method string, params []interface{}) {
+func (e *Engine) handleNotification(method string, params []any) {
 	if len(params) == 0 {
 		return
 	}
 
 	// Format: [{"gid": "..."}]
-	eventData, ok := params[0].(map[string]interface{})
+	eventData, ok := params[0].(map[string]any)
 	if !ok {
 		return
 	}

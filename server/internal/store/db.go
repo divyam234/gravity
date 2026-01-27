@@ -3,6 +3,7 @@ package store
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"gravity/internal/config"
@@ -10,10 +11,10 @@ import (
 	"gravity/internal/model"
 
 	"github.com/glebarez/sqlite"
+	"go.uber.org/zap"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
-	"go.uber.org/zap"
 )
 
 type Store struct {
@@ -22,7 +23,7 @@ type Store struct {
 
 // StatsKV represents a simple key-value store for statistics
 type StatsKV struct {
-	Key       string    `gorm:"primaryKey"`
+	Key       string `gorm:"primaryKey"`
 	Value     int64
 	UpdatedAt time.Time
 }
@@ -39,7 +40,21 @@ func New(cfg *config.Config) (*Store, error) {
 		if err := os.MkdirAll(cfg.DataDir, 0755); err != nil {
 			return nil, fmt.Errorf("failed to create data directory: %w", err)
 		}
-		dialector = sqlite.Open(cfg.Database.DSN)
+		// Enable WAL mode and set busy timeout for better concurrency
+		dsn := cfg.Database.DSN
+		if dsn != ":memory:" {
+			if !strings.Contains(dsn, "?") {
+				dsn += "?_journal_mode=WAL&_busy_timeout=5000"
+			} else {
+				if !strings.Contains(dsn, "_journal_mode") {
+					dsn += "&_journal_mode=WAL"
+				}
+				if !strings.Contains(dsn, "_busy_timeout") {
+					dsn += "&_busy_timeout=5000"
+				}
+			}
+		}
+		dialector = sqlite.Open(dsn)
 	default:
 		return nil, fmt.Errorf("unsupported database type: %s", cfg.Database.Type)
 	}
@@ -88,7 +103,7 @@ func New(cfg *config.Config) (*Store, error) {
 	}
 
 	s := &Store{db: db}
-	
+
 	// Legacy SQL migrations: ONLY for SQLite FTS which AutoMigrate can't handle
 	if cfg.Database.Type == "sqlite" || cfg.Database.Type == "" {
 		logger.L.Debug("DB: Setting up SQLite FTS index...")

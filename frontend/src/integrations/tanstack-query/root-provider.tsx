@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ApiError } from "../../lib/api";
+import { ApiError } from "../../lib/openapi";
 
 const MAX_RETRIES = 3;
 const HTTP_STATUS_TO_NOT_RETRY = [401, 403, 404];

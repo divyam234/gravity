@@ -69,14 +69,35 @@ func TestSettingsWorkflow(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-	var settings model.Settings
-	err = json.NewDecoder(resp.Body).Decode(&settings)
+	var respData struct {
+		Data *model.Settings `json:"data"`
+	}
+	err = json.NewDecoder(resp.Body).Decode(&respData)
 	require.NoError(t, err)
 	resp.Body.Close()
+	settings := *respData.Data
 
 	// 2. Update settings
 	settings.Download.MaxConcurrentDownloads = 10
 	settings.Download.PreferredEngine = "native"
+	if settings.Download.DownloadDir == "" {
+		settings.Download.DownloadDir = t.TempDir()
+	}
+	if settings.Download.MaxConnectionPerServer == 0 {
+		settings.Download.MaxConnectionPerServer = 8
+	}
+	if settings.Download.Split == 0 {
+		settings.Download.Split = 8
+	}
+	if settings.Download.ConnectTimeout == 0 {
+		settings.Download.ConnectTimeout = 60
+	}
+	if settings.Upload.ConcurrentUploads == 0 {
+		settings.Upload.ConcurrentUploads = 1
+	}
+	if settings.Torrent.ListenPort == 0 {
+		settings.Torrent.ListenPort = 6881
+	}
 
 	body, _ := json.Marshal(settings)
 	req, _ = http.NewRequest("PATCH", ts.URL+"/api/v1/settings", bytes.NewBuffer(body))
@@ -92,10 +113,13 @@ func TestSettingsWorkflow(t *testing.T) {
 	req.Header.Set("X-API-Key", testAPIKey)
 	resp, err = client.Do(req)
 	require.NoError(t, err)
-	var updatedSettings model.Settings
-	err = json.NewDecoder(resp.Body).Decode(&updatedSettings)
+	var updatedRespData struct {
+		Data *model.Settings `json:"data"`
+	}
+	err = json.NewDecoder(resp.Body).Decode(&updatedRespData)
 	require.NoError(t, err)
 	resp.Body.Close()
+	updatedSettings := *updatedRespData.Data
 
 	assert.Equal(t, 10, updatedSettings.Download.MaxConcurrentDownloads)
 	assert.Equal(t, "native", updatedSettings.Download.PreferredEngine)
@@ -127,7 +151,7 @@ func TestDownloadManagement(t *testing.T) {
 
 	// Helper for creating a download
 	createDownload := func(t *testing.T, url string) string {
-		reqBody := map[string]interface{}{"url": url}
+		reqBody := map[string]any{"url": url}
 		jsonBody, _ := json.Marshal(reqBody)
 		req, _ := http.NewRequest("POST", ts.URL+"/api/v1/downloads", bytes.NewBuffer(jsonBody))
 		req.Header.Set("X-API-Key", testAPIKey)
@@ -142,28 +166,33 @@ func TestDownloadManagement(t *testing.T) {
 			t.Fatalf("Failed to create download: status %d, body: %s", resp.StatusCode, string(body))
 		}
 
-		var d model.Download
-		json.NewDecoder(resp.Body).Decode(&d)
-		return d.ID
+		var respData struct {
+			Data *model.Download `json:"data"`
+		}
+		json.NewDecoder(resp.Body).Decode(&respData)
+		return respData.Data.ID
 	}
 
 	t.Run("Full Lifecycle", func(t *testing.T) {
 		// 1. Create
-	id := createDownload(t, mockURL+"/test.zip")
+		id := createDownload(t, mockURL+"/test.zip")
 
 		// 2. Get
-	req, _ := http.NewRequest("GET", ts.URL+"/api/v1/downloads/"+id, nil)
+		req, _ := http.NewRequest("GET", ts.URL+"/api/v1/downloads/"+id, nil)
 		req.Header.Set("X-API-Key", testAPIKey)
 		resp, err := client.Do(req)
 		require.NoError(t, err)
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
-		var d model.Download
-		json.NewDecoder(resp.Body).Decode(&d)
+		var respData struct {
+			Data *model.Download `json:"data"`
+		}
+		json.NewDecoder(resp.Body).Decode(&respData)
 		resp.Body.Close()
+		d := *respData.Data
 		assert.Equal(t, id, d.ID)
 
 		// 3. Pause
-	req, _ = http.NewRequest("POST", ts.URL+"/api/v1/downloads/"+id+"/pause", nil)
+		req, _ = http.NewRequest("POST", ts.URL+"/api/v1/downloads/"+id+"/pause", nil)
 		req.Header.Set("X-API-Key", testAPIKey)
 		resp, err = client.Do(req)
 		require.NoError(t, err)
@@ -171,7 +200,7 @@ func TestDownloadManagement(t *testing.T) {
 		resp.Body.Close()
 
 		// 4. Resume
-	req, _ = http.NewRequest("POST", ts.URL+"/api/v1/downloads/"+id+"/resume", nil)
+		req, _ = http.NewRequest("POST", ts.URL+"/api/v1/downloads/"+id+"/resume", nil)
 		req.Header.Set("X-API-Key", testAPIKey)
 		resp, err = client.Do(req)
 		require.NoError(t, err)
@@ -179,7 +208,7 @@ func TestDownloadManagement(t *testing.T) {
 		resp.Body.Close()
 
 		// 5. List with filtering
-	req, _ = http.NewRequest("GET", ts.URL+"/api/v1/downloads?status=active,waiting", nil)
+		req, _ = http.NewRequest("GET", ts.URL+"/api/v1/downloads?status=active,waiting", nil)
 		req.Header.Set("X-API-Key", testAPIKey)
 		resp, err = client.Do(req)
 		require.NoError(t, err)
@@ -187,7 +216,7 @@ func TestDownloadManagement(t *testing.T) {
 		resp.Body.Close()
 
 		// 6. Delete
-	req, _ = http.NewRequest("DELETE", ts.URL+"/api/v1/downloads/"+id, nil)
+		req, _ = http.NewRequest("DELETE", ts.URL+"/api/v1/downloads/"+id, nil)
 		req.Header.Set("X-API-Key", testAPIKey)
 		resp, err = client.Do(req)
 		require.NoError(t, err)
@@ -195,7 +224,7 @@ func TestDownloadManagement(t *testing.T) {
 		resp.Body.Close()
 
 		// 7. Verify Deleted
-	req, _ = http.NewRequest("GET", ts.URL+"/api/v1/downloads/"+id, nil)
+		req, _ = http.NewRequest("GET", ts.URL+"/api/v1/downloads/"+id, nil)
 		req.Header.Set("X-API-Key", testAPIKey)
 		resp, err = client.Do(req)
 		require.NoError(t, err)
@@ -232,12 +261,35 @@ func TestConcurrencyAndQueueing(t *testing.T) {
 	req, _ := http.NewRequest("GET", ts.URL+"/api/v1/settings", nil)
 	req.Header.Set("X-API-Key", testAPIKey)
 	resp, _ := client.Do(req)
-	var settings model.Settings
-	json.NewDecoder(resp.Body).Decode(&settings)
+	var respData struct {
+		Data *model.Settings `json:"data"`
+	}
+	json.NewDecoder(resp.Body).Decode(&respData)
 	resp.Body.Close()
+	settings := *respData.Data
 
 	settings.Download.MaxConcurrentDownloads = 2
 	settings.Download.PreferredEngine = "native"
+	if settings.Download.DownloadDir == "" {
+		settings.Download.DownloadDir = t.TempDir()
+	}
+	// Ensure other required fields
+	if settings.Download.MaxConnectionPerServer == 0 {
+		settings.Download.MaxConnectionPerServer = 8
+	}
+	if settings.Download.Split == 0 {
+		settings.Download.Split = 8
+	}
+	if settings.Download.ConnectTimeout == 0 {
+		settings.Download.ConnectTimeout = 60
+	}
+	if settings.Upload.ConcurrentUploads == 0 {
+		settings.Upload.ConcurrentUploads = 1
+	}
+	if settings.Torrent.ListenPort == 0 {
+		settings.Torrent.ListenPort = 6881
+	}
+
 	body, _ := json.Marshal(settings)
 	req, _ = http.NewRequest("PATCH", ts.URL+"/api/v1/settings", bytes.NewBuffer(body))
 	req.Header.Set("X-API-Key", testAPIKey)
@@ -247,7 +299,7 @@ func TestConcurrencyAndQueueing(t *testing.T) {
 
 	// 2. Add 5 downloads
 	for i := 0; i < 5; i++ {
-		reqBody := map[string]interface{}{"url": mockURL + "/test.zip"}
+		reqBody := map[string]any{"url": mockURL + "/test.zip"}
 		jsonBody, _ := json.Marshal(reqBody)
 		req, _ = http.NewRequest("POST", ts.URL+"/api/v1/downloads", bytes.NewBuffer(jsonBody))
 		req.Header.Set("X-API-Key", testAPIKey)
@@ -305,7 +357,7 @@ func TestSearchEndpoints(t *testing.T) {
 
 	t.Run("Config Lifecycle", func(t *testing.T) {
 		// 1. Get Configs
-	req, _ := http.NewRequest("GET", ts.URL+"/api/v1/search/config", nil)
+		req, _ := http.NewRequest("GET", ts.URL+"/api/v1/search/config", nil)
 		req.Header.Set("X-API-Key", testAPIKey)
 		resp, err := client.Do(req)
 		require.NoError(t, err)
@@ -313,9 +365,9 @@ func TestSearchEndpoints(t *testing.T) {
 		resp.Body.Close()
 
 		// 2. Update Config
-	reqBody := map[string]interface{}{
-			"configs": map[string]interface{}{
-				"test-remote": map[string]interface{}{
+		reqBody := map[string]any{
+			"configs": map[string]any{
+				"test-remote": map[string]any{
 					"interval": 120,
 				},
 			},
@@ -361,7 +413,7 @@ func TestProviders(t *testing.T) {
 	})
 
 	t.Run("Resolve URL", func(t *testing.T) {
-		reqBody := map[string]interface{}{
+		reqBody := map[string]any{
 			"url": mockURL + "/test.zip",
 		}
 		jsonBody, _ := json.Marshal(reqBody)
@@ -409,8 +461,8 @@ func TestSyncStartup(t *testing.T) {
 	require.NoError(t, err)
 
 	ts := httptest.NewServer(a.Router.Handler())
-	
-	reqBody := map[string]interface{}{"url": mockDownloader.URL + "/sync.zip"}
+
+	reqBody := map[string]any{"url": mockDownloader.URL + "/sync.zip"}
 	jsonBody, _ := json.Marshal(reqBody)
 	req, _ := http.NewRequest("POST", ts.URL+"/api/v1/downloads", bytes.NewBuffer(jsonBody))
 	req.Header.Set("X-API-Key", testAPIKey)
@@ -419,25 +471,25 @@ func TestSyncStartup(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusCreated, resp.StatusCode)
 	resp.Body.Close()
-	
+
 	// Wait for it to become active
 	time.Sleep(1 * time.Second)
-	
+
 	ts.Close()
 	a.Stop()
 
 	// 3. Start a NEW app instance with SAME DB
 	a2, err := app.New(ctx, nil, nil)
 	require.NoError(t, err)
-	
+
 	err = a2.StartEngines(ctx)
 	require.NoError(t, err)
-	
+
 	// Verify it was reset or processed
 	downloads, _, _ := a2.DownloadService().List(ctx, nil, 10, 0)
 	assert.Len(t, downloads, 1)
 	assert.Contains(t, []model.DownloadStatus{model.StatusActive, model.StatusWaiting, model.StatusAllocating, model.StatusComplete}, downloads[0].Status)
-	
+
 	a2.Stop()
 }
 
@@ -460,7 +512,7 @@ func TestErrorScenarios(t *testing.T) {
 	})
 
 	t.Run("Download 404 URL", func(t *testing.T) {
-		reqBody := map[string]interface{}{"url": mockURL + "/404.zip"}
+		reqBody := map[string]any{"url": mockURL + "/404.zip"}
 		jsonBody, _ := json.Marshal(reqBody)
 		req, _ := http.NewRequest("POST", ts.URL+"/api/v1/downloads", bytes.NewBuffer(jsonBody))
 		req.Header.Set("X-API-Key", testAPIKey)
@@ -482,20 +534,22 @@ func TestSpeedAndProgress(t *testing.T) {
 	app.StatsService().ResumePolling()
 
 	// 1. Subscribe to events
-	eventChan := app.Events().Subscribe()
-	defer app.Events().Unsubscribe(eventChan)
+	eventChan := app.Events().SubscribeAll()
+	defer app.Events().UnsubscribeAll(eventChan)
 
 	// 2. Create a download
-	reqBody := map[string]interface{}{"url": mockURL + "/test.zip"}
+	reqBody := map[string]any{"url": mockURL + "/test.zip"}
 	jsonBody, _ := json.Marshal(reqBody)
 	req, _ := http.NewRequest("POST", ts.URL+"/api/v1/downloads", bytes.NewBuffer(jsonBody))
 	req.Header.Set("X-API-Key", testAPIKey)
 	req.Header.Set("Content-Type", "application/json")
 	resp, _ := client.Do(req)
-	var d model.Download
-	json.NewDecoder(resp.Body).Decode(&d)
+	var respData struct {
+		Data *model.Download `json:"data"`
+	}
+	json.NewDecoder(resp.Body).Decode(&respData)
 	resp.Body.Close()
-	downloadID := d.ID
+	downloadID := respData.Data.ID
 
 	// Wait for engines to start and report speed
 	time.Sleep(2 * time.Second)
@@ -515,10 +569,10 @@ func TestSpeedAndProgress(t *testing.T) {
 		case ev := <-eventChan:
 			// Debug log
 			// t.Logf("Event: %s", ev.Type)
-			
+
 			switch ev.Type {
 			case event.DownloadProgress:
-				if data, ok := ev.Data.(map[string]interface{}); ok && data["id"] == downloadID {
+				if data, ok := ev.Data.(map[string]any); ok && data["id"] == downloadID {
 					speed := data["speed"].(int64)
 					downloaded := data["downloaded"].(int64)
 					if speed > 0 {
@@ -534,16 +588,19 @@ func TestSpeedAndProgress(t *testing.T) {
 					done = true
 				}
 			case event.StatsUpdate:
-				if stats, ok := ev.Data.(*model.Stats); ok {
+				if stats, ok := ev.Data.(event.StatsEvent); ok {
 					if stats.Speeds.Download > 0 {
 						seenPositiveGlobalSpeed = true
 					}
 				}
 			case event.DownloadCompleted:
 				if data, ok := ev.Data.(*model.Download); ok && data.ID == downloadID {
-					done = true
-				} else if data, ok := ev.Data.(model.Download); ok && data.ID == downloadID {
-					done = true
+					fmt.Println(" -> Event: Download Completed")
+					// If we've already seen what we need, we can exit.
+					// Otherwise, we might have just started and finished extremely fast.
+					if seenProgress {
+						done = true
+					}
 				}
 			}
 
@@ -570,12 +627,12 @@ func TestFullUploadFlow(t *testing.T) {
 	remoteDestDir := filepath.Join(testDataDir, "remote_dest")
 
 	// 2. Subscribe to Internal Bus
-	eventChan := app.Events().Subscribe()
-	defer app.Events().Unsubscribe(eventChan)
+	eventChan := app.Events().SubscribeAll()
+	defer app.Events().UnsubscribeAll(eventChan)
 
 	// 3. Create Download with Destination
 	client := &http.Client{}
-	reqBody := map[string]interface{}{
+	reqBody := map[string]any{
 		"url":         testFileURL,
 		"destination": "localtest:/" + remoteDestDir,
 	}
@@ -588,8 +645,11 @@ func TestFullUploadFlow(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, http.StatusCreated, resp.StatusCode)
 
-	var d model.Download
-	json.NewDecoder(resp.Body).Decode(&d)
+	var respData struct {
+		Data *model.Download `json:"data"`
+	}
+	json.NewDecoder(resp.Body).Decode(&respData)
+	d := *respData.Data
 	downloadID := d.ID
 	fmt.Printf("\n[UploadFlow] Created Download ID: %s with destination: %s\n", downloadID, d.Destination)
 
@@ -636,7 +696,7 @@ func TestFullUploadFlow(t *testing.T) {
 	expectedFile := filepath.Join(remoteDestDir, "test.zip")
 	_, err = os.Stat(expectedFile)
 	assert.NoError(t, err, "File should exist in the remote destination")
-	
+
 	if err == nil {
 		fmt.Printf(" -> Success: File verified at %s\n", expectedFile)
 	}

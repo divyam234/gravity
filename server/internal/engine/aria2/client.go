@@ -22,7 +22,7 @@ type Client struct {
 	// Map to store pending requests: ID -> channel
 	pending map[string]chan *JsonRpcResponse
 	// Callback for notifications
-	onNotification func(method string, params []interface{})
+	onNotification func(method string, params []any)
 }
 
 func NewClient(wsUrl string) *Client {
@@ -33,18 +33,18 @@ func NewClient(wsUrl string) *Client {
 }
 
 type JsonRpcRequest struct {
-	JsonRPC string      `json:"jsonrpc"`
-	Method  string      `json:"method"`
-	Id      string      `json:"id"`
-	Params  interface{} `json:"params"`
+	JsonRPC string `json:"jsonrpc"`
+	Method  string `json:"method"`
+	Id      string `json:"id"`
+	Params  any    `json:"params"`
 }
 
 type JsonRpcResponse struct {
 	Result json.RawMessage `json:"result,omitempty"`
 	Error  *JsonRpcError   `json:"error,omitempty"`
-	Id     interface{}     `json:"id"`
+	Id     any             `json:"id"`
 	Method string          `json:"method,omitempty"`
-	Params []interface{}   `json:"params,omitempty"`
+	Params []any           `json:"params,omitempty"`
 }
 
 type JsonRpcError struct {
@@ -81,7 +81,7 @@ func (c *Client) Close() error {
 	return nil
 }
 
-func (c *Client) SetNotificationHandler(handler func(method string, params []interface{})) {
+func (c *Client) SetNotificationHandler(handler func(method string, params []any)) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.onNotification = handler
@@ -131,7 +131,7 @@ func (c *Client) listen() {
 	}
 }
 
-func (c *Client) Call(ctx context.Context, method string, params ...interface{}) (json.RawMessage, error) {
+func (c *Client) Call(ctx context.Context, method string, params ...any) (json.RawMessage, error) {
 	// Ensure connected
 	if c.conn == nil {
 		if err := c.Connect(ctx); err != nil {
@@ -142,7 +142,7 @@ func (c *Client) Call(ctx context.Context, method string, params ...interface{})
 	// For internal use, we pass empty params if none provided
 	p := params
 	if len(p) == 0 {
-		p = []interface{}{}
+		p = []any{}
 	}
 
 	id := fmt.Sprintf("%d", rand.Int63())

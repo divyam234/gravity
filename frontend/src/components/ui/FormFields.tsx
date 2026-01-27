@@ -1,21 +1,28 @@
 import { Label, TextField, Select, ListBox, InputGroup, FieldError, Switch, type TextFieldProps, type SelectRootProps, type SwitchProps, cn } from "@heroui/react";
-import type { ReactFormApi } from "@tanstack/react-form";
+import type { DeepKeys, DeepValue } from "@tanstack/react-form";
 import IconChevronDown from "~icons/gravity-ui/chevron-down";
 import React from "react";
 
+// Simplified form API interface to avoid library-specific type mismatch errors
+interface AppFormApi {
+  Field: any;
+  handleSubmit: () => void;
+  setFieldValue: (name: any, value: any) => void;
+  reset: () => void;
+}
+
 // Generic FormSwitch component
-interface FormSwitchProps<TName> extends Omit<SwitchProps, "name" | "form" | "children" | "onChange" | "isSelected" | "defaultSelected"> {
-  form: ReactFormApi<any, any, any, any, any, any, any, any, any, any, any, any>;
+interface FormSwitchProps<TFormData, TName extends DeepKeys<TFormData>> extends Omit<SwitchProps, "name" | "form" | "children" | "onChange" | "isSelected" | "defaultSelected"> {
+  form: AppFormApi;
   name: TName;
   label?: React.ReactNode;
   description?: string;
   validators?: {
-    onChange?: any;
-    onBlur?: any;
+    onChange?: (params: { value: DeepValue<TFormData, TName> }) => string | undefined;
   };
 }
 
-export function FormSwitch<TName>({
+export function FormSwitch<TFormData, TName extends DeepKeys<TFormData>>({
   form,
   name,
   label,
@@ -23,10 +30,10 @@ export function FormSwitch<TName>({
   validators,
   className,
   ...props
-}: FormSwitchProps<TName>) {
+}: FormSwitchProps<TFormData, TName>) {
   return (
     <form.Field
-      name={name as any}
+      name={name}
       validators={validators}
     >
       {(field: any) => (
@@ -45,7 +52,7 @@ export function FormSwitch<TName>({
           </div>
           <Switch
             isSelected={!!field.state.value}
-            onChange={(isSelected) => field.handleChange(isSelected)}
+            onChange={(isSelected) => field.handleChange(isSelected as DeepValue<TFormData, TName>)}
             {...props}
           >
             <Switch.Control>
@@ -59,25 +66,24 @@ export function FormSwitch<TName>({
 }
 
 // Generic FormTextField component
-interface FormTextFieldProps<TName> extends Omit<TextFieldProps, "name" | "form" | "children" | "onChange" | "value" | "defaultValue"> {
-  form: ReactFormApi<any, any, any, any, any, any, any, any, any, any, any, any>;
+interface FormTextFieldProps<TFormData, TName extends DeepKeys<TFormData>> extends Omit<TextFieldProps, "name" | "form" | "children" | "onChange" | "value" | "defaultValue"> {
+  form: AppFormApi;
   name: TName;
   label?: React.ReactNode;
   placeholder?: string;
   description?: string;
   validators?: {
-    onChange?: any;
-    onBlur?: any;
+    onChange?: (params: { value: DeepValue<TFormData, TName> }) => string | undefined;
   };
   // transform for display (e.g. bytes -> MB)
-  format?: (value: any) => string;
+  format?: (value: DeepValue<TFormData, TName>) => string;
   // transform for storage (e.g. MB -> bytes)
-  parse?: (value: string) => any;
+  parse?: (value: string) => DeepValue<TFormData, TName>;
   startContent?: React.ReactNode;
   endContent?: React.ReactNode;
 }
 
-export function FormTextField<TName>({
+export function FormTextField<TFormData, TName extends DeepKeys<TFormData>>({
   form,
   name,
   label,
@@ -89,10 +95,10 @@ export function FormTextField<TName>({
   startContent,
   endContent,
   ...props
-}: FormTextFieldProps<TName>) {
+}: FormTextFieldProps<TFormData, TName>) {
   return (
     <form.Field
-      name={name as any}
+      name={name}
       validators={validators}
     >
       {(field: any) => {
@@ -126,7 +132,7 @@ export function FormTextField<TName>({
                 value={displayValue}
                 onChange={(e) => {
                   const val = e.target.value;
-                  field.handleChange(parse ? parse(val) : val as any);
+                  field.handleChange(parse ? parse(val) : val as DeepValue<TFormData, TName>);
                 }}
                 onBlur={field.handleBlur}
                 placeholder={placeholder}
@@ -152,18 +158,17 @@ interface FormSelectOption {
   label: string;
 }
 
-interface FormSelectProps<TName> extends Omit<SelectRootProps<any>, "name" | "form" | "children" | "onChange" | "selectedKey" | "onSelectionChange" | "items"> {
-  form: ReactFormApi<any, any, any, any, any, any, any, any, any, any, any, any>;
+interface FormSelectProps<TFormData, TName extends DeepKeys<TFormData>> extends Omit<SelectRootProps<any>, "name" | "form" | "children" | "onChange" | "selectedKey" | "onSelectionChange" | "items"> {
+  form: AppFormApi;
   name: TName;
   label?: React.ReactNode;
   items: FormSelectOption[];
   validators?: {
-    onChange?: any;
-    onBlur?: any;
+    onChange?: (params: { value: DeepValue<TFormData, TName> }) => string | undefined;
   };
 }
 
-export function FormSelect<TName>({
+export function FormSelect<TFormData, TName extends DeepKeys<TFormData>>({
   form,
   name,
   label,
@@ -171,10 +176,10 @@ export function FormSelect<TName>({
   validators,
   className,
   ...props
-}: FormSelectProps<TName>) {
+}: FormSelectProps<TFormData, TName>) {
   return (
     <form.Field
-      name={name as any}
+      name={name}
       validators={validators}
     >
       {(field: any) => (
@@ -185,7 +190,7 @@ export function FormSelect<TName>({
             const val = key as string;
             // Infer type from the first item value if possible, default to string
             const isNumber = typeof items[0]?.value === 'number';
-            field.handleChange(isNumber ? Number(val) : val as any);
+            field.handleChange((isNumber ? Number(val) : val) as DeepValue<TFormData, TName>);
           }}
           isInvalid={field.state.meta.errors.length > 0}
           validationBehavior="aria"

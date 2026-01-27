@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	testAPIKey  = "test-api-key"
+	testAPIKey = "test-api-key"
 )
 
 // Helper to get a random free port
@@ -44,7 +44,7 @@ func setupTestApp(t *testing.T) (*app.App, *httptest.Server, string) {
 		w.Header().Set("Content-Type", "application/zip")
 		const size = 10 * 1024 * 1024 // 10MB
 		w.Header().Set("Content-Length", fmt.Sprintf("%d", size))
-		
+
 		data := make([]byte, 128*1024) // 128KB chunks
 		for i := 0; i < size/(128*1024); i++ {
 			select {
@@ -69,7 +69,7 @@ func setupTestApp(t *testing.T) (*app.App, *httptest.Server, string) {
 	home, err := os.UserHomeDir()
 	require.NoError(t, err)
 	testDataDir := filepath.Join(home, fmt.Sprintf("gravity_test_data_%d_%d", time.Now().UnixNano(), getFreePort(t)))
-	
+
 	// Ensure cleanup
 	os.RemoveAll(testDataDir)
 	err = os.MkdirAll(testDataDir, 0755)
@@ -81,7 +81,7 @@ func setupTestApp(t *testing.T) (*app.App, *httptest.Server, string) {
 	rcloneConfigDir := filepath.Join(testDataDir, "rclone")
 	os.MkdirAll(rcloneConfigDir, 0755)
 	rcloneConfigPath := filepath.Join(rcloneConfigDir, "rclone.conf")
-	
+
 	uploadDestDir := filepath.Join(testDataDir, "remote_dest")
 	os.MkdirAll(uploadDestDir, 0755)
 
@@ -138,12 +138,36 @@ func setPreferredEngine(t *testing.T, baseURL string, engineName string) {
 	resp, err := client.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
-	json.NewDecoder(resp.Body).Decode(&settings)
+	var respData struct {
+		Data *model.Settings `json:"data"`
+	}
+	json.NewDecoder(resp.Body).Decode(&respData)
+	settings = *respData.Data
 
 	// Update Engine
 	settings.Download.PreferredEngine = engineName
 	settings.Download.DownloadDir = filepath.Join(os.TempDir(), "gravity-downloads-"+engineName)
 	os.MkdirAll(settings.Download.DownloadDir, 0755)
+
+	// Ensure other required fields are set (in case GET was empty)
+	if settings.Download.MaxConcurrentDownloads == 0 {
+		settings.Download.MaxConcurrentDownloads = 3
+	}
+	if settings.Download.MaxConnectionPerServer == 0 {
+		settings.Download.MaxConnectionPerServer = 8
+	}
+	if settings.Download.Split == 0 {
+		settings.Download.Split = 8
+	}
+	if settings.Download.ConnectTimeout == 0 {
+		settings.Download.ConnectTimeout = 60
+	}
+	if settings.Upload.ConcurrentUploads == 0 {
+		settings.Upload.ConcurrentUploads = 1
+	}
+	if settings.Torrent.ListenPort == 0 {
+		settings.Torrent.ListenPort = 6881
+	}
 
 	body, _ := json.Marshal(settings)
 	req, _ = http.NewRequest("PATCH", baseURL+"/api/v1/settings", bytes.NewBuffer(body))
@@ -184,15 +208,15 @@ func TestDownloadLifecycle(t *testing.T) {
 				sseResp.Body.Close()
 			}
 
-			eventChan := app.Events().Subscribe()
-			defer app.Events().Unsubscribe(eventChan)
+			eventChan := app.Events().SubscribeAll()
+			defer app.Events().UnsubscribeAll(eventChan)
 
 			// Ensure stats polling is active
 			app.StatsService().ResumePolling()
 
 			// 3. Create Download
 			client := &http.Client{}
-			reqBody := map[string]interface{}{
+			reqBody := map[string]any{
 				"url": testFileURL,
 			}
 			jsonBody, _ := json.Marshal(reqBody)
@@ -204,9 +228,11 @@ func TestDownloadLifecycle(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, http.StatusCreated, resp.StatusCode)
 
-			var d model.Download
-			json.NewDecoder(resp.Body).Decode(&d)
-			downloadID := d.ID
+			var respData struct {
+				Data *model.Download `json:"data"`
+			}
+			json.NewDecoder(resp.Body).Decode(&respData)
+			downloadID := respData.Data.ID
 			fmt.Printf("\n[%s] Created Download ID: %s\n", tt.engine, downloadID)
 
 			// 4. Monitor Progress
@@ -225,7 +251,9 @@ func TestDownloadLifecycle(t *testing.T) {
 				case ev := <-eventChan:
 					switch ev.Type {
 					case event.DownloadStarted:
-						if data, ok := ev.Data.(model.Download); ok && data.ID == downloadID {
+						if data, ok := ev.Data.(*model.Download); ok && data.ID == downloadID {
+							fmt.Println(" -> Event: Started")
+						} else if data, ok := ev.Data.(model.Download); ok && data.ID == downloadID {
 							fmt.Println(" -> Event: Started")
 						}
 
@@ -246,10 +274,11 @@ func TestDownloadLifecycle(t *testing.T) {
 						}
 
 					case event.DownloadProgress:
-						if data, ok := ev.Data.(model.Download); ok && data.ID == downloadID {
+						if data, ok := ev.Data.(map[string]any); ok && data["id"] == downloadID {
+							downloaded := data["downloaded"].(int64)
 							// If we have downloaded > 512KB, success (native is fast, aria2 is fast)
-							if data.Downloaded > 512*1024 {
-								fmt.Printf(" -> Progress: Downloaded %.2f MB. Success threshold met.\n", float64(data.Downloaded)/1024/1024)
+							if downloaded > 512*1024 {
+								fmt.Printf(" -> Progress: Downloaded %.2f MB. Success threshold met.\n", float64(downloaded)/1024/1024)
 								done = true
 							}
 						}

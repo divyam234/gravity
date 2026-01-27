@@ -5,10 +5,13 @@ import IconTrashBin from "~icons/gravity-ui/trash-bin";
 import IconPlus from "~icons/gravity-ui/plus";
 import { useRemoteActions, useRemotes } from "../../../hooks/useRemotes";
 import { useSettingsStore } from "../../../store/useSettingsStore";
+import type { components } from "../../../gen/api";
+
+type Remote = components["schemas"]["engine.Remote"];
 
 export const RemoteSettings: React.FC = () => {
 	const { serverSettings, updateServerSettings } = useSettingsStore();
-	const { data: remotes, isLoading } = useRemotes();
+	const { data: remotes = [], isLoading } = useRemotes();
 	const { deleteRemote, createRemote } = useRemoteActions();
 
 	const [isAdding, setIsAdding] = useState(false);
@@ -21,9 +24,15 @@ export const RemoteSettings: React.FC = () => {
 		},
 		onSubmit: async ({ value }) => {
 			try {
-				const parameters = JSON.parse(value.parameters);
+				const config = JSON.parse(value.parameters);
 				createRemote.mutate(
-					{ name: value.name, type: value.type, parameters },
+					{ 
+                        body: { 
+                            name: value.name, 
+                            type: value.type, 
+                            config 
+                        } 
+                    },
 					{
 						onSuccess: () => {
 							setIsAdding(false);
@@ -37,12 +46,12 @@ export const RemoteSettings: React.FC = () => {
 		},
 	});
 
-	const defaultRemote = serverSettings?.upload.defaultRemote || "";
+	const defaultRemote = serverSettings?.upload?.defaultRemote || "";
 	const setDefaultRemote = (val: string) => {
-		updateServerSettings(prev => ({
-			...prev,
-			upload: { ...prev.upload, defaultRemote: val }
-		}));
+		if (!serverSettings) return;
+		updateServerSettings({
+			upload: { ...serverSettings.upload, defaultRemote: val }
+		});
 	};
 
 	return (
@@ -95,7 +104,7 @@ export const RemoteSettings: React.FC = () => {
 						<div className="grid grid-cols-2 gap-4">
 							<form.Field
 								name="name"
-								children={(field) => (
+								children={(field: any) => (
 									<div className="space-y-1.5">
 										<Label className="text-xs font-bold uppercase tracking-wider text-muted">
 											Name
@@ -111,7 +120,7 @@ export const RemoteSettings: React.FC = () => {
 							/>
 							<form.Field
 								name="type"
-								children={(field) => (
+								children={(field: any) => (
 									<div className="space-y-1.5">
 										<Label className="text-xs font-bold uppercase tracking-wider text-muted">
 											Type
@@ -128,7 +137,7 @@ export const RemoteSettings: React.FC = () => {
 						</div>
 						<form.Field
 							name="parameters"
-							children={(field) => (
+							children={(field: any) => (
 								<div className="space-y-1.5">
 									<Label className="text-xs font-bold uppercase tracking-wider text-muted">
 										Parameters (JSON)
@@ -163,7 +172,7 @@ export const RemoteSettings: React.FC = () => {
 							<Spinner size="sm" />
 						</div>
 					) : (
-						remotes?.map((remote) => (
+						remotes?.map((remote: Remote) => (
 							<Card
 								key={remote.name}
 								className="flex flex-row items-center justify-between p-3 px-4 bg-default/5 border-border shadow-none rounded-xl group"
@@ -187,7 +196,7 @@ export const RemoteSettings: React.FC = () => {
 										size="sm"
 										variant="ghost"
 										className="text-danger h-8 w-8 min-w-0"
-										onPress={() => deleteRemote.mutate(remote.name)}
+										onPress={() => deleteRemote.mutate({ params: { path: { name: remote.name || "" } } })}
 										isPending={deleteRemote.isPending}
 									>
 										<IconTrashBin className="w-4 h-4" />

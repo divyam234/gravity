@@ -33,9 +33,9 @@ func (h *MagnetHandler) Routes() chi.Router {
 // @Accept json
 // @Produce json
 // @Param request body CheckMagnetRequest true "Magnet check request"
-// @Success 200 {object} model.MagnetInfo
-// @Failure 400 {string} string "Invalid Request"
-// @Failure 500 {string} string "Internal Server Error"
+// @Success 200 {object} MagnetInfoResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
 // @Router /magnets/check [post]
 func (h *MagnetHandler) Check(w http.ResponseWriter, r *http.Request) {
 	var req CheckMagnetRequest
@@ -45,12 +45,11 @@ func (h *MagnetHandler) Check(w http.ResponseWriter, r *http.Request) {
 
 	info, err := h.magnetService.CheckMagnet(r.Context(), req.Magnet)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		sendError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(info)
+	sendJSON(w, MagnetInfoResponse{Data: info})
 }
 
 // CheckTorrent godoc
@@ -60,9 +59,9 @@ func (h *MagnetHandler) Check(w http.ResponseWriter, r *http.Request) {
 // @Accept json
 // @Produce json
 // @Param request body CheckTorrentRequest true "Torrent check request"
-// @Success 200 {object} model.MagnetInfo
-// @Failure 400 {string} string "Invalid Request"
-// @Failure 500 {string} string "Internal Server Error"
+// @Success 200 {object} MagnetInfoResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
 // @Router /magnets/check-torrent [post]
 func (h *MagnetHandler) CheckTorrent(w http.ResponseWriter, r *http.Request) {
 	var req CheckTorrentRequest
@@ -72,12 +71,11 @@ func (h *MagnetHandler) CheckTorrent(w http.ResponseWriter, r *http.Request) {
 
 	info, err := h.magnetService.CheckTorrent(r.Context(), req.TorrentBase64)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		sendError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(info)
+	sendJSON(w, MagnetInfoResponse{Data: info})
 }
 
 // Download godoc
@@ -87,9 +85,9 @@ func (h *MagnetHandler) CheckTorrent(w http.ResponseWriter, r *http.Request) {
 // @Accept json
 // @Produce json
 // @Param request body DownloadMagnetRequest true "Magnet download request"
-// @Success 201 {object} model.Download
-// @Failure 400 {string} string "Invalid Request"
-// @Failure 500 {string} string "Internal Server Error"
+// @Success 201 {object} DownloadResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
 // @Router /magnets/download [post]
 func (h *MagnetHandler) Download(w http.ResponseWriter, r *http.Request) {
 	var req DownloadMagnetRequest
@@ -123,11 +121,11 @@ func (h *MagnetHandler) Download(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		sendError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(download)
+	json.NewEncoder(w).Encode(DownloadResponse{Data: download})
 }

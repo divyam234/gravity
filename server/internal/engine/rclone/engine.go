@@ -222,6 +222,8 @@ func (e *Engine) Upload(ctx context.Context, src, dst string, opts engine.Upload
 
 	e.mu.Lock()
 	e.activeJobs[jobID] = j
+	onError := e.onError
+	onComplete := e.onComplete
 	e.pollingCond.Broadcast()
 	e.mu.Unlock()
 
@@ -250,12 +252,12 @@ func (e *Engine) Upload(ctx context.Context, src, dst string, opts engine.Upload
 		}
 
 		if err != nil {
-			if e.onError != nil {
-				e.onError(j.trackID, err)
+			if onError != nil {
+				onError(j.trackID, err)
 			}
 		} else {
-			if e.onComplete != nil {
-				e.onComplete(j.trackID)
+			if onComplete != nil {
+				onComplete(j.trackID)
 			}
 		}
 	}()
@@ -304,6 +306,7 @@ func (e *Engine) pollAccounting() {
 		for _, j := range e.activeJobs {
 			jobs = append(jobs, j)
 		}
+		onProgress := e.onProgress
 		e.mu.RUnlock()
 
 		// Get core/stats function
@@ -336,8 +339,8 @@ func (e *Engine) pollAccounting() {
 				return 0
 			}
 
-			if e.onProgress != nil {
-				e.onProgress(j.trackID, engine.UploadProgress{
+			if onProgress != nil {
+				onProgress(j.trackID, engine.UploadProgress{
 					Uploaded: getNumber("bytes"),
 					Size:     j.size,
 					Speed:    getNumber("speed"),
@@ -466,6 +469,8 @@ func (e *Engine) Copy(ctx context.Context, srcPath, dstPath string) (string, err
 
 	e.mu.Lock()
 	e.activeJobs[jobID] = j
+	onError := e.onError
+	onComplete := e.onComplete
 	e.pollingCond.Broadcast()
 	e.mu.Unlock()
 
@@ -505,12 +510,12 @@ func (e *Engine) Copy(ctx context.Context, srcPath, dstPath string) (string, err
 		_, err := e.Call(jobCtx, "operations/copyfile", params)
 
 		if err != nil {
-			if e.onError != nil {
-				e.onError(j.trackID, err)
+			if onError != nil {
+				onError(j.trackID, err)
 			}
 		} else {
-			if e.onComplete != nil {
-				e.onComplete(j.trackID)
+			if onComplete != nil {
+				onComplete(j.trackID)
 			}
 		}
 	}()
@@ -530,6 +535,8 @@ func (e *Engine) Move(ctx context.Context, srcPath, dstPath string) (string, err
 
 	e.mu.Lock()
 	e.activeJobs[jobID] = j
+	onError := e.onError
+	onComplete := e.onComplete
 	e.pollingCond.Broadcast()
 	e.mu.Unlock()
 
@@ -568,12 +575,12 @@ func (e *Engine) Move(ctx context.Context, srcPath, dstPath string) (string, err
 		_, err := e.Call(jobCtx, "operations/movefile", params)
 
 		if err != nil {
-			if e.onError != nil {
-				e.onError(j.trackID, err)
+			if onError != nil {
+				onError(j.trackID, err)
 			}
 		} else {
-			if e.onComplete != nil {
-				e.onComplete(j.trackID)
+			if onComplete != nil {
+				onComplete(j.trackID)
 			}
 		}
 	}()
@@ -690,6 +697,18 @@ func (e *Engine) Restart(ctx context.Context) error {
 	return nil
 }
 
-func (e *Engine) OnProgress(h func(string, engine.UploadProgress)) { e.onProgress = h }
-func (e *Engine) OnComplete(h func(string))                        { e.onComplete = h }
-func (e *Engine) OnError(h func(string, error))                    { e.onError = h }
+func (e *Engine) OnProgress(h func(string, engine.UploadProgress)) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.onProgress = h
+}
+func (e *Engine) OnComplete(h func(string)) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.onComplete = h
+}
+func (e *Engine) OnError(h func(string, error)) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.onError = h
+}

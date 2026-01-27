@@ -27,3 +27,13 @@ type AccountInfo struct {
 	IsPremium bool       `json:"isPremium"`
 	ExpiresAt *time.Time `json:"expiresAt,omitempty"`
 }
+
+type ProviderSummary struct {
+	Name        string       `json:"name"`
+	DisplayName string       `json:"displayName"`
+	Type        ProviderType `json:"type"`
+	Priority    int          `json:"priority"`
+	Configured  bool         `json:"configured"`
+	Enabled     bool         `json:"enabled"`
+	Account     *AccountInfo `json:"account,omitempty"`
+}

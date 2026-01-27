@@ -42,7 +42,7 @@ func (r *DownloadRepo) GetByUploadJobID(ctx context.Context, jobID string) (*mod
 func (r *DownloadRepo) List(ctx context.Context, status []string, limit, offset int, sortAsc bool) ([]*model.Download, int, error) {
 	var downloads []*model.Download
 	var total int64
-	
+
 	query := r.db.WithContext(ctx).Model(&model.Download{})
 	if len(status) > 0 {
 		query = query.Where("status IN ?", status)
@@ -63,7 +63,7 @@ func (r *DownloadRepo) List(ctx context.Context, status []string, limit, offset 
 
 func (r *DownloadRepo) Update(ctx context.Context, d *model.Download) error {
 	d.UpdatedAt = time.Now()
-	// Updates() with struct only updates non-zero fields. 
+	// Updates() with struct only updates non-zero fields.
 	// To update all fields, we can use Save() or a map.
 	// For Download manager, we usually want to persist everything.
 	return r.db.WithContext(ctx).Save(d).Error
@@ -150,7 +150,7 @@ func (r *DownloadRepo) GetFileByEngineID(ctx context.Context, engineID string) (
 
 // MarkAllFilesComplete marks all files for a download as complete
 func (r *DownloadRepo) MarkAllFilesComplete(ctx context.Context, downloadID string) error {
-	return r.db.WithContext(ctx).Model(&model.DownloadFile{}).Where("download_id = ?", downloadID).Updates(map[string]interface{}{
+	return r.db.WithContext(ctx).Model(&model.DownloadFile{}).Where("download_id = ?", downloadID).Updates(map[string]any{
 		"status":     model.StatusComplete,
 		"progress":   100,
 		"downloaded": gorm.Expr("size"),

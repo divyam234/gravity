@@ -14,7 +14,9 @@ import IconChevronDown from "~icons/gravity-ui/chevron-down";
 import IconFolder from "~icons/gravity-ui/folder";
 import IconFile from "~icons/gravity-ui/file";
 import { formatBytes } from "../../lib/utils";
-import type { MagnetFile } from "../../lib/types";
+import type { components } from "../../gen/api";
+
+type MagnetFile = components["schemas"]["model.MagnetFile"];
 
 interface FileTreeProps {
   files: MagnetFile[];
@@ -30,7 +32,7 @@ export function FileTree({
   const [expandedKeys, setExpandedKeys] = useState<Set<Key>>(() => {
     const keys = new Set<Key>();
     files.forEach((f) => {
-      if (f.isFolder) keys.add(f.id);
+      if (f.isFolder && f.id) keys.add(f.id);
     });
     return keys;
   });
@@ -41,9 +43,11 @@ export function FileTree({
 
     const traverse = (nodes: MagnetFile[], parentId?: string) => {
       nodes.forEach((node) => {
-        nMap.set(node.id, node);
-        if (parentId) pMap.set(node.id, parentId);
-        if (node.children) traverse(node.children, node.id);
+        if (node.id) {
+            nMap.set(node.id, node);
+            if (parentId) pMap.set(node.id, parentId);
+        }
+        if (node.children) traverse(node.children as MagnetFile[], node.id);
       });
     };
     traverse(files);
@@ -65,8 +69,10 @@ export function FileTree({
       const node = nodeMap.get(id);
       if (node && node.children) {
         node.children.forEach((child) => {
-          ids.push(child.id);
-          ids.push(...getDescendants(child.id));
+          if (child.id) {
+            ids.push(child.id);
+            ids.push(...getDescendants(child.id));
+          }
         });
       }
       return ids;
@@ -86,8 +92,8 @@ export function FileTree({
         const parentNode = nodeMap.get(parentId);
         if (!parentNode || !parentNode.children) break;
 
-        const allSiblingsSelected = parentNode.children.every((child) =>
-          finalSelection.has(child.id),
+        const allSiblingsSelected = (parentNode.children as MagnetFile[]).every((child) =>
+          child.id && finalSelection.has(child.id),
         );
         if (allSiblingsSelected) {
           finalSelection.add(parentId);
@@ -121,7 +127,7 @@ export function FileTree({
       <TreeItem
         key={file.id}
         id={file.id}
-        textValue={file.name}
+        textValue={file.name || "unknown"}
         className="outline-none scroll-m-2"
       >
         <TreeItemContent>
@@ -187,7 +193,7 @@ export function FileTree({
 
               {/* Size */}
               <span className="text-xs text-muted font-mono">
-                {formatBytes(file.size)}
+                {formatBytes(file.size || 0)}
               </span>
             </div>
           )}
@@ -195,7 +201,7 @@ export function FileTree({
 
         {/* Children */}
         {file.isFolder && file.children && (
-          <Collection items={file.children}>
+          <Collection items={file.children as MagnetFile[]}>
             {(child) => renderItem(child, level + 1)}
           </Collection>
         )}
@@ -222,11 +228,11 @@ export function FileTree({
 export function getAllFileIds(files: MagnetFile[]): string[] {
   const ids: string[] = [];
   for (const file of files) {
-    if (!file.isFolder) {
+    if (!file.isFolder && file.id) {
       ids.push(file.id);
     }
     if (file.children) {
-      ids.push(...getAllFileIds(file.children));
+      ids.push(...getAllFileIds(file.children as MagnetFile[]));
     }
   }
   return ids;
@@ -239,11 +245,11 @@ export function getSelectedSize(
 ): number {
   let total = 0;
   for (const file of files) {
-    if (!file.isFolder && selectedKeys.has(file.id)) {
-      total += file.size;
+    if (!file.isFolder && file.id && selectedKeys.has(file.id)) {
+      total += (file.size || 0);
     }
     if (file.children) {
-      total += getSelectedSize(file.children, selectedKeys);
+      total += getSelectedSize(file.children as MagnetFile[], selectedKeys);
     }
   }
   return total;

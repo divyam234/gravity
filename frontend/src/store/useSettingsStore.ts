@@ -1,7 +1,9 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { api } from "../lib/api";
-import type { Settings } from "../lib/types";
+import { configureClient, client } from "../lib/openapi";
+import type { components } from "../gen/api";
+
+type Settings = components["schemas"]["model.Settings"];
 
 export interface ServerConfig {
 	id: string;
@@ -45,7 +47,7 @@ interface SettingsState {
 
     // Server settings actions
     fetchServerSettings: () => Promise<void>;
-    updateServerSettings: (updates: Partial<Settings> | ((prev: Settings) => Settings)) => void;
+    updateServerSettings: (updates: Record<string, unknown>) => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -119,8 +121,10 @@ export const useSettingsStore = create<SettingsState>()(
 
             fetchServerSettings: async () => {
                 try {
-                    const settings = await api.getSettings();
-                    set({ serverSettings: settings as any });
+                    const { data: response } = await client.GET("/settings");
+                    if (response?.data) {
+                        set({ serverSettings: response.data });
+                    }
                 } catch (err) {
                     console.error("Failed to fetch server settings", err);
                 }
@@ -130,16 +134,12 @@ export const useSettingsStore = create<SettingsState>()(
                 const current = get().serverSettings;
                 if (!current) return;
 
-                if (typeof updates === "function") {
-                    set({ serverSettings: updates(current) });
-                } else {
-                    set({ 
-                        serverSettings: {
-                            ...current,
-                            ...updates,
-                        }
-                    });
-                }
+                set({ 
+                    serverSettings: {
+                        ...current,
+                        ...updates,
+                    }
+                });
             },
 		}),
 		{
@@ -171,8 +171,7 @@ export const useSettingsStore = create<SettingsState>()(
                 // Sync API client with rehydrated state
                 const active = state.servers.find(s => s.id === state.activeServerId);
                 if (active) {
-                    api.setBaseUrl(active.serverUrl);
-                    api.setApiKey(active.apiKey);
+                    configureClient(active.serverUrl, active.apiKey);
                 }
 
                 // Initial fetch of server settings
@@ -186,8 +185,7 @@ export const useSettingsStore = create<SettingsState>()(
 const syncApi = (state: SettingsState) => {
     const active = state.servers.find(s => s.id === state.activeServerId);
     if (active) {
-        api.setBaseUrl(active.serverUrl);
-        api.setApiKey(active.apiKey);
+        configureClient(active.serverUrl, active.apiKey);
     }
 };
 
@@ -195,7 +193,7 @@ useSettingsStore.subscribe(syncApi);
 
 // Debounced server settings sync - DISABLED as we moved to explicit form save
 /*
-let syncTimeout: any = null;
+let syncTimeout: ReturnType<typeof setTimeout> | null = null;
 useSettingsStore.subscribe((state, prevState) => {
     if (!state.serverSettings || state.serverSettings === prevState.serverSettings) return;
 

@@ -194,8 +194,9 @@ func (s *MagnetService) DownloadMagnet(ctx context.Context, req MagnetDownloadRe
 		return nil, err
 	}
 
-	s.bus.Publish(event.Event{
+	s.bus.PublishLifecycle(event.LifecycleEvent{
 		Type:      event.DownloadCreated,
+		ID:        d.ID,
 		Timestamp: time.Now(),
 		Data:      d,
 	})

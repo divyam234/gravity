@@ -13,6 +13,8 @@ import (
 	"gravity/internal/model"
 	"gravity/internal/provider"
 	"gravity/internal/store"
+
+	"go.uber.org/zap"
 )
 
 // MockDownloadEngine mimics aria2c behavior
@@ -276,14 +278,14 @@ func (m *MockUploadEngine) Restart(ctx context.Context) error { return nil }
 // MockProvider implements provider.Provider
 type MockProvider struct{}
 
-func (p *MockProvider) Name() string                             { return "mock" }
-func (p *MockProvider) DisplayName() string                      { return "Mock Provider" }
-func (p *MockProvider) Type() model.ProviderType                 { return model.ProviderTypeDirect }
-func (p *MockProvider) ConfigSchema() []provider.ConfigField     { return nil }
+func (p *MockProvider) Name() string                                                  { return "mock" }
+func (p *MockProvider) DisplayName() string                                           { return "Mock Provider" }
+func (p *MockProvider) Type() model.ProviderType                                      { return model.ProviderTypeDirect }
+func (p *MockProvider) ConfigSchema() []provider.ConfigField                          { return nil }
 func (p *MockProvider) Configure(ctx context.Context, config map[string]string) error { return nil }
-func (p *MockProvider) IsConfigured() bool                       { return true }
-func (p *MockProvider) Supports(url string) bool                 { return true }
-func (p *MockProvider) Priority() int                            { return 100 }
+func (p *MockProvider) IsConfigured() bool                                            { return true }
+func (p *MockProvider) Supports(url string) bool                                      { return true }
+func (p *MockProvider) Priority() int                                                 { return 100 }
 func (p *MockProvider) Test(ctx context.Context) (*model.AccountInfo, error) {
 	return &model.AccountInfo{Username: "testuser", IsPremium: true}, nil
 }
@@ -296,9 +298,11 @@ func (p *MockProvider) Resolve(ctx context.Context, url string, headers map[stri
 }
 
 func TestFullDownloadFlow(t *testing.T) {
-	// 1. Setup Infrastructure
+	// 1. Setup Environment
+	tmpDir := t.TempDir()
 	cfg := &config.Config{
 		Database: config.DBConfig{Type: "sqlite", DSN: ":memory:"},
+		DataDir:  tmpDir,
 	}
 	s, err := store.New(cfg)
 	if err != nil {
@@ -314,7 +318,7 @@ func TestFullDownloadFlow(t *testing.T) {
 	// 2. Setup Provider Service
 	reg := provider.NewRegistry()
 	reg.Register(&MockProvider{})
-	ps := NewProviderService(pr, reg)
+	ps := NewProviderService(pr, reg, zap.NewNop())
 	// Initialize providers (loads from DB, but DB is empty, so it just uses defaults/registered ones)
 	ps.Init(context.Background())
 
@@ -323,12 +327,12 @@ func TestFullDownloadFlow(t *testing.T) {
 	mockUploader := &MockUploadEngine{}
 
 	// 4. Create Service
-	ds := NewDownloadService(dr, setr, mockDownloader, mockUploader, bus, ps)
+	ds := NewDownloadService(dr, setr, mockDownloader, mockUploader, bus, ps, zap.NewNop())
 	ds.Start(context.Background())
 	defer ds.Stop()
 
 	// 5. Test Event Subscription
-	events := bus.Subscribe()
+	events := bus.SubscribeAll()
 
 	// 6. Execute: Create Download
 	ctx := context.Background()
@@ -435,10 +439,15 @@ DONE:
 }
 
 func TestErrorScenarios(t *testing.T) {
+	tmpDir := t.TempDir()
 	cfg := &config.Config{
 		Database: config.DBConfig{Type: "sqlite", DSN: ":memory:"},
+		DataDir:  tmpDir,
 	}
-	s, _ := store.New(cfg)
+	s, err := store.New(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create DB: %v", err)
+	}
 	defer s.Close()
 
 	bus := event.NewBus()
@@ -447,16 +456,16 @@ func TestErrorScenarios(t *testing.T) {
 	pr := store.NewProviderRepo(s.GetDB())
 	reg := provider.NewRegistry()
 	reg.Register(&MockProvider{})
-	ps := NewProviderService(pr, reg)
+	ps := NewProviderService(pr, reg, zap.NewNop())
 	ps.Init(context.Background())
 
 	mockDownloader := NewMockDownloadEngine()
-	ds := NewDownloadService(dr, setr, mockDownloader, &MockUploadEngine{}, bus, ps)
+	ds := NewDownloadService(dr, setr, mockDownloader, &MockUploadEngine{}, bus, ps, zap.NewNop())
 	ds.Start(context.Background())
 	defer ds.Stop()
 
 	ctx := context.Background()
-	events := bus.Subscribe()
+	events := bus.SubscribeAll()
 
 	// Scenario 1: Engine Submission Error
 	t.Run("SubmissionError", func(t *testing.T) {
@@ -550,10 +559,15 @@ func TestErrorScenarios(t *testing.T) {
 }
 
 func TestSyncEdgeCases(t *testing.T) {
+	tmpDir := t.TempDir()
 	cfg := &config.Config{
 		Database: config.DBConfig{Type: "sqlite", DSN: ":memory:"},
+		DataDir:  tmpDir,
 	}
-	s, _ := store.New(cfg)
+	s, err := store.New(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create DB: %v", err)
+	}
 	defer s.Close()
 	dr := store.NewDownloadRepo(s.GetDB())
 	setr := store.NewSettingsRepo(s.GetDB())
@@ -562,11 +576,13 @@ func TestSyncEdgeCases(t *testing.T) {
 	// Need mock provider stuff again...
 	reg := provider.NewRegistry()
 	reg.Register(&MockProvider{})
-	ps := NewProviderService(pr, reg)
+	ps := NewProviderService(pr, reg, zap.NewNop())
 	mockDownloader := NewMockDownloadEngine()
-	ds := NewDownloadService(dr, setr, mockDownloader, &MockUploadEngine{}, bus, ps)
+	ds := NewDownloadService(dr, setr, mockDownloader, &MockUploadEngine{}, bus, ps, zap.NewNop())
 
 	ctx := context.Background()
+	ds.Start(ctx)
+	defer ds.Stop()
 
 	// Scenario: Task is Active in DB, but missing in Engine (e.g. crash restart)
 	// 1. Manually insert task
@@ -613,10 +629,15 @@ func TestSyncEdgeCases(t *testing.T) {
 }
 
 func TestDeletion(t *testing.T) {
+	tmpDir := t.TempDir()
 	cfg := &config.Config{
 		Database: config.DBConfig{Type: "sqlite", DSN: ":memory:"},
+		DataDir:  tmpDir,
 	}
-	s, _ := store.New(cfg)
+	s, err := store.New(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create DB: %v", err)
+	}
 	defer s.Close()
 	dr := store.NewDownloadRepo(s.GetDB())
 	setr := store.NewSettingsRepo(s.GetDB())
@@ -624,9 +645,9 @@ func TestDeletion(t *testing.T) {
 	bus := event.NewBus()
 	reg := provider.NewRegistry()
 	reg.Register(&MockProvider{})
-	ps := NewProviderService(pr, reg)
+	ps := NewProviderService(pr, reg, zap.NewNop())
 	mockDownloader := NewMockDownloadEngine()
-	ds := NewDownloadService(dr, setr, mockDownloader, &MockUploadEngine{}, bus, ps)
+	ds := NewDownloadService(dr, setr, mockDownloader, &MockUploadEngine{}, bus, ps, zap.NewNop())
 	ds.Start(context.Background())
 	defer ds.Stop()
 
@@ -644,7 +665,7 @@ func TestDeletion(t *testing.T) {
 	}
 
 	// Delete
-	err := ds.Delete(ctx, dl.ID, true)
+	err = ds.Delete(ctx, dl.ID, true)
 	if err != nil {
 		t.Errorf("Delete failed: %v", err)
 	}

@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { api } from "../../lib/api";
+import { client } from "../../lib/openapi";
 import { formatBytes, cn } from "../../lib/utils";
 import { FileIcon } from "./FileIcon";
 import { FilePreview } from "./preview/FilePreview";
@@ -27,8 +27,11 @@ import {
   Label,
   Chip,
 } from "@heroui/react";
-import type { Selection } from "@heroui/react";
+import type { Selection, Key } from "@heroui/react";
 import { toast } from "sonner";
+import type { components } from "../../gen/api";
+
+type FileInfo = components["schemas"]["engine.FileInfo"];
 
 interface ClipboardItem {
   op: "copy" | "move";
@@ -61,7 +64,7 @@ export function FileBrowser({ path, query }: FileBrowserProps) {
   const [clipboard, setClipboard] = useState<ClipboardItem | null>(null);
   const [selectedKeys, setSelectedKeys] = useState<Selection>(new Set([]));
   const [isSelectionMode, setIsSelectionMode] = useState(false);
-  const [previewFile, setPreviewFile] = useState<any | null>(null);
+  const [previewFile, setPreviewFile] = useState<FileInfo | null>(null);
   const { searchQuery, setSearchQuery } = useSettingsStore();
   const queryClient = useQueryClient();
 
@@ -84,7 +87,7 @@ export function FileBrowser({ path, query }: FileBrowserProps) {
     x: number;
     y: number;
   } | null>(null);
-  const [menuFile, setMenuFile] = useState<any | null>(null);
+  const [menuFile, setMenuFile] = useState<FileInfo | null>(null);
   const menuTriggerRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -93,13 +96,23 @@ export function FileBrowser({ path, query }: FileBrowserProps) {
     error,
   } = useQuery({
     queryKey: ["files", path],
-    queryFn: () => api.listFiles(path),
+    queryFn: async () => {
+        const { data } = await client.GET("/files/list", {
+            params: { query: { path } }
+        });
+        return data;
+    },
     enabled: !searchQuery,
   });
 
   const { data: searchResponse } = useQuery({
     queryKey: ["files", "search", searchQuery],
-    queryFn: () => api.search(searchQuery),
+    queryFn: async () => {
+        const { data } = await client.GET("/search", {
+            params: { query: { query: searchQuery } }
+        });
+        return data;
+    },
     enabled: !!searchQuery,
   });
 
@@ -110,7 +123,7 @@ export function FileBrowser({ path, query }: FileBrowserProps) {
     return [...list].sort((a, b) => {
       if (a.isDir && !b.isDir) return -1;
       if (!a.isDir && b.isDir) return 1;
-      return a.name.localeCompare(b.name);
+      return (a.name || "").localeCompare(b.name || "");
     });
   }, [searchQuery, searchResponse, filesResponse]);
 
@@ -139,7 +152,7 @@ export function FileBrowser({ path, query }: FileBrowserProps) {
   // Mutations
   const deleteMutation = useMutation({
     mutationFn: (filePaths: string[]) =>
-      Promise.all(filePaths.map((p) => api.deleteFile(p))),
+      Promise.all(filePaths.map((p) => client.POST("/files/delete", { body: { path: p } }))),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["files", path] });
       setSelectedKeys(new Set([]));
@@ -148,7 +161,7 @@ export function FileBrowser({ path, query }: FileBrowserProps) {
   });
 
   const mkdirMutation = useMutation({
-    mutationFn: (folderPath: string) => api.mkdir(folderPath),
+    mutationFn: (folderPath: string) => client.POST("/files/mkdir", { body: { path: folderPath } }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["files", path] });
       modal.onClose();
@@ -163,7 +176,13 @@ export function FileBrowser({ path, query }: FileBrowserProps) {
       items: { src: string; dst: string }[];
     }) =>
       Promise.all(
-        vars.items.map((item) => api.operateFile(vars.op, item.src, item.dst)),
+        vars.items.map((item) => client.POST("/files/operate" as any, { 
+            body: { 
+                op: vars.op,
+                src: item.src,
+                dst: item.dst
+            } as any
+        })),
       ),
     onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: ["files", path] });
@@ -177,7 +196,7 @@ export function FileBrowser({ path, query }: FileBrowserProps) {
         setClipboard(null);
       }
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       toast.error("Operation failed: " + err.message);
     },
   });
@@ -216,7 +235,7 @@ export function FileBrowser({ path, query }: FileBrowserProps) {
     });
   };
   const selectedPaths = useMemo(() => {
-    if (selectedKeys === "all") return files.map((f) => f.path);
+    if (selectedKeys === "all") return files.map((f) => f.path || "");
     return Array.from(selectedKeys).map((k) => String(k));
   }, [selectedKeys, files]);
 
@@ -406,7 +425,7 @@ export function FileBrowser({ path, query }: FileBrowserProps) {
                 if (isSelectionMode) {
                   setSelectedKeys((prev) => {
                     const currentSet = new Set(
-                      prev === "all" ? files.map((f) => f.path) : prev,
+                      prev === "all" ? files.map((f) => f.path as Key) : Array.from(prev as Set<Key>),
                     );
                     if (currentSet.has(key)) currentSet.delete(key);
                     else currentSet.add(key);
@@ -416,7 +435,7 @@ export function FileBrowser({ path, query }: FileBrowserProps) {
                 }
                  const file = files.find((f) => f.path === key);
                  if (file && file.isDir) {
-                   navigate(file.path);
+                   navigate(file.path || "/");
                  } else if (file) {
                    setPreviewFile(file);
                  }
@@ -425,8 +444,8 @@ export function FileBrowser({ path, query }: FileBrowserProps) {
             >
               {(file) => (
                 <ListBox.Item
-                  id={file.path}
-                  textValue={file.name}
+                  id={file.path || ""}
+                  textValue={file.name || ""}
                   onContextMenu={(e) => {
                     e.preventDefault();
                     setMenuPosition({ x: e.clientX, y: e.clientY });
@@ -440,8 +459,8 @@ export function FileBrowser({ path, query }: FileBrowserProps) {
                   )}
                 >
                   <FileIcon
-                    name={file.name}
-                    isDir={file.isDir}
+                    name={file.name || ""}
+                    isDir={!!file.isDir}
                     className="w-10 h-10 transition-transform duration-200 group-hover:scale-105 shadow-sm"
                   />
 
@@ -451,14 +470,14 @@ export function FileBrowser({ path, query }: FileBrowserProps) {
                         <Label className="font-semibold truncate text-foreground text-sm tracking-tight leading-none cursor-pointer">
                           {file.name}
                         </Label>
-                        {searchQuery && file.remote && (
+                        {searchQuery && (file as any).remote && (
                           <Chip
                             size="sm"
                             variant="soft"
                             color="accent"
                             className="h-4 text-[9px] px-1 font-black uppercase tracking-tighter shrink-0"
                           >
-                            {file.remote}
+                            {(file as any).remote}
                           </Chip>
                         )}
                       </div>
@@ -472,7 +491,7 @@ export function FileBrowser({ path, query }: FileBrowserProps) {
                     <div className="flex items-center gap-3 shrink-0 text-[10px] sm:text-xs text-muted font-medium">
                       {!file.isDir && (
                         <span className="bg-default/10 px-1.5 py-0.5 rounded text-foreground/70 whitespace-nowrap">
-                          {formatBytes(file.size)}
+                          {formatBytes(file.size || 0)}
                         </span>
                       )}
 
@@ -529,30 +548,29 @@ export function FileBrowser({ path, query }: FileBrowserProps) {
             dependencies={[menuFile]}
             aria-label="File Actions"
             onAction={(key) => {
-              console.log("jfojdfaljflk", menuFile, key);
               if (!menuFile) return;
               const file = menuFile;
               setMenuOpen(false);
 
-              if (key === "open" && file.isDir) navigate(file.path);
-              if (key === "delete") deleteMutation.mutateAsync([file.path]);
+              if (key === "open" && file.isDir) navigate(file.path || "/");
+              if (key === "delete") deleteMutation.mutateAsync([file.path || ""]);
               if (key === "rename") {
                 setModalType("rename");
-                setModalInputValue(file.name);
-                setRenameOldPath(file.path);
+                setModalInputValue(file.name || "");
+                setRenameOldPath(file.path || "");
                 modal.onOpen();
               }
               if (key === "copy") {
                 setClipboard({
                   op: "copy",
-                  paths: [file.path],
+                  paths: [file.path || ""],
                 });
                 toast.success("Copied to clipboard");
               }
               if (key === "cut") {
                 setClipboard({
                   op: "move",
-                  paths: [file.path],
+                  paths: [file.path || ""],
                 });
                 toast.success("Cut to clipboard");
               }
@@ -656,7 +674,7 @@ export function FileBrowser({ path, query }: FileBrowserProps) {
        </Modal.Backdrop>
 
        <FilePreview
-         file={previewFile}
+         file={previewFile ? { name: previewFile.name || "", path: previewFile.path || "", mimeType: previewFile.mimeType } : null}
          onClose={() => setPreviewFile(null)}
        />
      </div>

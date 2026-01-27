@@ -34,6 +34,22 @@ function PreferencesSettingsPage() {
 		fileInputRef.current?.click();
 	};
 
+	const onExport = async () => {
+		try {
+			const data = await handleExport();
+			if (!data) return;
+			const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement("a");
+			a.href = url;
+			a.download = "gravity-settings.json";
+			a.click();
+			URL.revokeObjectURL(url);
+		} catch (err) {
+			console.error("Export failed", err);
+		}
+	};
+
 	const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 		const file = e.target.files?.[0];
 		if (!file) return;
@@ -43,7 +59,7 @@ function PreferencesSettingsPage() {
 			try {
 				const content = event.target?.result as string;
 				const settings = JSON.parse(content);
-				importSettings.mutate(settings);
+				importSettings.mutate({ body: settings });
 			} catch (err) {
 				console.error("Invalid JSON", err);
 			}
@@ -319,7 +335,7 @@ function PreferencesSettingsPage() {
 										<Button
 											variant="secondary"
 											className="rounded-xl font-bold"
-											onPress={handleExport}
+											onPress={onExport}
 										>
 											📥 Export Settings
 										</Button>
@@ -339,11 +355,10 @@ function PreferencesSettingsPage() {
 										variant="ghost"
 										className="rounded-xl font-bold text-danger hover:bg-danger/10"
 										onPress={() => {
-											if (confirm("Reset all settings to defaults? This cannot be undone.")) {
-												resetSettings.mutate();
+											if (confirm("Reset all settings to default?")) {
+												resetSettings.mutate({});
 											}
 										}}
-										isPending={resetSettings.isPending}
 									>
 										⚠️ Reset All Settings
 									</Button>

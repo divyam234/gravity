@@ -71,8 +71,8 @@ func New(ctx context.Context, de engine.DownloadEngine, ue engine.UploadEngine) 
 
 	// Initialize logger
 	l := logger.New(cfg.LogLevel, cfg.LogLevel == "debug")
-	l.Info("starting gravity", 
-		zap.Int("port", cfg.Port), 
+	l.Info("starting gravity",
+		zap.Int("port", cfg.Port),
 		zap.String("data_dir", cfg.DataDir),
 		zap.String("log_level", cfg.LogLevel))
 
@@ -149,7 +149,6 @@ func New(ctx context.Context, de engine.DownloadEngine, ue engine.UploadEngine) 
 	v1.Mount("/events", eh.Routes())
 
 	// Mount V1 to root
-	api.MountSwagger(router)
 	router.Mount("/api/v1", v1)
 	router.Handle("/*", AssetsHandler())
 
@@ -271,13 +270,13 @@ func (a *App) Stop() {
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	
+
 	if err := a.httpServer.Shutdown(shutdownCtx); err != nil {
 		a.logger.Error("server shutdown failed", zap.Error(err))
 	}
-	
+
 	a.store.Close()
-	
+
 	// Sync logger before exit
 	_ = a.logger.Sync()
 }

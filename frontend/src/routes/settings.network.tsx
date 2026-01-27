@@ -3,10 +3,12 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useForm } from "@tanstack/react-form";
 import IconChevronLeft from "~icons/gravity-ui/chevron-left";
 import { useSettingsStore } from "../store/useSettingsStore";
-import { api } from "../lib/api";
+import { useEngineActions } from "../hooks/useEngine";
 import { FormTextField, FormSwitch } from "../components/ui/FormFields";
-import { toast } from "sonner";
+import type { components } from "../gen/api";
 
+type Settings = components["schemas"]["model.Settings"];
+type ProxyConfig = components["schemas"]["model.ProxyConfig"];
 
 export const Route = createFileRoute("/settings/network")({
   component: NetworkSettingsPage,
@@ -43,16 +45,16 @@ const formatProxyUrl = (type: string, host: string, port: string) => {
 };
 
 // Reusable Proxy Configuration Component
-function ProxyConfigEditor({ 
-  value, 
-  onChange 
-}: { 
-  value: any, 
-  onChange: (val: any) => void 
+function ProxyConfigEditor({
+  value,
+  onChange
+}: {
+  value: ProxyConfig,
+  onChange: (val: ProxyConfig) => void
 }) {
-  const parsed = parseProxyUrl(value.url);
+  const parsed = parseProxyUrl(value.url || "");
   
-  const update = (updates: any) => {
+  const update = (updates: { type?: string, host?: string, port?: string, user?: string, password?: string, enabled?: boolean }) => {
     const newType = updates.type ?? parsed.type;
     const newHost = updates.host ?? parsed.host;
     const newPort = updates.port ?? parsed.port;
@@ -61,7 +63,7 @@ function ProxyConfigEditor({
     const newEnabled = updates.enabled ?? value.enabled;
 
     onChange({
-      enabled: newEnabled,
+      enabled: !!newEnabled,
       url: formatProxyUrl(newType, newHost, newPort),
       user: newUser,
       password: newPass,
@@ -157,35 +159,37 @@ function NetworkSettingsForm({
   serverSettings,
   updateServerSettings,
 }: {
-  serverSettings: any;
-  updateServerSettings: any;
+  serverSettings: Settings;
+  updateServerSettings: (settings: Settings) => void;
 }) {
   const navigate = useNavigate();
-  const { network, download } = serverSettings;
+  const network = serverSettings.network;
+  const download = serverSettings.download;
+  const { changeGlobalOption } = useEngineActions();
 
   const form = useForm({
     defaultValues: {
-      proxyMode: network.proxyMode || "global",
-      globalProxy: network.globalProxy || { enabled: false, url: "", user: "", password: "" },
-      magnetProxy: network.magnetProxy || { enabled: false, url: "", user: "", password: "" },
-      downloadProxy: network.downloadProxy || { enabled: false, url: "", user: "", password: "" },
-      uploadProxy: network.uploadProxy || { enabled: false, url: "", user: "", password: "" },
+      proxyMode: network?.proxyMode || "global",
+      globalProxy: network?.globalProxy || { enabled: false, url: "", user: "", password: "" },
+      magnetProxy: network?.magnetProxy || { enabled: false, url: "", user: "", password: "" },
+      downloadProxy: network?.downloadProxy || { enabled: false, url: "", user: "", password: "" },
+      uploadProxy: network?.uploadProxy || { enabled: false, url: "", user: "", password: "" },
       
-      dnsOverHttps: network.dnsOverHttps || "",
-      interfaceBinding: network.interfaceBinding || "",
-      tcpPortRange: network.tcpPortRange || "",
-      maxConnectionPerServer: download.maxConnectionPerServer,
-      connectTimeout: download.connectTimeout,
-      maxTries: download.maxTries,
-      checkCertificate: download.checkCertificate,
-      userAgent: download.userAgent,
+      dnsOverHttps: network?.dnsOverHttps || "",
+      interfaceBinding: network?.interfaceBinding || "",
+      tcpPortRange: network?.tcpPortRange || "",
+      maxConnectionPerServer: Number(download?.maxConnectionPerServer || 8),
+      connectTimeout: Number(download?.connectTimeout || 60),
+      maxTries: Number(download?.maxTries || 0),
+      checkCertificate: !!download?.checkCertificate,
+      userAgent: download?.userAgent || "",
     },
     onSubmit: async ({ value }) => {
-      const updated = {
+      const updated: Settings = {
         ...serverSettings,
           network: {
             ...serverSettings.network,
-            proxyMode: value.proxyMode,
+            proxyMode: value.proxyMode as any,
             globalProxy: value.globalProxy,
             magnetProxy: value.magnetProxy,
             downloadProxy: value.downloadProxy,
@@ -196,21 +200,22 @@ function NetworkSettingsForm({
           },
         download: {
           ...serverSettings.download,
+          downloadDir: serverSettings.download?.downloadDir || "/downloads",
+          preferredEngine: serverSettings.download?.preferredEngine || "aria2",
+          preferredMagnetEngine: serverSettings.download?.preferredMagnetEngine || "aria2",
           maxConnectionPerServer: Number(value.maxConnectionPerServer),
           connectTimeout: Number(value.connectTimeout),
           maxTries: Number(value.maxTries),
           checkCertificate: value.checkCertificate,
           userAgent: value.userAgent,
-        },
+        } as any,
       };
 
       try {
-        await api.updateSettings(updated);
+        await changeGlobalOption.mutateAsync({ body: updated as any });
         updateServerSettings(updated);
-        toast.success("Settings saved successfully");
       } catch (err) {
-        console.error(err);
-        toast.error("Failed to save settings");
+        // Error toast handled by mutation
       }
     },
   });
@@ -238,7 +243,7 @@ function NetworkSettingsForm({
                         variant="primary"
                         onPress={() => form.handleSubmit()}
                         isDisabled={!canSubmit}
-                        isPending={isSubmitting}
+                        isPending={isSubmitting as boolean}
                         className="rounded-xl font-bold"
                     >
                         Save Changes
@@ -260,7 +265,7 @@ function NetworkSettingsForm({
               <Card className="bg-background/50 border-border overflow-hidden">
                 <Card.Content className="p-6">
                     <form.Field name="proxyMode">
-                        {(field) => (
+                        {(field: any) => (
                             <div className="flex justify-center mb-8">
                                 <div className="bg-default/10 p-1 rounded-2xl flex">
                                     <button
@@ -291,12 +296,12 @@ function NetworkSettingsForm({
                     </form.Field>
 
                     <form.Subscribe
-                        selector={(state) => [state.values.proxyMode]}
+                        selector={(state: any) => [state.values.proxyMode]}
                     >
                         {([proxyMode]) => (
                             proxyMode === "global" ? (
                                 <form.Field name="globalProxy">
-                                    {(field) => (
+                                    {(field: any) => (
                                         <ProxyConfigEditor 
                                             value={field.state.value} 
                                             onChange={field.handleChange} 
@@ -317,7 +322,7 @@ function NetworkSettingsForm({
                                         <Tabs.Panel id="magnet">
                                             <div className="pt-4">
                                                 <form.Field name="magnetProxy">
-                                                    {(field) => (
+                                                    {(field: any) => (
                                                         <ProxyConfigEditor 
                                                             value={field.state.value} 
                                                             onChange={field.handleChange} 
@@ -329,7 +334,7 @@ function NetworkSettingsForm({
                                         <Tabs.Panel id="download">
                                             <div className="pt-4">
                                                 <form.Field name="downloadProxy">
-                                                    {(field) => (
+                                                    {(field: any) => (
                                                         <ProxyConfigEditor 
                                                             value={field.state.value} 
                                                             onChange={field.handleChange} 
@@ -341,7 +346,7 @@ function NetworkSettingsForm({
                                         <Tabs.Panel id="upload">
                                             <div className="pt-4">
                                                 <form.Field name="uploadProxy">
-                                                    {(field) => (
+                                                    {(field: any) => (
                                                         <ProxyConfigEditor 
                                                             value={field.state.value} 
                                                             onChange={field.handleChange} 

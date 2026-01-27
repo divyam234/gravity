@@ -232,14 +232,15 @@ func (e *NativeEngine) Add(ctx context.Context, url string, opts engine.Download
 			if e.settings != nil && e.settings.Download.ConnectTimeout > 0 {
 				timeout = time.Duration(e.settings.Download.ConnectTimeout) * time.Second
 			}
+			onError := e.onError
 			e.mu.RUnlock()
 
 			select {
 			case <-torrentTask.GotInfo():
 				torrentTask.DownloadAll()
 			case <-time.After(timeout):
-				if e.onError != nil {
-					e.onError(taskId, fmt.Errorf("metadata resolution timeout"))
+				if onError != nil {
+					onError(taskId, fmt.Errorf("metadata resolution timeout"))
 				}
 				e.Remove(e.ctx, taskId)
 			}
@@ -259,20 +260,24 @@ func (e *NativeEngine) Add(ctx context.Context, url string, opts engine.Download
 }
 
 func (e *NativeEngine) runRcloneDownload(ctx context.Context, t *task) {
+	// Capture callbacks under lock for thread-safe access
+	e.mu.RLock()
+	onError := e.onError
+	onProgress := e.onProgress
+	onComplete := e.onComplete
+	s := e.settings
+	e.mu.RUnlock()
+
 	defer func() {
 		if r := recover(); r != nil {
 			e.logger.Error("engine panic during rclone download", zap.Any("panic", r))
-			if e.onError != nil {
-				e.onError(t.id, fmt.Errorf("engine panic: %v", r))
+			if onError != nil {
+				onError(t.id, fmt.Errorf("engine panic: %v", r))
 			}
 		}
 	}()
 
 	e.logger.Debug("starting rclone download", zap.String("id", t.id), zap.String("url", t.url))
-
-	e.mu.RLock()
-	s := e.settings
-	e.mu.RUnlock()
 
 	// Create a fresh config for this context to support per-request headers/proxy
 	ctx, ci := fs.AddConfig(ctx)
@@ -312,8 +317,8 @@ func (e *NativeEngine) runRcloneDownload(ctx context.Context, t *task) {
 
 	u, err := url.Parse(t.url)
 	if err != nil {
-		if e.onError != nil {
-			e.onError(t.id, err)
+		if onError != nil {
+			onError(t.id, err)
 		}
 		return
 	}
@@ -330,16 +335,16 @@ func (e *NativeEngine) runRcloneDownload(ctx context.Context, t *task) {
 
 	srcFs, err := fs.NewFs(accCtx, fmt.Sprintf(":http,url='%s',no_escape=true:", baseURL))
 	if err != nil {
-		if e.onError != nil {
-			e.onError(t.id, err)
+		if onError != nil {
+			onError(t.id, err)
 		}
 		return
 	}
 
 	dstFs, err := fs.NewFs(accCtx, t.dir)
 	if err != nil {
-		if e.onError != nil {
-			e.onError(t.id, err)
+		if onError != nil {
+			onError(t.id, err)
 		}
 		return
 	}
@@ -349,16 +354,16 @@ func (e *NativeEngine) runRcloneDownload(ctx context.Context, t *task) {
 	if err != nil {
 		if accCtx.Err() == nil {
 			e.logger.Error("rclone download failed", zap.String("id", t.id), zap.Error(err))
-			if e.onError != nil {
-				e.onError(t.id, err)
+			if onError != nil {
+				onError(t.id, err)
 			}
 		}
 	} else {
 		_, err = dstFs.NewObject(accCtx, t.filename)
 
 		if err != nil {
-			if e.onError != nil {
-				e.onError(t.id, err)
+			if onError != nil {
+				onError(t.id, err)
 			}
 			return
 		}
@@ -367,11 +372,11 @@ func (e *NativeEngine) runRcloneDownload(ctx context.Context, t *task) {
 
 		e.logger.Debug("download complete", zap.String("path", finalPath))
 
-		if e.onProgress != nil {
-			e.onProgress(t.id, engine.Progress{Downloaded: t.size, Size: t.size, Speed: 0})
+		if onProgress != nil {
+			onProgress(t.id, engine.Progress{Downloaded: t.size, Size: t.size, Speed: 0})
 		}
-		if e.onComplete != nil {
-			e.onComplete(t.id, finalPath)
+		if onComplete != nil {
+			onComplete(t.id, finalPath)
 		}
 	}
 
@@ -408,8 +413,11 @@ func (e *NativeEngine) poll() {
 }
 
 func (e *NativeEngine) reportProgress() {
+	e.mu.RLock()
 	onProgress := e.onProgress
 	onComplete := e.onComplete
+	e.mu.RUnlock()
+
 	if onProgress == nil {
 		return
 	}
@@ -599,9 +607,21 @@ func (e *NativeEngine) Version(ctx context.Context) (string, error) {
 	}
 	return "native-hybrid-1.0", nil
 }
-func (e *NativeEngine) OnProgress(h func(string, engine.Progress)) { e.onProgress = h }
-func (e *NativeEngine) OnComplete(h func(string, string))          { e.onComplete = h }
-func (e *NativeEngine) OnError(h func(string, error))              { e.onError = h }
+func (e *NativeEngine) OnProgress(h func(string, engine.Progress)) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.onProgress = h
+}
+func (e *NativeEngine) OnComplete(h func(string, string)) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.onComplete = h
+}
+func (e *NativeEngine) OnError(h func(string, error)) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.onError = h
+}
 
 func (e *NativeEngine) GetMagnetFiles(ctx context.Context, magnet string) (*model.MagnetInfo, error) {
 	t, err := e.torrentClient.AddMagnet(magnet)

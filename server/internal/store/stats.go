@@ -24,7 +24,7 @@ func (r *StatsRepo) Increment(ctx context.Context, key string, value int64) erro
 	}
 	return r.db.WithContext(ctx).Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "key"}},
-		DoUpdates: clause.Assignments(map[string]interface{}{
+		DoUpdates: clause.Assignments(map[string]any{
 			"value":      gorm.Expr("stats.value + excluded.value"),
 			"updated_at": gorm.Expr("excluded.updated_at"),
 		}),

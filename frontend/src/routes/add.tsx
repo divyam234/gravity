@@ -8,7 +8,7 @@ import IconChevronLeft from "~icons/gravity-ui/chevron-left";
 import IconMagnet from "~icons/gravity-ui/magnet";
 import IconChevronDown from "~icons/gravity-ui/chevron-down";
 import { useDownloadActions } from "../hooks/useDownloads";
-import { api } from "../lib/api";
+import { client } from "../lib/openapi";
 import { tasksLinkOptions } from "./tasks";
 import {
   FileTree,
@@ -16,7 +16,10 @@ import {
   getSelectedSize,
 } from "../components/ui/FileTree";
 import { formatBytes } from "../lib/utils";
-import type { MagnetFile, TaskOptions } from "../lib/types";
+import type { components } from "../gen/api";
+
+type MagnetFile = components["schemas"]["model.MagnetFile"];
+type TaskOptions = components["schemas"]["model.TaskOptions"];
 
 export const Route = createFileRoute("/add")({
   component: AddDownloadPage,
@@ -25,7 +28,7 @@ export const Route = createFileRoute("/add")({
 function AddDownloadPage() {
   const navigate = useNavigate();
   const fileInputId = useId();
-  const { create } = useDownloadActions();
+  const { create, downloadMagnet } = useDownloadActions();
 
   const [isTorrent, setIsTorrent] = useState(false);
   const [torrentBase64, setTorrentBase64] = useState<string | null>(null);
@@ -71,33 +74,36 @@ function AddDownloadPage() {
 
       if ((isMagnetLocal || isTorrent) && magnetInfo) {
         try {
-          await api.downloadMagnet({
-            magnet: isMagnetLocal ? currentUrlValue : "",
-            torrentBase64: torrentBase64 || "",
-            source: magnetInfo.source,
-            magnetId: magnetInfo.magnetId,
-            name: magnetInfo.name,
-            selectedFiles: Array.from(selectedFiles),
-            downloadDir: value.downloadDir || undefined,
-            destination: value.destination || undefined,
-            files: flattenFiles(magnetInfo.files),
-            options: options,
+          await downloadMagnet.mutateAsync({
+            body: {
+                magnet: isMagnetLocal ? currentUrlValue : "",
+                torrentBase64: torrentBase64 || "",
+                source: (magnetInfo.source || "aria2") as "alldebrid" | "aria2",
+                magnetId: magnetInfo.magnetId,
+                name: magnetInfo.name,
+                selectedFiles: Array.from(selectedFiles),
+                downloadDir: value.downloadDir || undefined,
+                destination: value.destination || undefined,
+                files: (flattenFiles(magnetInfo.files || []) as unknown) as components["schemas"]["api.MagnetFileRequest"][],
+                options: options,
+            }
           });
           toast.success(isTorrent ? "Torrent download started" : "Magnet download started");
           navigate(tasksLinkOptions("active"));
         } catch (err: unknown) {
-          const error = err as Error;
-          toast.error(`Failed to start download: ${error.message}`);
+          // Error handled by mutation toast
         }
       } else {
         if (!currentUrlValue) return;
         create.mutate(
           {
-            url: currentUrlValue,
-            filename: value.filename || undefined,
-            downloadDir: value.downloadDir || undefined,
-            destination: value.destination || undefined,
-            options: options,
+            body: {
+                url: currentUrlValue,
+                filename: value.filename || undefined,
+                downloadDir: value.downloadDir || undefined,
+                destination: value.destination || undefined,
+                options: options,
+            }
           },
           {
             onSuccess: () => navigate(tasksLinkOptions("active")),
@@ -116,8 +122,13 @@ function AddDownloadPage() {
   const { data: magnetCheckData, isLoading: isCheckingMagnet, error: magnetError } = useQuery({
     queryKey: ["magnet", currentUrl],
     queryFn: async () => {
-        const info = await api.checkMagnet(currentUrl!);
-        info.files = buildTreeFromFlatFiles(info.files);
+        const { data } = await client.POST("/magnets/check", {
+            body: { magnet: currentUrl! }
+        });
+        const info = data?.data;
+        if (!info) throw new Error("Failed to check magnet");
+        // @ts-ignore - manual tree building
+        info.files = buildTreeFromFlatFiles(info.files as components["schemas"]["model.MagnetFile"][]);
         return info;
     },
     enabled: !!currentUrl && currentUrl.startsWith("magnet:"),
@@ -128,8 +139,13 @@ function AddDownloadPage() {
   const { data: torrentCheckData, isLoading: isCheckingTorrent, error: torrentError } = useQuery({
     queryKey: ["torrent", torrentBase64],
     queryFn: async () => {
-        const info = await api.checkTorrent(torrentBase64!);
-        info.files = buildTreeFromFlatFiles(info.files);
+        const { data } = await client.POST("/magnets/check-torrent", {
+            body: { torrentBase64: torrentBase64! }
+        });
+        const info = data?.data;
+        if (!info) throw new Error("Failed to check torrent");
+        // @ts-ignore - manual tree building
+        info.files = buildTreeFromFlatFiles(info.files as components["schemas"]["model.MagnetFile"][]);
         return info;
     },
     enabled: isTorrent && !!torrentBase64,
@@ -144,7 +160,7 @@ function AddDownloadPage() {
   // Sync selected files when magnet info loads
   useEffect(() => {
     if (magnetInfo) {
-        const allIds = getAllFileIds(magnetInfo.files);
+        const allIds = getAllFileIds(magnetInfo.files as MagnetFile[]);
         setSelectedFiles(new Set(allIds));
     }
   }, [magnetInfo]);
@@ -163,7 +179,7 @@ function AddDownloadPage() {
 
   const selectAllFiles = () => {
     if (magnetInfo) {
-      setSelectedFiles(new Set(getAllFileIds(magnetInfo.files)));
+      setSelectedFiles(new Set(getAllFileIds(magnetInfo.files as MagnetFile[])));
     }
   };
 
@@ -172,7 +188,7 @@ function AddDownloadPage() {
   };
 
   const selectedSize = magnetInfo
-    ? getSelectedSize(magnetInfo.files, selectedFiles)
+    ? getSelectedSize(magnetInfo.files as MagnetFile[], selectedFiles)
     : 0;
 
   return (
@@ -223,7 +239,7 @@ function AddDownloadPage() {
             <div className="flex flex-col gap-3">
               <form.Field
                 name="uris"
-                children={(field) => (
+                children={(field: any) => (
                   <TextField className="flex flex-col gap-3">
                     <Label className="text-xs font-black uppercase tracking-widest text-muted px-1">
                       Download URL
@@ -304,9 +320,9 @@ function AddDownloadPage() {
                     {magnetInfo.name}
                   </h3>
                   <div className="flex items-center gap-2 text-xs text-muted font-black uppercase tracking-widest mt-1">
-                    <span>{formatBytes(magnetInfo.size)}</span>
+                    <span>{formatBytes(magnetInfo.size || 0)}</span>
                     <span>•</span>
-                    <span>{getAllFileIds(magnetInfo.files).length} files</span>
+                    <span>{getAllFileIds(magnetInfo.files || []).length} files</span>
                   </div>
                 </div>
                 <Chip
@@ -346,7 +362,7 @@ function AddDownloadPage() {
               {/* File Tree */}
               <div className="max-h-[500px] overflow-y-auto rounded-2xl border border-border bg-default/5 custom-scrollbar overscroll-y-contain relative">
                 <FileTree
-                  files={magnetInfo.files}
+                  files={magnetInfo.files || []}
                   selectedKeys={selectedFiles}
                   onSelectionChange={setSelectedFiles}
                 />
@@ -384,7 +400,7 @@ function AddDownloadPage() {
             {!isMagnet && !isTorrent && (
               <form.Field
                 name="filename"
-                children={(field) => (
+                children={(field: any) => (
                   <TextField className="flex flex-col gap-2">
                     <Label className="text-xs font-black uppercase tracking-widest text-muted px-1">
                       Filename (Optional)
@@ -402,7 +418,7 @@ function AddDownloadPage() {
 
             <form.Field
               name="downloadDir"
-              children={(field) => (
+              children={(field: any) => (
                 <TextField className="flex flex-col gap-2">
                   <Label className="text-xs font-black uppercase tracking-widest text-muted px-1">
                     Download Directory (Optional)
@@ -422,7 +438,7 @@ function AddDownloadPage() {
 
             <form.Field
               name="destination"
-              children={(field) => (
+              children={(field: any) => (
                 <TextField className="flex flex-col gap-2">
                   <Label className="text-xs font-black uppercase tracking-widest text-muted px-1">
                     Final Destination (Remote)
@@ -451,7 +467,7 @@ function AddDownloadPage() {
             <div className="grid grid-cols-2 gap-4">
               <form.Field
                 name="connections"
-                children={(field) => (
+                children={(field: any) => (
                   <TextField className="flex flex-col gap-2">
                     <Label className="text-[10px] font-black uppercase tracking-widest text-muted px-1">
                       Connections
@@ -492,7 +508,7 @@ function AddDownloadPage() {
 
               <form.Field
                 name="split"
-                children={(field) => (
+                children={(field: any) => (
                   <TextField className="flex flex-col gap-2">
                     <Label className="text-[10px] font-black uppercase tracking-widest text-muted px-1">
                       Split
@@ -534,7 +550,7 @@ function AddDownloadPage() {
 
             <form.Field
               name="maxDownloadSpeed"
-              children={(field) => (
+              children={(field: any) => (
                 <TextField className="flex flex-col gap-2">
                   <Label className="text-[10px] font-black uppercase tracking-widest text-muted px-1">
                     Max Speed
@@ -551,7 +567,7 @@ function AddDownloadPage() {
 
             <form.Field
               name="proxyUrl"
-              children={(field) => (
+              children={(field: any) => (
                 <TextField className="flex flex-col gap-2">
                   <Label className="text-[10px] font-black uppercase tracking-widest text-muted px-1">
                     Proxy URL (Optional)
@@ -568,7 +584,7 @@ function AddDownloadPage() {
 
             <form.Field
               name="headersInput"
-              children={(field) => (
+              children={(field: any) => (
                 <TextField className="flex flex-col gap-2">
                   <Label className="text-[10px] font-black uppercase tracking-widest text-muted px-1">
                     Custom Headers (Optional)
@@ -629,7 +645,7 @@ function flattenFiles(files: MagnetFile[]): MagnetFile[] {
         result.push(file);
       }
       if (file.children) {
-        traverse(file.children);
+        traverse(file.children as MagnetFile[]);
       }
     }
   }
@@ -649,7 +665,7 @@ function buildTreeFromFlatFiles(files: MagnetFile[]): MagnetFile[] {
   const root: MagnetFile[] = [];
 
   files.forEach((file) => {
-    const parts = file.path.split("/");
+    const parts = file.path?.split("/") || [file.name || "unknown"];
     let currentLevel = root;
     let currentPath = "";
 
@@ -663,8 +679,8 @@ function buildTreeFromFlatFiles(files: MagnetFile[]): MagnetFile[] {
       if (existing) {
         if (existing.isFolder) {
           if (!existing.children) existing.children = [];
-          currentLevel = existing.children;
-          existing.size += file.size; // Aggregate size
+          currentLevel = existing.children as MagnetFile[];
+          existing.size = (existing.size || 0) + (file.size || 0); // Aggregate size
         }
       } else {
         if (isFile) {
@@ -677,13 +693,13 @@ function buildTreeFromFlatFiles(files: MagnetFile[]): MagnetFile[] {
             id: currentPath, // Use path as ID for folders
             name: part,
             path: currentPath,
-            size: file.size,
+            size: file.size || 0,
             isFolder: true,
             children: [],
           };
           currentLevel.push(folder);
           // Move into new folder
-          currentLevel = folder.children!;
+          currentLevel = folder.children! as MagnetFile[];
         }
       }
     });

@@ -39,10 +39,15 @@ func (h *EventHandler) Routes() chi.Router {
 
 // Subscribe godoc
 // @Summary Subscribe to real-time events
-// @Description Open a Server-Sent Events (SSE) connection to receive real-time updates on downloads, uploads, and system status
+// @Description Open a Server-Sent Events (SSE) connection to receive real-time updates on downloads, uploads, and system status.
+// @Description Data payload structure varies by type:
+// @Description - download.progress / upload.progress: ProgressEventData
+// @Description - stats: model.Stats
+// @Description - download.* / upload.*: model.Download
 // @Tags events
 // @Produce text/event-stream
-// @Success 200 {string} string "SSE connection established"
+// @Success 200 {object} EventResponse
+// @Failure 500 {object} ErrorResponse
 // @Router /events [get]
 func (h *EventHandler) Subscribe(w http.ResponseWriter, r *http.Request) {
 	// Set headers for SSE
@@ -53,7 +58,7 @@ func (h *EventHandler) Subscribe(w http.ResponseWriter, r *http.Request) {
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
+		sendError(w, "Streaming unsupported", http.StatusInternalServerError)
 		return
 	}
 
@@ -80,8 +85,8 @@ func (h *EventHandler) Subscribe(w http.ResponseWriter, r *http.Request) {
 		h.mu.Unlock()
 	}()
 
-	events := h.bus.Subscribe()
-	defer h.bus.Unsubscribe(events)
+	events := h.bus.SubscribeAll()
+	defer h.bus.UnsubscribeAll(events)
 
 	// Send initial connection event
 	fmt.Fprintf(w, "data: {\"type\": \"connected\"}\n\n")
@@ -94,13 +99,7 @@ func (h *EventHandler) Subscribe(w http.ResponseWriter, r *http.Request) {
 	for {
 		select {
 		case ev := <-events:
-			evtMap := map[string]interface{}{
-				"type":      ev.Type,
-				"timestamp": ev.Timestamp,
-				"data":      ev.Data,
-			}
-
-			jsonData, err := json.Marshal(evtMap)
+			jsonData, err := json.Marshal(ev)
 			if err == nil {
 				fmt.Fprintf(w, "data: %s\n\n", jsonData)
 				flusher.Flush()

@@ -18,6 +18,7 @@ import {
 import { formatBytes } from "../lib/utils";
 import { tasksLinkOptions } from "./tasks";
 import { ProgressBar } from "../components/ui/ProgressBar";
+import type { components } from "../gen/api";
 
 export const Route = createFileRoute("/task/$gid")({
   component: TaskDetailsPage,
@@ -35,10 +36,10 @@ function TaskDetailsPage() {
 
   const isUploading = task.status === 'uploading';
   const progressValue = isUploading 
-    ? task.uploadProgress 
-    : (task.size > 0 ? (task.downloaded / task.size) * 100 : 0);
+    ? (task.uploadProgress || 0)
+    : ((task.size || 0) > 0 ? ((task.downloaded || 0) / (task.size || 1)) * 100 : 0);
   
-  const currentSpeed = isUploading ? task.uploadSpeed : task.speed;
+  const currentSpeed = isUploading ? (task.uploadSpeed || 0) : (task.speed || 0);
   const speedLabel = isUploading ? "Upload Speed" : "Download Speed";
   const speedColor = isUploading ? "text-cyan-500" : "text-success";
 
@@ -98,7 +99,7 @@ function TaskDetailsPage() {
                         Files ({files.length})
                       </h3>
                       <div className="space-y-3 bg-default/5 p-6 rounded-[32px] border border-border/50 shadow-sm max-h-[600px] overflow-y-auto custom-scrollbar">
-                        {files.map((file) => (
+                        {files.map((file: components["schemas"]["model.DownloadFile"]) => (
                           <div key={file.id} className="bg-background/80 p-4 rounded-2xl border border-border/50 flex flex-col gap-3">
                             <div className="flex items-center justify-between gap-4">
                               <div className="flex items-center gap-3 min-w-0">
@@ -111,7 +112,7 @@ function TaskDetailsPage() {
                                 <div className="min-w-0">
                                   <p className="text-sm font-bold truncate leading-tight">{file.name}</p>
                                   <p className="text-[10px] text-muted font-black uppercase tracking-widest mt-0.5">
-                                    {formatBytes(file.downloaded)} / {formatBytes(file.size)}
+                                    {formatBytes(file.downloaded || 0)} / {formatBytes(file.size || 0)}
                                   </p>
                                 </div>
                               </div>
@@ -125,7 +126,7 @@ function TaskDetailsPage() {
                               </Chip>
                             </div>
                             <ProgressBar 
-                              value={file.progress} 
+                              value={file.progress || 0} 
                               size="sm" 
                               color={file.status === 'complete' ? 'success' : 'accent'} 
                               className="h-1"
@@ -145,7 +146,7 @@ function TaskDetailsPage() {
                       <div className="bg-default/5 p-6 rounded-[32px] border border-border/50 shadow-sm overflow-hidden">
                         <ScrollShadow className="max-h-[400px]" hideScrollBar>
                           <div className="space-y-3">
-                            {peers.map((peer) => (
+                            {peers.map((peer: components["schemas"]["model.Peer"]) => (
                               <div key={`${peer.ip}-${peer.port}`} className="bg-background/80 p-4 rounded-2xl border border-border/50 flex items-center justify-between gap-4">
                                 <div className="flex items-center gap-4">
                                   <div className="flex flex-col">
@@ -163,14 +164,14 @@ function TaskDetailsPage() {
                                     <p className="text-[8px] text-muted uppercase font-black tracking-widest leading-none mb-1">Download</p>
                                     <div className="flex items-center gap-1 text-success/80 font-bold text-xs">
                                       <IconArrowDown className="w-3 h-3" />
-                                      {formatBytes(peer.downloadSpeed)}/s
+                                      {formatBytes(peer.downloadSpeed || 0)}/s
                                     </div>
                                   </div>
                                   <div className="flex flex-col items-end">
                                     <p className="text-[8px] text-muted uppercase font-black tracking-widest leading-none mb-1">Upload</p>
                                     <div className="flex items-center gap-1 text-accent font-bold text-xs">
                                       <IconArrowUp className="w-3 h-3" />
-                                      {formatBytes(peer.uploadSpeed)}/s
+                                      {formatBytes(peer.uploadSpeed || 0)}/s
                                     </div>
                                   </div>
                                 </div>
@@ -202,14 +203,14 @@ function TaskDetailsPage() {
                           <div className="bg-default/5 p-6 rounded-3xl border border-border/50">
                               <div className="flex justify-between items-end mb-4">
                                   <p className="text-3xl font-black tracking-tighter leading-none">
-                                      {Math.floor(progressValue)}%
+                                      {Math.floor(progressValue || 0)}%
                                   </p>
                                   <p className="text-xs font-bold text-muted uppercase tracking-widest">
                                       {task.status}
                                   </p>
                               </div>
                               <ProgressBar 
-                                  value={progressValue} 
+                                  value={progressValue || 0} 
                                   color={task.status === 'complete' ? 'success' : isUploading ? 'cyan' : 'accent'}
                                   className="h-2"
                               />
@@ -219,11 +220,11 @@ function TaskDetailsPage() {
                       <div className="grid grid-cols-2 gap-4">
                           <div className="bg-default/5 p-4 rounded-3xl border border-border/50">
                               <p className="text-[10px] text-muted uppercase font-black tracking-widest mb-1">{speedLabel}</p>
-                              <p className={`text-sm font-bold ${speedColor}`}>{formatBytes(currentSpeed)}/s</p>
+                              <p className={`text-sm font-bold ${speedColor}`}>{formatBytes(currentSpeed || 0)}/s</p>
                           </div>
                           <div className="bg-default/5 p-4 rounded-3xl border border-border/50">
                               <p className="text-[10px] text-muted uppercase font-black tracking-widest mb-1">Total Size</p>
-                              <p className="text-sm font-bold">{formatBytes(task.size)}</p>
+                              <p className="text-sm font-bold">{formatBytes(task.size || 0)}</p>
                           </div>
                       </div>
 

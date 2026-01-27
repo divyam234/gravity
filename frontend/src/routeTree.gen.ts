@@ -123,7 +123,7 @@ export interface FileRoutesByFullPath {
   '/settings/torrents': typeof SettingsTorrentsRoute
   '/settings/uploads': typeof SettingsUploadsRoute
   '/task/$gid': typeof TaskGidRoute
-  '/settings': typeof SettingsIndexRoute
+  '/settings/': typeof SettingsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -180,7 +180,7 @@ export interface FileRouteTypes {
     | '/settings/torrents'
     | '/settings/uploads'
     | '/task/$gid'
-    | '/settings'
+    | '/settings/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -271,7 +271,7 @@ declare module '@tanstack/react-router' {
     '/settings/': {
       id: '/settings/'
       path: '/settings'
-      fullPath: '/settings'
+      fullPath: '/settings/'
       preLoaderRoute: typeof SettingsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }

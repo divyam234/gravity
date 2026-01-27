@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"strconv"
 
@@ -38,8 +37,8 @@ func (h *SearchHandler) Routes() chi.Router {
 // @Accept json
 // @Param request body BatchUpdateConfigRequest true "Batch configuration request"
 // @Success 200 "OK"
-// @Failure 400 {string} string "Invalid Request"
-// @Failure 500 {string} string "Internal Server Error"
+// @Failure 400 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
 // @Router /search/config [post]
 func (h *SearchHandler) BatchUpdateConfig(w http.ResponseWriter, r *http.Request) {
 	var req BatchUpdateConfigRequest
@@ -59,7 +58,7 @@ func (h *SearchHandler) BatchUpdateConfig(w http.ResponseWriter, r *http.Request
 	}
 
 	if err := h.service.BatchUpdateConfig(r.Context(), configs); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		sendError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusOK)
@@ -73,9 +72,9 @@ func (h *SearchHandler) BatchUpdateConfig(w http.ResponseWriter, r *http.Request
 // @Param query query string true "Search query string"
 // @Param limit query int false "Max number of results"
 // @Param offset query int false "Offset for pagination"
-// @Success 200 {object} ListResponse
-// @Failure 400 {string} string "Missing Query"
-// @Failure 500 {string} string "Internal Server Error"
+// @Success 200 {object} IndexedFileListResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
 // @Router /search [get]
 func (h *SearchHandler) Search(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query().Get(ParamQuery)
@@ -84,7 +83,7 @@ func (h *SearchHandler) Search(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if q == "" {
-		http.Error(w, "missing query", http.StatusBadRequest)
+		sendError(w, "missing query", http.StatusBadRequest)
 		return
 	}
 
@@ -99,7 +98,7 @@ func (h *SearchHandler) Search(w http.ResponseWriter, r *http.Request) {
 
 	results, total, err := h.service.Search(r.Context(), q, limit, offset)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		sendError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -107,9 +106,9 @@ func (h *SearchHandler) Search(w http.ResponseWriter, r *http.Request) {
 		results = make([]model.IndexedFile, 0)
 	}
 
-	json.NewEncoder(w).Encode(ListResponse{
+	sendJSON(w, IndexedFileListResponse{
 		Data: results,
-		Meta: Meta{
+		Meta: &Meta{
 			Total:  total,
 			Limit:  limit,
 			Offset: offset,
@@ -122,16 +121,16 @@ func (h *SearchHandler) Search(w http.ResponseWriter, r *http.Request) {
 // @Description Get indexing settings and status for all remotes
 // @Tags search
 // @Produce json
-// @Success 200 {object} map[string][]model.RemoteIndexConfig
-// @Failure 500 {string} string "Internal Server Error"
+// @Success 200 {object} RemoteIndexConfigListResponse
+// @Failure 500 {object} ErrorResponse
 // @Router /search/config [get]
 func (h *SearchHandler) GetConfigs(w http.ResponseWriter, r *http.Request) {
 	configs, err := h.service.GetConfigs(r.Context())
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		sendError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	json.NewEncoder(w).Encode(map[string]interface{}{"data": configs})
+	sendJSON(w, RemoteIndexConfigListResponse{Data: configs})
 }
 
 // UpdateConfig godoc
@@ -142,8 +141,8 @@ func (h *SearchHandler) GetConfigs(w http.ResponseWriter, r *http.Request) {
 // @Param remote path string true "Remote name"
 // @Param request body UpdateConfigRequest true "Configuration request"
 // @Success 200 "OK"
-// @Failure 400 {string} string "Invalid Request"
-// @Failure 500 {string} string "Internal Server Error"
+// @Failure 400 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
 // @Router /search/config/{remote} [post]
 func (h *SearchHandler) UpdateConfig(w http.ResponseWriter, r *http.Request) {
 	remote := chi.URLParam(r, ParamRemote)
@@ -153,7 +152,7 @@ func (h *SearchHandler) UpdateConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.service.UpdateConfig(r.Context(), remote, req.Interval, req.ExcludedPatterns, req.IncludedExtensions, req.MinSizeBytes); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		sendError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusOK)

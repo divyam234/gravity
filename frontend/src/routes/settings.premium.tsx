@@ -18,13 +18,32 @@ import IconTrashBin from "~icons/gravity-ui/trash-bin";
 import { useProviders, useProviderActions } from "../hooks/useProviders";
 import { cn } from "../lib/utils";
 import { toast } from "sonner";
+import type { components } from "../gen/api";
+
+type ProviderSummary = components["schemas"]["model.ProviderSummary"];
 
 export const Route = createFileRoute("/settings/premium")({
   component: PremiumServicesPage,
 });
 
+interface ProviderDefinition {
+    id: string;
+    name: string;
+    description: string;
+    color: string;
+    icon: string;
+    website: string;
+    configFields: {
+        key: string;
+        label: string;
+        type: string;
+        required?: boolean;
+        placeholder?: string;
+    }[];
+}
+
 // Premium provider definitions
-const PREMIUM_PROVIDERS = [
+const PREMIUM_PROVIDERS: ProviderDefinition[] = [
   {
     id: "alldebrid",
     name: "AllDebrid",
@@ -100,13 +119,12 @@ const PREMIUM_PROVIDERS = [
       { key: "proxy_url", label: "Proxy URL", type: "text", placeholder: "http://user:pass@host:port" }
     ],
   },
-  // Other providers can be added here with similar structure
 ];
 
 function PremiumServicesPage() {
   const navigate = useNavigate();
   const { data: providersResponse, isLoading } = useProviders();
-  const { configure } = useProviderActions();
+  const { configureProvider } = useProviderActions();
 
   // Preferences (mock state for now, should be connected to backend settings)
   const [usePremium, setUsePremium] = useState(true);
@@ -214,7 +232,7 @@ function PremiumServicesPage() {
                 <div className="grid grid-cols-1 gap-6">
                   {PREMIUM_PROVIDERS.map((def) => {
                     const connectedProvider = providers.find(
-                      (p: any) => p.name === def.id || p.id === def.id
+                      (p) => p.name === def.id
                     );
                     
                     return (
@@ -222,8 +240,11 @@ function PremiumServicesPage() {
                         key={def.id}
                         def={def}
                         provider={connectedProvider}
-                        onConfigure={(config: any, enabled: boolean) => configure.mutate({ name: def.id, config, enabled })}
-                        isPending={configure.isPending}
+                        onConfigure={(config: Record<string, string>, enabled: boolean) => configureProvider.mutate({ 
+                            params: { path: { name: def.id } },
+                            body: { config, enabled }
+                        })}
+                        isPending={configureProvider.isPending}
                       />
                     );
                   })}
@@ -237,13 +258,20 @@ function PremiumServicesPage() {
   );
 }
 
-function ProviderCard({ def, provider, onConfigure, isPending }: any) {
+interface ProviderCardProps {
+    def: ProviderDefinition;
+    provider?: ProviderSummary;
+    onConfigure: (config: Record<string, string>, enabled: boolean) => void;
+    isPending: boolean;
+}
+
+function ProviderCard({ def, provider, onConfigure, isPending }: ProviderCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const isConnected = provider?.enabled;
 
   const form = useForm({
-    defaultValues: def.configFields.reduce((acc: any, field: any) => {
-      acc[field.key] = provider?.config?.[field.key] || "";
+    defaultValues: def.configFields.reduce((acc: Record<string, string>, field) => {
+      acc[field.key] = (provider as any)?.config?.[field.key] || "";
       return acc;
     }, {}),
     onSubmit: async ({ value }) => {
@@ -316,7 +344,7 @@ function ProviderCard({ def, provider, onConfigure, isPending }: any) {
         {/* Inline Configuration Form */}
         {isExpanded && (
             <div className="mt-6 pt-6 border-t border-border animate-in slide-in-from-top-2 duration-200">
-                {def.configFields.map((field: any) => (
+                {def.configFields.map((field) => (
                     <form.Field key={field.key} name={field.key}>
                         {(f: any) => (
                             <div className="mb-4 last:mb-6">
@@ -366,8 +394,8 @@ function ProviderCard({ def, provider, onConfigure, isPending }: any) {
                         >
                             Cancel
                         </Button>
-                        <form.Subscribe selector={(state: any) => [state.canSubmit, state.isSubmitting]}>
-                            {(state: any) => {
+                        <form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting]}>
+                            {(state) => {
                                 const canSubmit = state[0];
                                 const isSubmitting = state[1];
                                 return (

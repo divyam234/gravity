@@ -1,327 +1,172 @@
-import { Button, Card, Chip, ScrollShadow } from "@heroui/react";
+import {
+  Card,
+  Chip,
+  ScrollShadow,
+  Spinner,
+} from "@heroui/react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import IconRocket from "~icons/gravity-ui/rocket";
+import IconChevronRight from "~icons/gravity-ui/chevron-right";
+import IconCloud from "~icons/gravity-ui/cloud";
+import IconGear from "~icons/gravity-ui/gear";
 import IconThunderbolt from "~icons/gravity-ui/thunderbolt";
 import IconGlobe from "~icons/gravity-ui/globe";
-import IconMagnet from "~icons/gravity-ui/magnet";
-import IconGear from "~icons/gravity-ui/gear";
-import IconCheck from "~icons/gravity-ui/check";
-import IconCircleExclamation from "~icons/gravity-ui/circle-exclamation";
-import IconFolder from "~icons/gravity-ui/folder";
-import IconCloudArrowUpIn from "~icons/gravity-ui/cloud-arrow-up-in";
-import IconClock from "~icons/gravity-ui/clock";
+import IconRocket from "~icons/gravity-ui/rocket";
 import { useProviders } from "../hooks/useProviders";
 import { useSettingsStore } from "../store/useSettingsStore";
-import { cn } from "../lib/utils";
+import type { components } from "../gen/api";
+
+type ProviderSummary = components["schemas"]["model.ProviderSummary"];
 
 export const Route = createFileRoute("/settings/")({
-	component: SettingsOverview,
+  component: SettingsOverview,
 });
 
-interface SetupCardProps {
-	title: string;
-	description: string;
-	icon: React.ReactNode;
-	status: "configured" | "needs-setup" | "optional";
-	to: string;
-	statusText?: string;
-}
-
-function SetupCard({ title, description, icon, status, to, statusText }: SetupCardProps) {
-	return (
-		<Link to={to} className="block group h-full">
-			<Card className={cn(
-				"h-full transition-all duration-200 hover:shadow-md",
-				status === "configured" && "border-success/30 bg-success/5",
-				status === "needs-setup" && "border-warning/30 bg-warning/5",
-				status === "optional" && "border-border bg-default/5",
-			)}>
-				<Card.Content className="p-5">
-					<div className="flex items-start gap-4">
-						<div className={cn(
-							"p-3 rounded-2xl shrink-0",
-							status === "configured" && "bg-success/10 text-success",
-							status === "needs-setup" && "bg-warning/10 text-warning",
-							status === "optional" && "bg-default/10 text-muted",
-						)}>
-							{icon}
-						</div>
-						<div className="flex-1 min-w-0">
-							<div className="flex items-center gap-2 mb-1">
-								<h3 className="font-bold text-base group-hover:text-accent transition-colors">{title}</h3>
-								{status === "configured" && (
-									<Chip color="success" size="sm" variant="soft" className="uppercase font-black tracking-widest text-[10px]">
-										<IconCheck className="w-3 h-3" />
-										{statusText || "Ready"}
-									</Chip>
-								)}
-								{status === "needs-setup" && (
-									<Chip color="warning" size="sm" variant="soft" className="uppercase font-black tracking-widest text-[10px]">
-										<IconCircleExclamation className="w-3 h-3" />
-										Setup
-									</Chip>
-								)}
-							</div>
-							<p className="text-xs text-muted line-clamp-2">{description}</p>
-						</div>
-					</div>
-				</Card.Content>
-			</Card>
-		</Link>
-	);
-}
-
-interface SettingsLinkProps {
-	title: string;
-	description: string;
-	icon: React.ReactNode;
-	to: string;
-}
-
-function SettingsLink({ title, description, icon, to }: SettingsLinkProps) {
-	return (
-		<Link to={to} className="block group">
-			<div className="flex items-center gap-4 p-4 rounded-2xl hover:bg-default/10 transition-colors">
-				<div className="p-2.5 rounded-xl bg-default/10 text-muted group-hover:bg-accent/10 group-hover:text-accent transition-colors">
-					{icon}
-				</div>
-				<div className="flex-1 min-w-0">
-					<h4 className="font-bold text-sm group-hover:text-accent transition-colors">{title}</h4>
-					<p className="text-xs text-muted">{description}</p>
-				</div>
-			</div>
-		</Link>
-	);
-}
-
 function SettingsOverview() {
-	const { data: providersResponse } = useProviders();
-	const { defaultRemote } = useSettingsStore();
+  const { serverSettings } = useSettingsStore();
+  const { data: providersResponse, isLoading: isLoadingProviders } = useProviders();
+  const providers = providersResponse?.data || [];
 
-	const providers = providersResponse?.data || [];
+  if (!serverSettings) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Spinner size="lg" color="accent" />
+      </div>
+    );
+  }
 
-	const connectedProviders = providers.filter((p: any) => p.enabled);
-	const hasProviders = connectedProviders.length > 0;
+  const sections = [
+    {
+      id: "downloads",
+      title: "Downloads",
+      icon: <IconRocket className="w-5 h-5" />,
+      color: "bg-orange-500/10 text-orange-500",
+      description: "Speed limits, concurrent tasks & paths",
+      to: "/settings/downloads" as const,
+    },
+    {
+      id: "uploads",
+      title: "Cloud Remotes",
+      icon: <IconCloud className="w-5 h-5" />,
+      color: "bg-cyan-500/10 text-cyan-500",
+      description: "Manage Rclone destinations & auto-upload",
+      to: "/settings/uploads" as const,
+    },
+    {
+      id: "premium",
+      title: "Premium Services",
+      icon: <IconThunderbolt className="w-5 h-5" />,
+      color: "bg-yellow-500/10 text-yellow-500",
+      description: "Debrid accounts & multi-hosters",
+      to: "/settings/premium" as const,
+    },
+    {
+      id: "network",
+      title: "Network",
+      icon: <IconGlobe className="w-5 h-5" />,
+      color: "bg-blue-500/10 text-blue-500",
+      description: "Proxy, DNS over HTTPS & ports",
+      to: "/settings/network" as const,
+    },
+    {
+      id: "browser",
+      title: "Browser",
+      icon: <IconGear className="w-5 h-5" />,
+      color: "bg-purple-500/10 text-purple-500",
+      description: "VFS cache & search indexing",
+      to: "/settings/browser" as const,
+    },
+  ];
 
-	return (
-		<div className="flex flex-col h-full space-y-6">
-			<div className="flex items-center gap-4 px-2 shrink-0">
-				<h2 className="text-2xl font-bold tracking-tight">Settings</h2>
-			</div>
+  return (
+    <div className="flex flex-col h-full space-y-6">
+      <div className="px-2 shrink-0">
+        <h2 className="text-2xl font-bold tracking-tight">Settings</h2>
+        <p className="text-xs text-muted">
+          Configure Gravity download engine and integrations
+        </p>
+      </div>
 
-			<div className="flex-1 bg-muted-background/40 rounded-3xl border border-border overflow-hidden min-h-0 mx-2">
-				<ScrollShadow className="h-full">
-					<div className="max-w-4xl mx-auto p-8 space-y-10">
-						{/* Setup Status */}
-						<section>
-							<div className="flex items-center gap-3 mb-6">
-								<div className="w-1.5 h-6 bg-accent rounded-full" />
-								<h3 className="text-lg font-bold">Setup Status</h3>
-							</div>
-							<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-								<SetupCard
-									title="Downloads"
-									description="Configure download speed, queue limits, and storage location"
-									icon={<IconRocket className="w-5 h-5" />}
-									status="configured"
-									statusText="Configured"
-									to="/settings/downloads"
-								/>
-								<SetupCard
-									title="Uploads"
-									description={defaultRemote 
-										? `Auto-uploading to ${defaultRemote}`
-										: "Configure auto-upload behavior and remotes"
-									}
-									icon={<IconCloudArrowUpIn className="w-5 h-5" />}
-									status={defaultRemote ? "configured" : "optional"}
-									statusText={defaultRemote ? "Active" : undefined}
-									to="/settings/uploads"
-								/>
-								<SetupCard
-									title="Premium Services"
-									description={hasProviders 
-										? `${connectedProviders.length} service${connectedProviders.length > 1 ? 's' : ''} connected`
-										: "Connect AllDebrid, Real-Debrid, or other debrid services"
-									}
-									icon={<IconThunderbolt className="w-5 h-5" />}
-									status={hasProviders ? "configured" : "optional"}
-									statusText={hasProviders ? "Connected" : undefined}
-									to="/settings/premium"
-								/>
-								<SetupCard
-									title="Network"
-									description="Proxy settings, connection limits, and security options"
-									icon={<IconGlobe className="w-5 h-5" />}
-									status="optional"
-									to="/settings/network"
-								/>
-								<SetupCard
-									title="Browser"
-									description="File browser cache duration and display settings"
-									icon={<IconFolder className="w-5 h-5" />}
-									status="optional"
-									to="/settings/browser"
-								/>
-							</div>
-						</section>
+      <div className="flex-1 bg-muted-background/40 rounded-3xl border border-border overflow-hidden min-h-0 mx-2">
+        <ScrollShadow className="h-full">
+          <div className="max-w-4xl mx-auto p-8 space-y-10">
+            {/* Main Sections */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {sections.map((section) => (
+                <Link
+                  key={section.id}
+                  to={section.to}
+                  className="block group outline-none"
+                >
+                  <Card className="bg-background/50 border-border group-hover:bg-background transition-colors cursor-pointer group-focus-visible:ring-2 ring-accent">
+                    <Card.Content className="p-6 flex items-center gap-4">
+                      <div className={`p-3 rounded-2xl ${section.color}`}>
+                        {section.icon}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-bold text-base leading-tight group-hover:text-accent transition-colors">
+                          {section.title}
+                        </h4>
+                        <p className="text-xs text-muted mt-1 leading-relaxed">
+                          {section.description}
+                        </p>
+                      </div>
+                      <IconChevronRight className="w-4 h-4 text-muted group-hover:text-accent group-hover:translate-x-0.5 transition-all" />
+                    </Card.Content>
+                  </Card>
+                </Link>
+              ))}
+            </div>
 
-						{/* Quick Settings */}
-						<section>
-							<div className="flex items-center gap-3 mb-6">
-								<div className="w-1.5 h-6 bg-accent rounded-full" />
-								<h3 className="text-lg font-bold">Quick Settings</h3>
-							</div>
-							<Card className="bg-background/50 border-border">
-								<Card.Content className="p-6 space-y-5">
-									<div className="flex items-center justify-between py-2">
-										<div className="flex items-center gap-3">
-											<div className="p-2 rounded-lg bg-default/10">
-												<IconFolder className="w-4 h-4 text-muted" />
-											</div>
-											<div>
-												<p className="text-sm font-bold">Download Location</p>
-												<p className="text-xs text-muted">Where files are saved on the server</p>
-											</div>
-										</div>
-										<Link to="/settings/downloads">
-											<Button size="sm" variant="secondary" className="rounded-xl font-bold">
-												Configure
-											</Button>
-										</Link>
-									</div>
-									
-									<div className="h-px bg-border" />
-									
-									<div className="flex items-center justify-between py-2">
-										<div className="flex items-center gap-3">
-											<div className="p-2 rounded-lg bg-default/10">
-												<IconCloudArrowUpIn className="w-4 h-4 text-muted" />
-											</div>
-											<div>
-												<p className="text-sm font-bold">Auto-Upload Destination</p>
-												<p className="text-xs text-muted">
-													{defaultRemote || "Not configured - files stay local after download"}
-												</p>
-											</div>
-										</div>
-										<Link to="/settings/uploads">
-											<Button size="sm" variant={defaultRemote ? "secondary" : "primary"} className="rounded-xl font-bold">
-												{defaultRemote ? "Change" : "Set Up"}
-											</Button>
-										</Link>
-									</div>
-									
-									<div className="h-px bg-border" />
-									
-									<div className="flex items-center justify-between py-2">
-										<div className="flex items-center gap-3">
-											<div className="p-2 rounded-lg bg-default/10">
-												<IconThunderbolt className="w-4 h-4 text-muted" />
-											</div>
-											<div>
-												<p className="text-sm font-bold">Premium Downloads</p>
-												<p className="text-xs text-muted">
-													{hasProviders 
-														? `Using ${connectedProviders[0]?.name || 'premium service'} for supported links`
-														: "Connect a debrid service for faster downloads"
-													}
-												</p>
-											</div>
-										</div>
-										<Link to="/settings/premium">
-											<Button size="sm" variant={hasProviders ? "secondary" : "ghost"} className="rounded-xl font-bold">
-												{hasProviders ? "Manage" : "Connect"}
-											</Button>
-										</Link>
-									</div>
-								</Card.Content>
-							</Card>
-						</section>
+            {/* Providers Status */}
+            <section>
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-1.5 h-6 bg-accent rounded-full" />
+                <h3 className="text-lg font-bold">Service Status</h3>
+              </div>
 
-						{/* All Settings */}
-						<section>
-							<div className="flex items-center gap-3 mb-6">
-								<div className="w-1.5 h-6 bg-accent rounded-full" />
-								<h3 className="text-lg font-bold">All Settings</h3>
-							</div>
-							<Card className="bg-background/50 border-border overflow-hidden">
-								<Card.Content className="p-0">
-									<SettingsLink
-										title="Downloads"
-										description="Speed limits, queue management, storage, automation"
-										icon={<IconRocket className="w-4 h-4" />}
-										to="/settings/downloads"
-									/>
-									<div className="h-px bg-border mx-4" />
-									<SettingsLink
-										title="Uploads"
-										description="Auto-upload, bandwidth limits, behavior"
-										icon={<IconCloudArrowUpIn className="w-4 h-4" />}
-										to="/settings/uploads"
-									/>
-									<div className="h-px bg-border mx-4" />
-									<SettingsLink
-										title="Torrents"
-										description="BitTorrent seeding, privacy, trackers"
-										icon={<IconMagnet className="w-4 h-4" />}
-										to="/settings/torrents"
-									/>
-									<div className="h-px bg-border mx-4" />
-									<SettingsLink
-										title="Network"
-										description="Proxy, connections, security, advanced networking"
-										icon={<IconGlobe className="w-4 h-4" />}
-										to="/settings/network"
-									/>
-									<div className="h-px bg-border mx-4" />
-									<SettingsLink
-										title="Automation"
-										description="Scheduling, scripting, auto-organization"
-										icon={<IconClock className="w-4 h-4" />}
-										to="/settings/automation"
-									/>
-									<div className="h-px bg-border mx-4" />
-									<SettingsLink
-										title="Browser"
-										description="File browser cache duration and display"
-										icon={<IconFolder className="w-4 h-4" />}
-										to="/settings/browser"
-									/>
-									<div className="h-px bg-border mx-4" />
-									<SettingsLink
-										title="Preferences"
-										description="Theme, notifications, keyboard shortcuts"
-										icon={<IconGear className="w-4 h-4" />}
-										to="/settings/preferences"
-									/>
-									<div className="h-px bg-border mx-4" />
-									<SettingsLink
-										title="Advanced"
-										description="System internals, debug mode, log levels"
-										icon={<IconGear className="w-4 h-4" />}
-										to="/settings/advanced"
-									/>
-									<div className="h-px bg-border mx-4" />
-									<SettingsLink
-										title="Server"
-										description="Engine versions, system status, and maintenance"
-										icon={<IconGear className="w-4 h-4" />}
-										to="/settings/server"
-									/>
-									<div className="h-px bg-border mx-4" />
-									<SettingsLink
-										title="Premium Services"
-										description="AllDebrid, Real-Debrid, and other debrid providers"
-										icon={<IconThunderbolt className="w-4 h-4" />}
-										to="/settings/premium"
-									/>
-								</Card.Content>
-							</Card>
-						</section>
-					</div>
-				</ScrollShadow>
-			</div>
-		</div>
-	);
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                {isLoadingProviders ? (
+                  <div className="col-span-full py-12 flex justify-center">
+                    <Spinner size="sm" />
+                  </div>
+                ) : (
+                  providers.map((p: ProviderSummary) => (
+                    <Card
+                      key={p.name}
+                      className="bg-background/50 border-border p-4 flex flex-col gap-3"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-sm">{p.name}</span>
+                        <Chip
+                          size="sm"
+                          variant="soft"
+                          color={p.enabled ? "success" : "default"}
+                          className="h-5 text-[9px] font-black uppercase tracking-widest"
+                        >
+                          {p.enabled ? "Active" : "Disabled"}
+                        </Chip>
+                      </div>
+                      {p.enabled && p.account && (
+                        <div className="space-y-1">
+                          <p className="text-[10px] text-muted font-bold uppercase tracking-widest">
+                            {p.account.username || "Guest"}
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
+                            <span className="text-[10px] font-black text-success uppercase tracking-widest">
+                              {p.account.isPremium ? "Premium" : "Free"}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </Card>
+                  ))
+                )}
+              </div>
+            </section>
+          </div>
+        </ScrollShadow>
+      </div>
+    </div>
+  );
 }

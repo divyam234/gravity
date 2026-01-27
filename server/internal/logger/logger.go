@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/go-chi/chi/v5/middleware"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"github.com/go-chi/chi/v5/middleware"
 )
 
 var L *zap.Logger
@@ -49,7 +49,7 @@ func Middleware(l *zap.Logger) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
 			t1 := time.Now()
-			
+
 			defer func() {
 				l.Info("request completed",
 					zap.String("method", r.Method),
@@ -76,6 +76,6 @@ type ZapWriter struct {
 	Sugar *zap.SugaredLogger
 }
 
-func (w ZapWriter) Printf(fmt string, args ...interface{}) {
+func (w ZapWriter) Printf(fmt string, args ...any) {
 	w.Sugar.Debugf(fmt, args...)
 }

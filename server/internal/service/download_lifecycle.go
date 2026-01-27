@@ -1,7 +1,4 @@
 package service
 
-// StopGracefully signals background routines to stop
-func (s *DownloadService) StopGracefully() {
-	close(s.stop)
-	// We could also wait for routines to finish if we tracked them with WaitGroup
-}
+// This file is kept for backward compatibility.
+// All lifecycle methods are now in download.go

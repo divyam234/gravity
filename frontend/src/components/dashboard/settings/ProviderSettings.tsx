@@ -4,20 +4,31 @@ import { useForm } from "@tanstack/react-form";
 import IconNodesDown from "~icons/gravity-ui/nodes-down";
 import IconCheck from "~icons/gravity-ui/check";
 import { useProviderActions, useProviders } from "../../../hooks/useProviders";
+import type { components } from "../../../gen/api";
+
+type ProviderSummary = components["schemas"]["model.ProviderSummary"];
 
 export const ProviderSettings: React.FC = () => {
-  const { data: providers } = useProviders();
-  const { configure } = useProviderActions();
+  const { data: providersResponse } = useProviders();
+  const providers = providersResponse?.data || [];
+  const { configureProvider } = useProviderActions();
 
   return (
     <div className="space-y-6">
       <div className="grid gap-6">
-        {providers?.data?.map((p) => (
+        {providers.map((p) => (
           <ProviderCard 
             key={p.name} 
             provider={p} 
-            onSave={(config, enabled) => configure.mutate({ name: p.name, config, enabled })} 
-            isPending={configure.isPending}
+            onSave={(config, enabled) => {
+                if (p.name) {
+                    configureProvider.mutate({ 
+                        params: { path: { name: p.name } },
+                        body: { config, enabled }
+                    });
+                }
+            }} 
+            isPending={configureProvider.isPending}
           />
         ))}
       </div>
@@ -25,14 +36,18 @@ export const ProviderSettings: React.FC = () => {
   );
 }
 
-function ProviderCard({ provider, onSave, isPending }: { provider: any, onSave: (config: any, enabled: boolean) => void, isPending: boolean }) {
+function ProviderCard({ provider, onSave, isPending }: { 
+    provider: ProviderSummary, 
+    onSave: (config: Record<string, string>, enabled: boolean) => void, 
+    isPending: boolean 
+}) {
   const form = useForm({
     defaultValues: {
-      config: provider.config || {},
-      enabled: provider.enabled,
+      config: (provider as any).config || {} as Record<string, string>,
+      enabled: !!provider.enabled,
     },
     onSubmit: async ({ value }) => {
-      onSave(value.config, value.enabled);
+      onSave(value.config as Record<string, string>, !!value.enabled);
     },
   });
 
@@ -44,7 +59,7 @@ function ProviderCard({ provider, onSave, isPending }: { provider: any, onSave: 
             <IconNodesDown className="w-6 h-6" />
           </div>
           <div>
-            <Card.Title className="text-lg">{provider.displayName}</Card.Title>
+            <Card.Title className="text-lg">{provider.displayName || provider.name}</Card.Title>
             <Card.Description className="text-xs font-medium uppercase tracking-wider">
               {provider.type} provider
             </Card.Description>
@@ -53,7 +68,7 @@ function ProviderCard({ provider, onSave, isPending }: { provider: any, onSave: 
         <form.Field
           name="enabled"
           children={(field: any) => (
-            <Switch isSelected={field.state.value} onChange={(v) => field.handleChange(v)} />
+            <Switch isSelected={!!field.state.value} onChange={(v) => field.handleChange(v)} />
           )}
         />
       </Card.Header>

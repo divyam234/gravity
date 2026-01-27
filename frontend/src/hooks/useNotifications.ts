@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { api } from "../lib/api";
+import { client } from "../lib/openapi";
 import { useSettingsStore } from "../store/useSettingsStore";
 import { useActiveTasks, useUploadingTasks, useGlobalStat } from "./useEngine";
 
@@ -43,7 +43,10 @@ export function useNotifications() {
 				if (!currentActiveGids.has(gid)) {
 					try {
 						// Fetch status of the missing task
-						const task = await api.getDownload(gid);
+						const { data: response } = await client.GET("/downloads/{id}", {
+                            params: { path: { id: gid } }
+                        });
+                        const task = response?.data;
 						if (task) {
 							if (task.status === "complete") {
 								new Notification("Download Complete", {

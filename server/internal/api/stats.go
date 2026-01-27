@@ -1,7 +1,6 @@
 package api
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"gravity/internal/service"
@@ -28,14 +27,14 @@ func (h *StatsHandler) Routes() chi.Router {
 // @Description Get real-time download/upload speeds, storage usage, and active task counts
 // @Tags stats
 // @Produce json
-// @Success 200 {object} model.Stats
-// @Failure 500 {string} string "Internal Server Error"
+// @Success 200 {object} StatsResponse
+// @Failure 500 {object} ErrorResponse
 // @Router /stats [get]
 func (h *StatsHandler) GetCurrent(w http.ResponseWriter, r *http.Request) {
 	stats, err := h.service.GetCurrent(r.Context())
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		sendError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	json.NewEncoder(w).Encode(stats)
+	sendJSON(w, StatsResponse{Data: stats})
 }

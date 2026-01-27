@@ -3,7 +3,7 @@ import { MediaPlayer, MediaProvider } from "@vidstack/react";
 import { defaultLayoutIcons, DefaultVideoLayout } from "@vidstack/react/player/layouts/default";
 import "@vidstack/react/player/styles/default/theme.css";
 import "@vidstack/react/player/styles/default/layouts/video.css";
-import { api } from "../../../lib/api";
+import { getFileUrl } from "../../../lib/openapi";
 
 interface PreviewProps {
   file: {
@@ -13,7 +13,7 @@ interface PreviewProps {
 }
 
 export function VideoPreview({ file }: PreviewProps) {
-  const url = api.getFileUrl(file.path);
+  const url = getFileUrl(file.path);
 
   return (
     <div className="h-full w-full bg-black flex items-center justify-center">

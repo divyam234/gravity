@@ -113,13 +113,13 @@ export const ConnectionSettings: React.FC = () => {
               {isAdding ? "Add New Server" : "Edit Server"}
             </h4>
 
-            <form.Subscribe selector={(s: any) => [s.canSubmit, s.isSubmitting]}>
+            <form.Subscribe selector={(s) => [s.canSubmit, s.isSubmitting]}>
               {() => (
                 <div className="space-y-4">
                   <form.Field
                     name="name"
-                    children={(field: any) => (
-                      <TextField isRequired value={field.state.value} onChange={(v) => field.handleChange(v)}>
+                    children={(field) => (
+                      <TextField isRequired value={field.state.value} onChange={(v) => field.handleChange(v as any)}>
                         <Label className="text-sm font-bold">Name</Label>
                         <Input className="bg-background" placeholder="My Home Server" />
                       </TextField>
@@ -128,8 +128,8 @@ export const ConnectionSettings: React.FC = () => {
 
                   <form.Field
                     name="serverUrl"
-                    children={(field: any) => (
-                      <TextField isRequired value={field.state.value} onChange={(v) => field.handleChange(v)}>
+                    children={(field) => (
+                      <TextField isRequired value={field.state.value} onChange={(v) => field.handleChange(v as any)}>
                         <Label className="text-sm font-bold">Server URL</Label>
                         <Input className="bg-background" placeholder="http://localhost:8080/api/v1" />
                       </TextField>
@@ -138,8 +138,8 @@ export const ConnectionSettings: React.FC = () => {
 
                   <form.Field
                     name="apiKey"
-                    children={(field: any) => (
-                      <TextField value={field.state.value} onChange={(v) => field.handleChange(v)}>
+                    children={(field) => (
+                      <TextField value={field.state.value} onChange={(v) => field.handleChange(v as any)}>
                         <Label className="text-sm font-bold">API Key</Label>
                         <Input className="bg-background" type="password" placeholder="Optional" />
                       </TextField>

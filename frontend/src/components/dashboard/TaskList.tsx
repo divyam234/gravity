@@ -7,6 +7,9 @@ import { cn } from "../../lib/utils";
 import { useSettingsStore } from "../../store/useSettingsStore";
 import { DownloadCard } from "./DownloadCard";
 import type { TaskStatus } from "../../routes/tasks";
+import type { components } from "../../gen/api";
+
+type Download = components["schemas"]["model.Download"];
 
 interface TaskListProps {
   status: TaskStatus;
@@ -23,12 +26,12 @@ export const TaskList: React.FC<TaskListProps> = ({ status }) => {
   } = useSettingsStore();
 
   const filteredTasks = React.useMemo(() => {
-    let t = tasks;
+    let t = (tasks || []) as Download[];
 
-    if (searchQuery) {
+    if (searchQuery && Array.isArray(t)) {
       const query = searchQuery.toLowerCase();
       t = t.filter((task) => {
-        const fileName = task.filename || task.id;
+        const fileName = task.filename || task.id || "";
         return fileName.toLowerCase().includes(query);
       });
     }
@@ -66,17 +69,17 @@ export const TaskList: React.FC<TaskListProps> = ({ status }) => {
           >
             {(task) => (
               <ListBox.Item
-                id={task.id}
-                key={task.id}
-                textValue={task.filename || task.id}
+                id={task.id || ""}
+                key={task.id || ""}
+                textValue={task.filename || task.id || ""}
                 className="outline-none focus:outline-none bg-transparent p-0 w-full"
               >
                 <div className="flex items-center gap-4 group w-full cursor-default">
-                  {isSelectionMode && (
+                  {isSelectionMode && task.id && (
                     <div className="pl-6">
                       <Checkbox
                         isSelected={selectedGids.has(task.id)}
-                        onChange={() => toggleGidSelection(task.id)}
+                        onChange={() => toggleGidSelection(task.id!)}
                       />
                     </div>
                   )}

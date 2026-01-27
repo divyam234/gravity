@@ -8,9 +8,9 @@ import (
 	"gravity/internal/logger"
 	"gravity/internal/model"
 
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
-	"go.uber.org/zap"
 )
 
 type SearchRepo struct {
@@ -45,10 +45,10 @@ func (r *SearchRepo) Search(ctx context.Context, query string, limit, offset int
 		// Check if FTS table exists
 		var tableName string
 		r.db.Raw("SELECT name FROM sqlite_master WHERE type='table' AND name='files_search'").Scan(&tableName)
-		
+
 		if tableName == "files_search" {
 			ftsQuery := strings.ReplaceAll(query, "\"", "") + "*"
-			
+
 			countErr := r.db.WithContext(ctx).Table("indexed_files").
 				Joins("JOIN files_search ON files_search.rowid = indexed_files.rowid").
 				Where("files_search MATCH ?", ftsQuery).
@@ -61,7 +61,7 @@ func (r *SearchRepo) Search(ctx context.Context, query string, limit, offset int
 					Order("rank").
 					Limit(limit).Offset(offset).
 					Find(&results).Error
-				
+
 				return results, int(total), err
 			}
 			logger.L.Warn("SQLite FTS query failed, falling back to LIKE", zap.Error(countErr))
@@ -92,7 +92,7 @@ func (r *SearchRepo) Search(ctx context.Context, query string, limit, offset int
 
 	// Fallback for others using LIKE
 	likeQuery := "%" + query + "%"
-	
+
 	countErr := r.db.WithContext(ctx).Table("indexed_files").
 		Where("filename LIKE ? OR path LIKE ?", likeQuery, likeQuery).
 		Count(&total).Error
@@ -122,14 +122,14 @@ func (r *SearchRepo) SaveConfig(ctx context.Context, c model.RemoteIndexConfig) 
 }
 
 func (r *SearchRepo) UpdateStatus(ctx context.Context, remote, status, errorMsg string) error {
-	return r.db.WithContext(ctx).Table("remote_index_config").Where("remote = ?", remote).Updates(map[string]interface{}{
+	return r.db.WithContext(ctx).Table("remote_index_config").Where("remote = ?", remote).Updates(map[string]any{
 		"status":    status,
 		"error_msg": errorMsg,
 	}).Error
 }
 
 func (r *SearchRepo) UpdateLastIndexed(ctx context.Context, remote string) error {
-	return r.db.WithContext(ctx).Table("remote_index_config").Where("remote = ?", remote).Updates(map[string]interface{}{
+	return r.db.WithContext(ctx).Table("remote_index_config").Where("remote = ?", remote).Updates(map[string]any{
 		"last_indexed_at": time.Now(),
 		"status":          "idle",
 		"error_msg":       "",

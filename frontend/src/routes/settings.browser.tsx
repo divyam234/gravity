@@ -22,10 +22,13 @@ import IconClock from "~icons/gravity-ui/clock";
 import IconArrowsRotateRight from "~icons/gravity-ui/arrows-rotate-right";
 import { useSettingsStore } from "../store/useSettingsStore";
 import { useSearch } from "../hooks/useSearch";
+import { useEngineActions } from "../hooks/useEngine";
 import { FormSelect, FormTextField } from "../components/ui/FormFields";
 import { formatBytes, cn } from "../lib/utils";
-import { api } from "../lib/api";
-import { toast } from "sonner";
+import type { components } from "../gen/api";
+
+type RemoteIndexConfig = components["schemas"]["model.RemoteIndexConfig"];
+type Settings = components["schemas"]["model.Settings"];
 
 export const Route = createFileRoute("/settings/browser")({
   component: BrowserSettingsPage,
@@ -58,6 +61,7 @@ function BrowserSettingsPage() {
   const navigate = useNavigate();
   const { serverSettings, updateServerSettings } = useSettingsStore();
   const { configs, triggerIndex, updateConfigs } = useSearch();
+  const { changeGlobalOption } = useEngineActions();
 
   const vfs = serverSettings?.vfs;
 
@@ -76,20 +80,20 @@ function BrowserSettingsPage() {
     },
     onSubmit: async ({ value }) => {
       if (!serverSettings) return;
-      const updated = {
+      const updated: Settings = {
         ...serverSettings,
         vfs: {
           ...serverSettings.vfs,
           ...value,
+          cacheMode: value.cacheMode as NonNullable<Settings["vfs"]>["cacheMode"],
         },
       };
 
       try {
-        await api.updateSettings(updated);
+        await changeGlobalOption.mutateAsync({ body: updated });
         updateServerSettings(updated);
-        toast.success("VFS settings saved");
       } catch (err) {
-        toast.error("Failed to save settings");
+        // Error handled by mutation
       }
     },
   });
@@ -313,9 +317,9 @@ function BrowserSettingsPage() {
 
 // Components from SearchSettingsPage
 interface SearchSettingsLayoutProps {
-  configs: any[];
-  updateConfigs: any;
-  triggerIndex: any;
+  configs: RemoteIndexConfig[];
+  updateConfigs: ReturnType<typeof useSearch>['updateConfigs'];
+  triggerIndex: ReturnType<typeof useSearch>['triggerIndex'];
 }
 
 function SearchSettingsLayout({
@@ -327,7 +331,8 @@ function SearchSettingsLayout({
 
   const selectedConfigs = useMemo(() => {
     if (selectedRemotes === "all") return configs;
-    return configs.filter((c) => selectedRemotes.has(c.remote));
+    const selectedSet = selectedRemotes as Set<string>;
+    return configs.filter((c) => !!c.remote && selectedSet.has(c.remote));
   }, [configs, selectedRemotes]);
 
   return (
@@ -371,25 +376,25 @@ function SearchSettingsLayout({
             onSelectionChange={setSelectedRemotes}
             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 bg-transparent p-0"
           >
-            {(config: any) => {
+            {(config) => {
               return (
                 <ListBox.Item
-                  id={config.remote}
+                  id={config.remote || ""}
                   textValue={config.remote}
                   className={cn(
                     "w-full text-left transition-all duration-200 border rounded-2xl overflow-hidden outline-none group bg-background/50 border-border p-0",
                     "data-[selected=true]:border-accent/30 data-[selected=true]:bg-accent/5",
-                    "data-[hovered=true]:bg-default/10 data-[hovered=true]:border-border/60",
+                    "data-[hover=true]:bg-default/10 data-[hover=true]:border-border/60",
                   )}
                 >
                   {({ isSelected }: { isSelected: boolean }) => (
                     <RemoteCard
                       config={config}
                       isSelected={isSelected}
-                      onIndex={() => triggerIndex.mutate(config.remote)}
+                      onIndex={() => triggerIndex.mutate({ params: { path: { remote: config.remote || "" } } })}
                       isIndexing={
                         triggerIndex.isPending &&
-                        triggerIndex.variables === config.remote
+                        triggerIndex.variables?.params?.path?.remote === config.remote
                       }
                     />
                   )}
@@ -446,7 +451,14 @@ function SearchSettingsLayout({
   );
 }
 
-function RemoteCard({ config, isSelected, onIndex, isIndexing }: any) {
+interface RemoteCardProps {
+    config: RemoteIndexConfig;
+    isSelected: boolean;
+    onIndex: () => void;
+    isIndexing: boolean;
+}
+
+function RemoteCard({ config, isSelected, onIndex, isIndexing }: RemoteCardProps) {
   const intervalLabel =
     INTERVAL_OPTIONS.find((o) => o.value === config.autoIndexIntervalMin)
       ?.label || "Custom";
@@ -516,7 +528,7 @@ function RemoteCard({ config, isSelected, onIndex, isIndexing }: any) {
             className="h-6 px-2 text-[10px] font-bold border-none bg-default/10"
           >
             <IconFunnel className="w-3 h-3 mr-1.5 opacity-60" />
-            {formatBytes(config.minSizeBytes)}
+            {formatBytes(config.minSizeBytes || 0)}
           </Chip>
         )}
 
@@ -565,8 +577,8 @@ function SearchSettingsForm({
   selectedConfigs,
   updateConfigs,
 }: {
-  selectedConfigs: any[];
-  updateConfigs: any;
+  selectedConfigs: RemoteIndexConfig[];
+  updateConfigs: ReturnType<typeof useSearch>['updateConfigs'];
 }) {
   const commonValues = useMemo(() => {
     if (selectedConfigs.length === 0) return null;
@@ -614,15 +626,20 @@ function SearchSettingsForm({
       onChange: searchSettingsSchema,
     },
     onSubmit: async ({ value }) => {
-      const batch: Record<string, any> = {};
+      const batch: Record<string, components["schemas"]["api.UpdateConfigRequest"]> = {};
 
       selectedConfigs.forEach((config) => {
-        batch[config.remote] = {
-          ...value,
-        };
+        if (config.remote) {
+            batch[config.remote] = {
+                interval: value.interval,
+                excludedPatterns: value.excludedPatterns,
+                includedExtensions: value.includedExtensions,
+                minSizeBytes: value.minSizeBytes,
+            };
+        }
       });
 
-      await updateConfigs.mutateAsync(batch);
+      await updateConfigs.mutateAsync({ body: { configs: batch } });
     },
   });
 
@@ -686,8 +703,8 @@ function SearchSettingsForm({
             }
             type="number"
             placeholder={isMixed.size ? "Mixed" : "0"}
-            format={(val) => String(Math.floor((val || 0) / (1024 * 1024)))}
-            parse={(val) => parseInt(val || "0") * 1024 * 1024}
+            format={(val) => String(Math.floor((Number(val) || 0) / (1024 * 1024)))}
+            parse={(val) => Number(val || "0") * 1024 * 1024}
             endContent={
               <span className="text-[9px] text-muted font-black uppercase px-2">
                 MB

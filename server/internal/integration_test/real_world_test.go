@@ -29,12 +29,12 @@ func TestLargeFileDownload(t *testing.T) {
 	setPreferredEngine(t, ts.URL, "native")
 
 	// 2. Subscribe to events
-	eventChan := app.Events().Subscribe()
-	defer app.Events().Unsubscribe(eventChan)
+	eventChan := app.Events().SubscribeAll()
+	defer app.Events().UnsubscribeAll(eventChan)
 
 	// 3. Create Download
 	client := &http.Client{}
-	reqBody := map[string]interface{}{
+	reqBody := map[string]any{
 		"url": targetURL,
 	}
 	jsonBody, _ := json.Marshal(reqBody)
@@ -46,9 +46,11 @@ func TestLargeFileDownload(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, http.StatusCreated, resp.StatusCode)
 
-	var d model.Download
-	json.NewDecoder(resp.Body).Decode(&d)
-	downloadID := d.ID
+	var respData struct {
+		Data *model.Download `json:"data"`
+	}
+	json.NewDecoder(resp.Body).Decode(&respData)
+	downloadID := respData.Data.ID
 	fmt.Printf("\n[LargeTest] Started download %s for %s\n", downloadID, targetURL)
 
 	// 4. Monitor until completion or timeout (long timeout for 1GB)
@@ -69,12 +71,12 @@ func TestLargeFileDownload(t *testing.T) {
 		case ev := <-eventChan:
 			switch ev.Type {
 			case event.DownloadProgress:
-				if data, ok := ev.Data.(map[string]interface{}); ok && data["id"] == downloadID {
+				if data, ok := ev.Data.(map[string]any); ok && data["id"] == downloadID {
 					downloaded := data["downloaded"].(int64)
 					total := data["size"].(int64)
 					if total > 0 {
 						p := (float64(downloaded) / float64(total)) * 100
-						if p > lastProgress + 5 || p >= 99.9 {
+						if p > lastProgress+5 || p >= 99.9 {
 							fmt.Printf(" -> Progress: %.2f%% (%d / %d MB)\n", p, downloaded/1024/1024, total/1024/1024)
 							lastProgress = p
 						}

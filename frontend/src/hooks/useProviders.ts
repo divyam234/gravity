@@ -1,26 +1,25 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from '../lib/api';
-import { toast } from 'sonner';
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { openapi } from "../lib/openapi";
+
+type ApiError = { code: number; error: string };
 
 export function useProviders() {
-  return useQuery({
-    queryKey: ['providers'],
-    queryFn: () => api.getProviders(),
-  });
+  return useQuery(openapi.queryOptions("get", "/providers"));
 }
 
 export function useProviderActions() {
   const queryClient = useQueryClient();
 
-  const configure = useMutation({
-    mutationFn: ({ name, config, enabled }: { name: string; config: Record<string, string>; enabled: boolean }) =>
-      api.configureProvider(name, config, enabled),
+  const configureProvider = openapi.useMutation("put", "/providers/{name}", {
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['providers'] });
-      toast.success('Provider configured');
+      queryClient.invalidateQueries({
+        queryKey: openapi.queryOptions("get", "/providers").queryKey,
+      });
+      toast.success("Provider configured successfully");
     },
-    onError: (err: Error) => toast.error(`Failed to configure provider: ${err.message}`),
+    onError: (err) => toast.error("Failed to configure provider: " + err.error),
   });
 
-  return { configure };
+  return { configureProvider };
 }

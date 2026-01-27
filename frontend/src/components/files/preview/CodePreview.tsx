@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import Editor from "@monaco-editor/react";
-import { api } from "../../../lib/api";
+import { getFileUrl } from "../../../lib/openapi";
 
 interface PreviewProps {
   file: {
@@ -10,22 +10,14 @@ interface PreviewProps {
 }
 
 export function CodePreview({ file }: PreviewProps) {
-  const [content, setContent] = useState<string>("");
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    setLoading(true);
-    fetch(api.getFileUrl(file.path))
-      .then((res) => res.text())
-      .then((text) => {
-        setContent(text);
-        setLoading(false);
-      })
-      .catch((err) => {
-        setContent(`Error loading file: ${err.message}`);
-        setLoading(false);
-      });
-  }, [file.path]);
+  const { data: content, isLoading, isError, error } = useQuery({
+    queryKey: ["file-content", file.path],
+    queryFn: async () => {
+      const res = await fetch(getFileUrl(file.path));
+      if (!res.ok) throw new Error(`Failed to load file: ${res.statusText}`);
+      return res.text();
+    },
+  });
 
   const ext = file.name.split(".").pop()?.toLowerCase() || "";
   const langMap: Record<string, string> = {
@@ -51,15 +43,19 @@ export function CodePreview({ file }: PreviewProps) {
 
   return (
     <div className="h-full w-full">
-      {loading ? (
+      {isLoading ? (
         <div className="flex items-center justify-center h-full">
           <div className="animate-spin w-8 h-8 border-2 border-accent border-t-transparent rounded-full" />
+        </div>
+      ) : isError ? (
+        <div className="flex items-center justify-center h-full text-danger p-8">
+          Error loading file: {(error as Error).message}
         </div>
       ) : (
         <Editor
           height="100%"
           defaultLanguage={langMap[ext] || "plaintext"}
-          value={content}
+          value={content || ""}
           theme="vs-dark"
           options={{
             readOnly: true,

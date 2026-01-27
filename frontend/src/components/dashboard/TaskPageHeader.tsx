@@ -6,7 +6,9 @@ import { useTasksByStatus, useEngineActions } from "../../hooks/useEngine";
 import { cn } from "../../lib/utils";
 import { useSettingsStore } from "../../store/useSettingsStore";
 import type { TaskStatus } from "../../routes/tasks";
-import type { Download } from "../../lib/types";
+import type { components } from "../../gen/api";
+
+type Download = components["schemas"]["model.Download"];
 
 interface TaskPageHeaderProps {
 	title: string;
@@ -40,8 +42,8 @@ export const TaskPageHeader: React.FC<TaskPageHeaderProps> = ({
 	const handleBatchAction = async (action: "pause" | "unpause") => {
 		const gids = Array.from(selectedGids);
 		for (const gid of gids) {
-			if (action === "pause") pause.mutate(gid);
-			if (action === "unpause") unpause.mutate(gid);
+			if (action === "pause") pause.mutate({ params: { path: { id: gid } } });
+			if (action === "unpause") unpause.mutate({ params: { path: { id: gid } } });
 		}
 		setIsSelectionMode(false);
 	};
@@ -60,7 +62,7 @@ export const TaskPageHeader: React.FC<TaskPageHeaderProps> = ({
 								isIndeterminate={isIndeterminate}
 								onChange={(selected) => {
 									if (selected)
-										setSelectedGids(new Set(allTasks.map((t: Download) => t.id)));
+										setSelectedGids(new Set(allTasks.map((t: Download) => t.id).filter((id): id is string => !!id)));
 									else setSelectedGids(new Set());
 								}}
 							/>

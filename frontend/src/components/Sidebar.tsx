@@ -1,5 +1,5 @@
 import { Button, ListBox, ScrollShadow, Label, Accordion } from "@heroui/react";
-import { useLocation, useSearch } from "@tanstack/react-router";
+import { useLocation, useSearch, type LinkOptions } from "@tanstack/react-router";
 import React from "react";
 import IconChevronRight from "~icons/gravity-ui/chevron-right";
 import IconArrowDown from "~icons/gravity-ui/arrow-down";
@@ -29,7 +29,7 @@ interface NavItem {
   to: string;
   count: number | null;
   color?: string;
-  linkOptions?: any;
+  linkOptions?: LinkOptions;
 }
 
 interface SidebarContentProps {
@@ -38,7 +38,7 @@ interface SidebarContentProps {
 
 export const SidebarContent: React.FC<SidebarContentProps> = ({ onClose }) => {
   const location = useLocation();
-  const search: any = useSearch({ from: "__root__" });
+  const search = useSearch({ from: "__root__" }) as Record<string, string>;
   const queryClient = useQueryClient();
   const { data: stats } = useGlobalStat();
 

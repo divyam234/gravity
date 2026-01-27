@@ -44,28 +44,28 @@ func (s *ProviderService) Init(ctx context.Context) error {
 	return nil
 }
 
-func (s *ProviderService) List(ctx context.Context) ([]map[string]interface{}, error) {
+func (s *ProviderService) List(ctx context.Context) ([]model.ProviderSummary, error) {
 	// Combine implementation info with stored config/status
-	results := []map[string]interface{}{}
+	results := []model.ProviderSummary{}
 
 	for _, impl := range s.registry.List() {
-		res := map[string]interface{}{
-			"name":        impl.Name(),
-			"displayName": impl.DisplayName(),
-			"type":        impl.Type(),
-			"priority":    impl.Priority(),
-			"configured":  impl.IsConfigured(),
+		summary := model.ProviderSummary{
+			Name:        impl.Name(),
+			DisplayName: impl.DisplayName(),
+			Type:        impl.Type(),
+			Priority:    impl.Priority(),
+			Configured:  impl.IsConfigured(),
 		}
 
 		stored, err := s.repo.Get(ctx, impl.Name())
 		if err == nil {
-			res["enabled"] = stored.Enabled
-			res["account"] = stored.CachedAccount
+			summary.Enabled = stored.Enabled
+			summary.Account = stored.CachedAccount
 		} else {
-			res["enabled"] = false
+			summary.Enabled = false
 		}
 
-		results = append(results, res)
+		results = append(results, summary)
 	}
 
 	return results, nil

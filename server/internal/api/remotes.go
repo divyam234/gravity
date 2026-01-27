@@ -1,7 +1,6 @@
 package api
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"gravity/internal/engine"
@@ -31,16 +30,16 @@ func (h *RemoteHandler) Routes() chi.Router {
 // @Description Get a list of all configured rclone remotes
 // @Tags remotes
 // @Produce json
-// @Success 200 {object} map[string][]engine.Remote
-// @Failure 500 {string} string "Internal Server Error"
+// @Success 200 {object} RemoteListResponse
+// @Failure 500 {object} ErrorResponse
 // @Router /remotes [get]
 func (h *RemoteHandler) List(w http.ResponseWriter, r *http.Request) {
 	remotes, err := h.engine.ListRemotes(r.Context())
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		sendError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	json.NewEncoder(w).Encode(map[string]interface{}{"data": remotes})
+	sendJSON(w, RemoteListResponse{Data: remotes})
 }
 
 // Create godoc
@@ -50,8 +49,8 @@ func (h *RemoteHandler) List(w http.ResponseWriter, r *http.Request) {
 // @Accept json
 // @Param request body CreateRemoteRequest true "Remote creation request"
 // @Success 201 "Created"
-// @Failure 400 {string} string "Invalid Request"
-// @Failure 500 {string} string "Internal Server Error"
+// @Failure 400 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
 // @Router /remotes [post]
 func (h *RemoteHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var req CreateRemoteRequest
@@ -60,7 +59,7 @@ func (h *RemoteHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.engine.CreateRemote(r.Context(), req.Name, req.Type, req.Config); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		sendError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusCreated)
@@ -72,12 +71,12 @@ func (h *RemoteHandler) Create(w http.ResponseWriter, r *http.Request) {
 // @Tags remotes
 // @Param name path string true "Remote name"
 // @Success 204 "No Content"
-// @Failure 500 {string} string "Internal Server Error"
+// @Failure 500 {object} ErrorResponse
 // @Router /remotes/{name} [delete]
 func (h *RemoteHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
 	if err := h.engine.DeleteRemote(r.Context(), name); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		sendError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -89,12 +88,12 @@ func (h *RemoteHandler) Delete(w http.ResponseWriter, r *http.Request) {
 // @Tags remotes
 // @Param name path string true "Remote name"
 // @Success 200 "OK"
-// @Failure 500 {string} string "Internal Server Error"
+// @Failure 500 {object} ErrorResponse
 // @Router /remotes/{name}/test [post]
 func (h *RemoteHandler) Test(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
 	if err := h.engine.TestRemote(r.Context(), name); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		sendError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusOK)

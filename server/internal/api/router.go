@@ -47,7 +47,7 @@ func (rt *Router) Auth(next http.Handler) http.Handler {
 		}
 
 		if key != rt.apiKey {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			sendError(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
 

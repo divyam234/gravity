@@ -48,35 +48,49 @@ func (s *UploadService) Start(ctx context.Context) {
 		s.logger.Error("failed to sync uploads", zap.Error(err))
 	}
 
-	// 2. Listen for download completions to trigger auto-upload
-	events := s.bus.Subscribe()
+	// 2. Listen for download completions to trigger auto-upload via typed channel
+	lifecycleEvents := s.bus.SubscribeLifecycle()
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				s.logger.Error("panic in upload lifecycle listener", zap.Any("panic", r))
+			}
+			s.bus.UnsubscribeLifecycle(lifecycleEvents)
+		}()
 		for {
 			select {
 			case <-s.ctx.Done():
 				return
-			case ev := <-events:
-				if ev.Type == event.DownloadCompleted {
-					d := ev.Data.(*model.Download)
-					
-					settings, err := s.settingsRepo.Get(s.ctx)
-					if err != nil || settings == nil {
-						continue
-					}
+			case ev := <-lifecycleEvents:
+				if ev.Type != event.DownloadCompleted {
+					continue
+				}
 
-					// Logic:
-					// 1. If task has explicit destination -> use it.
-					// 2. If task has NO destination AND AutoUpload is ON -> use DefaultRemote.
-					target := d.Destination
-					if target == "" && settings.Upload.AutoUpload {
-						target = settings.Upload.DefaultRemote
-					}
+				// Safe type assertion - skip if data is not a Download
+				d, ok := ev.Data.(*model.Download)
+				if !ok {
+					s.logger.Warn("unexpected data type in lifecycle event",
+						zap.String("type", string(ev.Type)))
+					continue
+				}
 
-					if target != "" {
-						// Update the download object with the resolved destination so engine knows where to put it
-						d.Destination = target
-						s.TriggerUpload(s.ctx, d)
-					}
+				settings, err := s.settingsRepo.Get(s.ctx)
+				if err != nil || settings == nil {
+					continue
+				}
+
+				// Logic:
+				// 1. If task has explicit destination -> use it.
+				// 2. If task has NO destination AND AutoUpload is ON -> use DefaultRemote.
+				target := d.Destination
+				if target == "" && settings.Upload.AutoUpload {
+					target = settings.Upload.DefaultRemote
+				}
+
+				if target != "" {
+					// Update the download object with the resolved destination so engine knows where to put it
+					d.Destination = target
+					s.TriggerUpload(s.ctx, d)
 				}
 			}
 		}
@@ -101,7 +115,7 @@ func (s *UploadService) Sync(ctx context.Context) error {
 		d.Status = model.StatusComplete
 		d.UploadStatus = ""
 		d.UploadJobID = ""
-		
+
 		target := d.Destination
 		if target == "" && autoUpload {
 			target = settings.Upload.DefaultRemote
@@ -122,8 +136,8 @@ func (s *UploadService) Sync(ctx context.Context) error {
 }
 
 func (s *UploadService) TriggerUpload(ctx context.Context, d *model.Download) error {
-	s.logger.Info("triggering upload", 
-		zap.String("id", d.ID), 
+	s.logger.Info("triggering upload",
+		zap.String("id", d.ID),
 		zap.String("destination", d.Destination))
 
 	// Generate job ID upfront so we can save it before starting the upload
@@ -154,8 +168,9 @@ func (s *UploadService) TriggerUpload(ctx context.Context, d *model.Download) er
 		return err
 	}
 
-	s.bus.Publish(event.Event{
+	s.bus.PublishLifecycle(event.LifecycleEvent{
 		Type:      event.UploadStarted,
+		ID:        d.ID,
 		Timestamp: time.Now(),
 		Data:      map[string]string{"id": d.ID, "destination": d.Destination},
 	})
@@ -181,15 +196,12 @@ func (s *UploadService) handleProgress(downloadID string, p engine.UploadProgres
 	d.UploadSpeed = p.Speed
 	s.repo.Update(ctx, d)
 
-	s.bus.Publish(event.Event{
-		Type:      event.UploadProgress,
-		Timestamp: time.Now(),
-		Data: map[string]interface{}{
-			"id":       d.ID,
-			"uploaded": p.Uploaded,
-			"size":     p.Size,
-			"speed":    p.Speed,
-		},
+	s.bus.PublishProgress(event.ProgressEvent{
+		ID:       d.ID,
+		Type:     "upload",
+		Uploaded: p.Uploaded,
+		Size:     p.Size,
+		Speed:    p.Speed,
 	})
 }
 
@@ -209,8 +221,9 @@ func (s *UploadService) handleComplete(downloadID string) {
 	d.UploadProgress = 100
 	s.repo.Update(ctx, d)
 
-	s.bus.Publish(event.Event{
+	s.bus.PublishLifecycle(event.LifecycleEvent{
 		Type:      event.UploadCompleted,
+		ID:        d.ID,
 		Timestamp: time.Now(),
 		Data:      d,
 	})
@@ -248,9 +261,11 @@ func (s *UploadService) handleError(downloadID string, err error) {
 	d.UploadStatus = "error"
 	s.repo.Update(ctx, d)
 
-	s.bus.Publish(event.Event{
+	s.bus.PublishLifecycle(event.LifecycleEvent{
 		Type:      event.UploadError,
+		ID:        d.ID,
 		Timestamp: time.Now(),
+		Error:     d.Error,
 		Data:      map[string]string{"id": d.ID, "error": d.Error},
 	})
 }

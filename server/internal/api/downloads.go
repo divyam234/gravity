@@ -41,8 +41,8 @@ func (h *DownloadHandler) Routes() chi.Router {
 // @Param status query string false "Comma-separated statuses to filter by"
 // @Param limit query int false "Max number of items to return"
 // @Param offset query int false "Offset for pagination"
-// @Success 200 {object} ListResponse
-// @Failure 500 {string} string "Internal Server Error"
+// @Success 200 {object} DownloadListResponse
+// @Failure 500 {object} ErrorResponse
 // @Router /downloads [get]
 func (h *DownloadHandler) List(w http.ResponseWriter, r *http.Request) {
 	statusStr := r.URL.Query().Get(ParamStatus)
@@ -59,13 +59,13 @@ func (h *DownloadHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	downloads, total, err := h.service.List(r.Context(), status, limit, offset)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		sendError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	json.NewEncoder(w).Encode(ListResponse{
+	sendJSON(w, DownloadListResponse{
 		Data: downloads,
-		Meta: Meta{
+		Meta: &Meta{
 			Total:  total,
 			Limit:  limit,
 			Offset: offset,
@@ -80,9 +80,9 @@ func (h *DownloadHandler) List(w http.ResponseWriter, r *http.Request) {
 // @Accept json
 // @Produce json
 // @Param request body CreateDownloadRequest true "Download request"
-// @Success 201 {object} model.Download
-// @Failure 400 {string} string "Invalid Request"
-// @Failure 500 {string} string "Internal Server Error"
+// @Success 201 {object} DownloadResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
 // @Router /downloads [post]
 func (h *DownloadHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var req CreateDownloadRequest
@@ -95,7 +95,7 @@ func (h *DownloadHandler) Create(w http.ResponseWriter, r *http.Request) {
 	cleanFilename := ""
 	if req.Filename != "" {
 		if !utils.IsSafeFilename(req.Filename) {
-			http.Error(w, "invalid filename", http.StatusBadRequest)
+			sendError(w, "invalid filename", http.StatusBadRequest)
 			return
 		}
 		// If provided, use it directly (IsSafeFilename checks for traversal)
@@ -122,12 +122,13 @@ func (h *DownloadHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	d, err := h.service.Create(r.Context(), req.URL, cleanFilename, req.DownloadDir, req.Destination, opts)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		sendError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(d)
+	json.NewEncoder(w).Encode(DownloadResponse{Data: d})
 }
 
 // Get godoc
@@ -136,17 +137,17 @@ func (h *DownloadHandler) Create(w http.ResponseWriter, r *http.Request) {
 // @Tags downloads
 // @Produce json
 // @Param id path string true "Download ID"
-// @Success 200 {object} model.Download
-// @Failure 404 {string} string "Not Found"
+// @Success 200 {object} DownloadResponse
+// @Failure 404 {object} ErrorResponse
 // @Router /downloads/{id} [get]
 func (h *DownloadHandler) Get(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, ParamID)
 	d, err := h.service.Get(r.Context(), id)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
+		sendError(w, err.Error(), http.StatusNotFound)
 		return
 	}
-	json.NewEncoder(w).Encode(d)
+	sendJSON(w, DownloadResponse{Data: d})
 }
 
 // Delete godoc
@@ -156,14 +157,14 @@ func (h *DownloadHandler) Get(w http.ResponseWriter, r *http.Request) {
 // @Param id path string true "Download ID"
 // @Param delete_files query bool false "If true, deletes files from disk"
 // @Success 204 "No Content"
-// @Failure 500 {string} string "Internal Server Error"
+// @Failure 500 {object} ErrorResponse
 // @Router /downloads/{id} [delete]
 func (h *DownloadHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, ParamID)
 	deleteFiles := r.URL.Query().Get(ParamDeleteFiles) == "true"
 
 	if err := h.service.Delete(r.Context(), id, deleteFiles); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		sendError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -176,12 +177,12 @@ func (h *DownloadHandler) Delete(w http.ResponseWriter, r *http.Request) {
 // @Tags downloads
 // @Param id path string true "Download ID"
 // @Success 200 "OK"
-// @Failure 500 {string} string "Internal Server Error"
+// @Failure 500 {object} ErrorResponse
 // @Router /downloads/{id}/pause [post]
 func (h *DownloadHandler) Pause(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, ParamID)
 	if err := h.service.Pause(r.Context(), id); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		sendError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusOK)
@@ -193,12 +194,12 @@ func (h *DownloadHandler) Pause(w http.ResponseWriter, r *http.Request) {
 // @Tags downloads
 // @Param id path string true "Download ID"
 // @Success 200 "OK"
-// @Failure 500 {string} string "Internal Server Error"
+// @Failure 500 {object} ErrorResponse
 // @Router /downloads/{id}/resume [post]
 func (h *DownloadHandler) Resume(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, ParamID)
 	if err := h.service.Resume(r.Context(), id); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		sendError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusOK)
@@ -210,12 +211,12 @@ func (h *DownloadHandler) Resume(w http.ResponseWriter, r *http.Request) {
 // @Tags downloads
 // @Param id path string true "Download ID"
 // @Success 200 "OK"
-// @Failure 500 {string} string "Internal Server Error"
+// @Failure 500 {object} ErrorResponse
 // @Router /downloads/{id}/retry [post]
 func (h *DownloadHandler) Retry(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, ParamID)
 	if err := h.service.Retry(r.Context(), id); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		sendError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusOK)

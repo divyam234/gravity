@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -16,9 +17,88 @@ import (
 	"go.uber.org/zap"
 )
 
-type SpeedEntry struct {
-	Speed     int64
-	UpdatedAt time.Time
+// smoothedSpeed tracks speed with exponential moving average and decay
+type smoothedSpeed struct {
+	current   int64
+	smoothed  int64
+	alpha     float64
+	updatedAt time.Time
+	decaying  bool
+}
+
+// SpeedTracker manages speed calculations with smoothing and decay
+type SpeedTracker struct {
+	speeds sync.Map // map[string]*smoothedSpeed
+	mu     sync.Mutex
+}
+
+func NewSpeedTracker() *SpeedTracker {
+	return &SpeedTracker{}
+}
+
+func (t *SpeedTracker) Update(id string, speed int64) {
+	raw, _ := t.speeds.LoadOrStore(id, &smoothedSpeed{alpha: 0.3})
+	s := raw.(*smoothedSpeed)
+
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	s.decaying = false
+	if s.smoothed == 0 {
+		s.smoothed = speed
+	} else {
+		// Exponential moving average
+		s.smoothed = int64(s.alpha*float64(speed) + (1-s.alpha)*float64(s.smoothed))
+	}
+	s.current = speed
+	s.updatedAt = time.Now()
+}
+
+func (t *SpeedTracker) OnComplete(id string) {
+	raw, ok := t.speeds.Load(id)
+	if !ok {
+		return
+	}
+	s := raw.(*smoothedSpeed)
+
+	t.mu.Lock()
+	s.decaying = true
+	t.mu.Unlock()
+
+	// Decay over 5 seconds
+	go func() {
+		for i := 0; i < 5; i++ {
+			time.Sleep(time.Second)
+			t.mu.Lock()
+			if !s.decaying {
+				t.mu.Unlock()
+				return // Task restarted or removed
+			}
+			s.smoothed = int64(float64(s.smoothed) * 0.5)
+			t.mu.Unlock()
+		}
+		t.speeds.Delete(id)
+	}()
+}
+
+func (t *SpeedTracker) Remove(id string) {
+	t.speeds.Delete(id)
+}
+
+func (t *SpeedTracker) GetGlobalSpeed() int64 {
+	var total int64
+	cutoff := time.Now().Add(-5 * time.Second)
+
+	t.speeds.Range(func(key, value any) bool {
+		s := value.(*smoothedSpeed)
+		t.mu.Lock()
+		if s.updatedAt.After(cutoff) {
+			total += s.smoothed
+		}
+		t.mu.Unlock()
+		return true
+	})
+	return total
 }
 
 type StatsService struct {
@@ -31,13 +111,15 @@ type StatsService struct {
 	ctx            context.Context
 	logger         *zap.Logger
 
-	// Task-level speed tracking for global aggregation (using sync.Map for lock-free reads)
-	taskSpeeds   sync.Map // map[string]SpeedEntry
-	uploadSpeeds sync.Map // map[string]SpeedEntry
+	// Speed tracking with smoothing
+	downloadSpeeds *SpeedTracker
+	uploadSpeeds   *SpeedTracker
 
-	// Track accumulated bytes for active downloads to persist incrementally
-	activeBytes   map[string]int64
-	activeUploads map[string]int64
+	// Batched stats persistence
+	pendingDownloaded atomic.Int64
+	pendingUploaded   atomic.Int64
+	lastDownloaded    sync.Map // map[string]int64
+	lastUploaded      sync.Map // map[string]int64
 
 	// Session tracking
 	startTime       time.Time
@@ -64,8 +146,8 @@ func NewStatsService(repo *store.StatsRepo, setr *store.SettingsRepo, dr *store.
 		startTime:      time.Now(),
 		done:           make(chan struct{}),
 		trigger:        make(chan struct{}, 1),
-		activeBytes:    make(map[string]int64),
-		activeUploads:  make(map[string]int64),
+		downloadSpeeds: NewSpeedTracker(),
+		uploadSpeeds:   NewSpeedTracker(),
 	}
 	s.pollingCond = sync.NewCond(&s.mu)
 	return s
@@ -79,90 +161,169 @@ func (s *StatsService) Start(ctx context.Context) {
 		s.startUploaded = historical["total_uploaded"]
 	}
 
-	// 1. Listen for events to aggregate speeds and update totals
-	ch := s.bus.Subscribe()
+	// 1. Listen for progress events to track speeds
+	progress := s.bus.SubscribeProgress()
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				s.logger.Error("panic in stats progress listener", zap.Any("panic", r))
+			}
+			s.bus.UnsubscribeProgress(progress)
+		}()
 		for {
 			select {
 			case <-s.ctx.Done():
 				return
-			case ev := <-ch:
-				switch ev.Type {
-				case event.DownloadProgress:
-					if data, ok := ev.Data.(map[string]interface{}); ok {
-						id := data["id"].(string)
-						speed := data["speed"].(int64)
-						downloaded := data["downloaded"].(int64)
-
-						s.taskSpeeds.Store(id, SpeedEntry{Speed: speed, UpdatedAt: time.Now()})
-
-						s.mu.Lock()
-						prev := s.activeBytes[id]
-						if downloaded > prev {
-							delta := downloaded - prev
-							s.repo.Increment(s.ctx, "total_downloaded", delta)
-							s.activeBytes[id] = downloaded
-						}
-						s.mu.Unlock()
-					}
-				case event.UploadProgress:
-					if data, ok := ev.Data.(map[string]interface{}); ok {
-						id := data["id"].(string)
-						speed := data["speed"].(int64)
-						uploaded := data["uploaded"].(int64)
-
-						s.uploadSpeeds.Store(id, SpeedEntry{Speed: speed, UpdatedAt: time.Now()})
-
-						s.mu.Lock()
-						prev := s.activeUploads[id]
-						if uploaded > prev {
-							delta := uploaded - prev
-							s.repo.Increment(s.ctx, "total_uploaded", delta)
-							s.activeUploads[id] = uploaded
-						}
-						s.mu.Unlock()
-					}
-				case event.DownloadCompleted, event.DownloadError, event.DownloadPaused:
-					if d, ok := ev.Data.(*model.Download); ok {
-						s.mu.Lock()
-						delete(s.activeBytes, d.ID)
-						s.mu.Unlock()
-					}
-					if ev.Type == event.DownloadCompleted {
-						s.repo.Increment(s.ctx, "downloads_completed", 1)
-					}
-				case event.UploadCompleted, event.UploadError:
-					if d, ok := ev.Data.(*model.Download); ok {
-						s.mu.Lock()
-						delete(s.activeUploads, d.ID)
-						s.mu.Unlock()
-					}
-					if ev.Type == event.UploadCompleted {
-						s.repo.Increment(s.ctx, "uploads_completed", 1)
-					}
+			case ev, ok := <-progress:
+				if !ok {
+					return
 				}
-
-				// Trigger broadcast for relevant state changes
-				switch ev.Type {
-				case event.DownloadCreated, event.DownloadStarted, event.DownloadPaused,
-					event.DownloadResumed, event.DownloadCompleted, event.DownloadError,
-					event.UploadStarted, event.UploadCompleted, event.UploadError:
-
-					select {
-					case s.trigger <- struct{}{}:
-					default:
-					}
-				}
+				s.handleProgressEvent(ev)
 			}
 		}
 	}()
 
-	// 2. Start broadcast loop
-	go s.broadcastLoop()
+	// 2. Listen for lifecycle events
+	lifecycle := s.bus.SubscribeLifecycle()
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				s.logger.Error("panic in stats lifecycle listener", zap.Any("panic", r))
+			}
+			s.bus.UnsubscribeLifecycle(lifecycle)
+		}()
+		for {
+			select {
+			case <-s.ctx.Done():
+				return
+			case ev, ok := <-lifecycle:
+				if !ok {
+					return
+				}
+				s.handleLifecycleEvent(ev)
+			}
+		}
+	}()
+
+	// 3. Periodic stats flush (every 10 seconds)
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				s.logger.Error("panic in stats flush loop", zap.Any("panic", r))
+			}
+		}()
+		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-s.ctx.Done():
+				s.flushStats(context.Background()) // Final flush
+				return
+			case <-s.done:
+				s.flushStats(context.Background()) // Final flush
+				return
+			case <-ticker.C:
+				s.flushStats(s.ctx)
+			}
+		}
+	}()
+
+	// 4. Start broadcast loop
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				s.logger.Error("panic in stats broadcast loop", zap.Any("panic", r))
+			}
+		}()
+		s.broadcastLoop()
+	}()
+}
+
+func (s *StatsService) handleProgressEvent(ev event.ProgressEvent) {
+	if ev.Type == "download" {
+		s.downloadSpeeds.Update(ev.ID, ev.Speed)
+
+		// Track bytes for batched persistence
+		if ev.Downloaded > 0 {
+			prev, _ := s.lastDownloaded.LoadOrStore(ev.ID, int64(0))
+			prevVal := prev.(int64)
+			if ev.Downloaded > prevVal {
+				delta := ev.Downloaded - prevVal
+				s.pendingDownloaded.Add(delta)
+				s.lastDownloaded.Store(ev.ID, ev.Downloaded)
+			}
+		}
+	} else if ev.Type == "upload" {
+		s.uploadSpeeds.Update(ev.ID, ev.Speed)
+
+		// Track bytes for batched persistence
+		if ev.Uploaded > 0 {
+			prev, _ := s.lastUploaded.LoadOrStore(ev.ID, int64(0))
+			prevVal := prev.(int64)
+			if ev.Uploaded > prevVal {
+				delta := ev.Uploaded - prevVal
+				s.pendingUploaded.Add(delta)
+				s.lastUploaded.Store(ev.ID, ev.Uploaded)
+			}
+		}
+	}
+}
+
+func (s *StatsService) handleLifecycleEvent(ev event.LifecycleEvent) {
+	switch ev.Type {
+	case event.DownloadCompleted:
+		s.downloadSpeeds.OnComplete(ev.ID)
+		s.lastDownloaded.Delete(ev.ID)
+		s.repo.Increment(s.ctx, "downloads_completed", 1)
+		s.triggerBroadcast()
+
+	case event.DownloadError, event.DownloadPaused:
+		s.downloadSpeeds.Remove(ev.ID)
+		s.lastDownloaded.Delete(ev.ID)
+		s.triggerBroadcast()
+
+	case event.UploadCompleted:
+		s.uploadSpeeds.OnComplete(ev.ID)
+		s.lastUploaded.Delete(ev.ID)
+		s.repo.Increment(s.ctx, "uploads_completed", 1)
+		s.triggerBroadcast()
+
+	case event.UploadError:
+		s.uploadSpeeds.Remove(ev.ID)
+		s.lastUploaded.Delete(ev.ID)
+		s.triggerBroadcast()
+
+	case event.DownloadCreated, event.DownloadStarted, event.DownloadResumed,
+		event.UploadStarted:
+		s.triggerBroadcast()
+	}
+}
+
+func (s *StatsService) triggerBroadcast() {
+	select {
+	case s.trigger <- struct{}{}:
+	default:
+	}
+}
+
+func (s *StatsService) flushStats(ctx context.Context) {
+	dl := s.pendingDownloaded.Swap(0)
+	ul := s.pendingUploaded.Swap(0)
+
+	if dl > 0 {
+		s.repo.Increment(ctx, "total_downloaded", dl)
+	}
+	if ul > 0 {
+		s.repo.Increment(ctx, "total_uploaded", ul)
+	}
 }
 
 func (s *StatsService) Stop() {
-	close(s.done)
+	select {
+	case <-s.done:
+	default:
+		close(s.done)
+	}
 	s.mu.Lock()
 	s.pollingCond.Broadcast()
 	s.mu.Unlock()
@@ -226,11 +387,26 @@ func (s *StatsService) broadcast() {
 
 	stats, err := s.GetCurrent(ctx)
 	if err == nil {
-		s.bus.Publish(event.Event{
-			Type:      event.StatsUpdate,
-			Timestamp: time.Now(),
-			Data:      stats,
-		})
+		// Convert to StatsEvent for typed publishing
+		se := event.StatsEvent{}
+		se.Speeds.Download = stats.Speeds.Download
+		se.Speeds.Upload = stats.Speeds.Upload
+		se.Tasks.Active = stats.Tasks.Active
+		se.Tasks.Uploading = stats.Tasks.Uploading
+		se.Tasks.Waiting = stats.Tasks.Waiting
+		se.Tasks.Paused = stats.Tasks.Paused
+		se.Tasks.Completed = stats.Tasks.Completed
+		se.Tasks.Failed = stats.Tasks.Failed
+		se.Usage.TotalDownloaded = stats.Usage.TotalDownloaded
+		se.Usage.TotalUploaded = stats.Usage.TotalUploaded
+		se.Usage.SessionDownloaded = stats.Usage.SessionDownloaded
+		se.Usage.SessionUploaded = stats.Usage.SessionUploaded
+		se.System.DiskFree = stats.System.DiskFree
+		se.System.DiskTotal = stats.System.DiskTotal
+		se.System.DiskUsage = stats.System.DiskUsage
+		se.System.Uptime = stats.System.Uptime
+
+		s.bus.PublishStats(se)
 	}
 }
 
@@ -239,6 +415,10 @@ func (s *StatsService) GetCurrent(ctx context.Context) (*model.Stats, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// Add pending (unflushed) bytes to historical
+	totalDownloaded := historical["total_downloaded"] + s.pendingDownloaded.Load()
+	totalUploaded := historical["total_uploaded"] + s.pendingUploaded.Load()
 
 	counts, _ := s.downloadRepo.GetStatusCounts(ctx)
 
@@ -249,27 +429,9 @@ func (s *StatsService) GetCurrent(ctx context.Context) (*model.Stats, error) {
 	currentCompleted := counts[model.StatusComplete]
 	currentFailed := counts[model.StatusError]
 
-	var downloadSpeed, uploadSpeed int64
-	now := time.Now()
-
-	s.taskSpeeds.Range(func(key, value any) bool {
-		entry := value.(SpeedEntry)
-		if now.Sub(entry.UpdatedAt) < 5*time.Second {
-			downloadSpeed += entry.Speed
-		} else {
-			s.taskSpeeds.Delete(key)
-		}
-		return true
-	})
-	s.uploadSpeeds.Range(func(key, value any) bool {
-		entry := value.(SpeedEntry)
-		if now.Sub(entry.UpdatedAt) < 5*time.Second {
-			uploadSpeed += entry.Speed
-		} else {
-			s.uploadSpeeds.Delete(key)
-		}
-		return true
-	})
+	// Use smoothed speed calculations
+	downloadSpeed := s.downloadSpeeds.GetGlobalSpeed()
+	uploadSpeed := s.uploadSpeeds.GetGlobalSpeed()
 
 	settings, _ := s.settingsRepo.Get(ctx)
 	downloadDir := ""
@@ -297,10 +459,10 @@ func (s *StatsService) GetCurrent(ctx context.Context) (*model.Stats, error) {
 			Failed:    currentFailed,
 		},
 		Usage: model.UsageStats{
-			TotalDownloaded:   historical["total_downloaded"],
-			TotalUploaded:     historical["total_uploaded"],
-			SessionDownloaded: historical["total_downloaded"] - s.startDownloaded,
-			SessionUploaded:   historical["total_uploaded"] - s.startUploaded,
+			TotalDownloaded:   totalDownloaded,
+			TotalUploaded:     totalUploaded,
+			SessionDownloaded: totalDownloaded - s.startDownloaded,
+			SessionUploaded:   totalUploaded - s.startUploaded,
 		},
 		System: model.SystemStats{
 			DiskFree:  disk.Free,

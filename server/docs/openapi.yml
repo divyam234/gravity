@@ -1,0 +1,2468 @@
+components:
+  schemas:
+    api.AccountInfoResponse:
+      properties:
+        data:
+          $ref: '#/components/schemas/model.AccountInfo'
+      required:
+      - data
+      type: object
+    api.BatchUpdateConfigRequest:
+      properties:
+        configs:
+          additionalProperties:
+            $ref: '#/components/schemas/api.UpdateConfigRequest'
+          type: object
+      required:
+      - configs
+      type: object
+    api.CheckMagnetRequest:
+      properties:
+        magnet:
+          example: magnet:?xt=urn:btih:...
+          type: string
+      required:
+      - magnet
+      type: object
+    api.CheckTorrentRequest:
+      properties:
+        torrentBase64:
+          type: string
+      required:
+      - torrentBase64
+      type: object
+    api.ConfigureProviderRequest:
+      properties:
+        config:
+          additionalProperties:
+            type: string
+          type: object
+        enabled:
+          type: boolean
+      required:
+      - enabled
+      type: object
+    api.CreateDownloadRequest:
+      properties:
+        destination:
+          example: gdrive:movies
+          type: string
+        downloadDir:
+          example: /downloads
+          type: string
+        filename:
+          example: my_file.zip
+          type: string
+        options:
+          $ref: '#/components/schemas/api.TaskOptions'
+        url:
+          example: http://example.com/file.zip
+          type: string
+      required:
+      - url
+      type: object
+    api.CreateRemoteRequest:
+      properties:
+        config:
+          additionalProperties:
+            type: string
+          type: object
+        name:
+          example: my-gdrive
+          type: string
+        type:
+          example: drive
+          type: string
+      required:
+      - name
+      - type
+      type: object
+    api.DeleteFileRequest:
+      properties:
+        path:
+          example: /movies/old_file.txt
+          type: string
+      required:
+      - path
+      type: object
+    api.DownloadListResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/model.Download'
+          type: array
+          uniqueItems: false
+        meta:
+          $ref: '#/components/schemas/api.Meta'
+      required:
+      - data
+      type: object
+    api.DownloadMagnetRequest:
+      properties:
+        destination:
+          example: gdrive:movies
+          type: string
+        downloadDir:
+          example: /downloads
+          type: string
+        files:
+          items:
+            $ref: '#/components/schemas/api.MagnetFileRequest'
+          type: array
+          uniqueItems: false
+        magnet:
+          example: magnet:?xt=urn:btih:...
+          type: string
+        magnetId:
+          type: string
+        name:
+          example: My Movie
+          type: string
+        options:
+          $ref: '#/components/schemas/api.TaskOptions'
+        selectedFiles:
+          example:
+          - "1"
+          - "2"
+          items:
+            type: string
+          type: array
+          uniqueItems: false
+        source:
+          enum:
+          - alldebrid
+          - aria2
+          type: string
+        torrentBase64:
+          type: string
+      required:
+      - source
+      type: object
+    api.DownloadResponse:
+      properties:
+        data:
+          $ref: '#/components/schemas/model.Download'
+      required:
+      - data
+      type: object
+    api.ErrorResponse:
+      properties:
+        code:
+          example: 500
+          type: integer
+        error:
+          example: error message
+          type: string
+      required:
+      - code
+      - error
+      type: object
+    api.EventResponse:
+      properties:
+        data:
+          description: Data payload varies by event type
+          oneOf:
+          - $ref: '#/components/schemas/api.ProgressEventData'
+          - $ref: '#/components/schemas/model.Stats'
+          - $ref: '#/components/schemas/model.Download'
+          type: object
+        timestamp:
+          type: string
+        type:
+          enum:
+          - download.created
+          - download.started
+          - download.progress
+          - download.paused
+          - download.resumed
+          - download.completed
+          - download.error
+          - upload.started
+          - upload.progress
+          - upload.completed
+          - upload.error
+          - settings.updated
+          - stats
+          example: download.progress
+          type: string
+      required:
+      - data
+      - timestamp
+      - type
+      type: object
+    api.FileInfoListResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/engine.FileInfo'
+          type: array
+          uniqueItems: false
+      required:
+      - data
+      type: object
+    api.IndexedFileListResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/model.IndexedFile'
+          type: array
+          uniqueItems: false
+        meta:
+          $ref: '#/components/schemas/api.Meta'
+      required:
+      - data
+      type: object
+    api.MagnetFileRequest:
+      properties:
+        id:
+          example: "1"
+          type: string
+        index:
+          example: 1
+          type: integer
+        link:
+          type: string
+        name:
+          example: movie.mp4
+          type: string
+        path:
+          example: Release/movie.mp4
+          type: string
+        size:
+          example: 1048576
+          type: integer
+      required:
+      - id
+      - index
+      - name
+      - path
+      - size
+      type: object
+    api.MagnetInfoResponse:
+      properties:
+        data:
+          $ref: '#/components/schemas/model.MagnetInfo'
+      required:
+      - data
+      type: object
+    api.Meta:
+      properties:
+        limit:
+          example: 10
+          type: integer
+        offset:
+          example: 0
+          type: integer
+        total:
+          example: 100
+          type: integer
+      required:
+      - limit
+      - offset
+      - total
+      type: object
+    api.MkdirRequest:
+      properties:
+        path:
+          example: /movies
+          type: string
+      required:
+      - path
+      type: object
+    api.ProgressEventData:
+      properties:
+        downloaded:
+          type: integer
+        eta:
+          type: integer
+        id:
+          type: string
+        metadataFetching:
+          type: boolean
+        peers:
+          type: integer
+        seeders:
+          type: integer
+        size:
+          type: integer
+        speed:
+          type: integer
+        uploaded:
+          type: integer
+      required:
+      - downloaded
+      - eta
+      - id
+      - size
+      - speed
+      - uploaded
+      type: object
+    api.ProviderHosts:
+      properties:
+        hosts:
+          items:
+            type: string
+          type: array
+          uniqueItems: false
+      required:
+      - hosts
+      type: object
+    api.ProviderHostsResponse:
+      properties:
+        data:
+          $ref: '#/components/schemas/api.ProviderHosts'
+      required:
+      - data
+      type: object
+    api.ProviderListResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/model.ProviderSummary'
+          type: array
+          uniqueItems: false
+      required:
+      - data
+      type: object
+    api.ProviderSchema:
+      properties:
+        configSchema:
+          items:
+            $ref: '#/components/schemas/provider.ConfigField'
+          type: array
+          uniqueItems: false
+        name:
+          type: string
+      required:
+      - configSchema
+      - name
+      type: object
+    api.ProviderSchemaResponse:
+      properties:
+        data:
+          $ref: '#/components/schemas/api.ProviderSchema'
+      required:
+      - data
+      type: object
+    api.RemoteIndexConfigListResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/model.RemoteIndexConfig'
+          type: array
+          uniqueItems: false
+      required:
+      - data
+      type: object
+    api.RemoteListResponse:
+      properties:
+        data:
+          items:
+            $ref: '#/components/schemas/engine.Remote'
+          type: array
+          uniqueItems: false
+      required:
+      - data
+      type: object
+    api.ResolveResult:
+      properties:
+        provider:
+          type: string
+        result:
+          $ref: '#/components/schemas/provider.ResolveResult'
+        url:
+          type: string
+      required:
+      - provider
+      - result
+      - url
+      type: object
+    api.ResolveResultResponse:
+      properties:
+        data:
+          $ref: '#/components/schemas/api.ResolveResult'
+      required:
+      - data
+      type: object
+    api.ResolveURLRequest:
+      properties:
+        headers:
+          additionalProperties:
+            type: string
+          type: object
+        url:
+          example: http://example.com/file.zip
+          type: string
+      required:
+      - url
+      type: object
+    api.SettingsResponse:
+      properties:
+        data:
+          $ref: '#/components/schemas/model.Settings'
+      required:
+      - data
+      type: object
+    api.SettingsStatus:
+      properties:
+        cloud:
+          $ref: '#/components/schemas/api.SettingsStatusCloud'
+        downloads:
+          $ref: '#/components/schemas/api.SettingsStatusDownloads'
+        premium:
+          $ref: '#/components/schemas/api.SettingsStatusPremium'
+      required:
+      - cloud
+      - downloads
+      - premium
+      type: object
+    api.SettingsStatusCloud:
+      properties:
+        remoteCount:
+          type: integer
+      required:
+      - remoteCount
+      type: object
+    api.SettingsStatusDownloads:
+      properties:
+        configured:
+          type: boolean
+      required:
+      - configured
+      type: object
+    api.SettingsStatusPremium:
+      properties:
+        providers:
+          items:
+            $ref: '#/components/schemas/model.Provider'
+          type: array
+          uniqueItems: false
+      required:
+      - providers
+      type: object
+    api.SettingsStatusResponse:
+      properties:
+        data:
+          $ref: '#/components/schemas/api.SettingsStatus'
+      required:
+      - data
+      type: object
+    api.StatsResponse:
+      properties:
+        data:
+          $ref: '#/components/schemas/model.Stats'
+      required:
+      - data
+      type: object
+    api.SystemVersion:
+      properties:
+        aria2:
+          type: string
+        native:
+          type: string
+        rclone:
+          type: string
+        version:
+          type: string
+      required:
+      - aria2
+      - native
+      - rclone
+      - version
+      type: object
+    api.SystemVersionResponse:
+      properties:
+        data:
+          $ref: '#/components/schemas/api.SystemVersion'
+      required:
+      - data
+      type: object
+    api.TaskOptions:
+      properties:
+        connections:
+          type: integer
+        headers:
+          additionalProperties:
+            type: string
+          type: object
+        maxDownloadSpeed:
+          type: integer
+        proxyUrl:
+          type: string
+        split:
+          type: integer
+        uploadRemote:
+          type: string
+      required:
+      - connections
+      - split
+      type: object
+    api.UpdateConfigRequest:
+      properties:
+        excludedPatterns:
+          type: string
+        includedExtensions:
+          type: string
+        interval:
+          type: integer
+        minSizeBytes:
+          type: integer
+      required:
+      - interval
+      - minSizeBytes
+      type: object
+    engine.FileInfo:
+      properties:
+        id:
+          description: Optional ID for some systems
+          type: string
+        isDir:
+          description: Helper boolean
+          type: boolean
+        mimeType:
+          description: Mime type
+          type: string
+        modTime:
+          description: Modification time
+          type: string
+        name:
+          description: Display name
+          type: string
+        path:
+          description: Full virtual path
+          type: string
+        size:
+          description: Bytes
+          type: integer
+        type:
+          $ref: '#/components/schemas/engine.FileType'
+      type: object
+    engine.FileType:
+      description: '"file" or "folder"'
+      enum:
+      - folder
+      - file
+      type: string
+      x-enum-varnames:
+      - FileTypeFolder
+      - FileTypeFile
+    engine.Remote:
+      properties:
+        connected:
+          type: boolean
+        name:
+          type: string
+        type:
+          type: string
+      type: object
+    model.AccountInfo:
+      properties:
+        expiresAt:
+          type: string
+        isPremium:
+          type: boolean
+        username:
+          type: string
+      type: object
+    model.AdvancedSettings:
+      properties:
+        debugMode:
+          type: boolean
+        logLevel:
+          enum:
+          - debug
+          - info
+          - warn
+          - error
+          type: string
+        saveInterval:
+          description: Seconds
+          example: 60
+          type: integer
+      type: object
+    model.AutomationSettings:
+      properties:
+        categories:
+          description: Auto-Organization
+          items:
+            $ref: '#/components/schemas/model.Category'
+          type: array
+          uniqueItems: false
+        onCompleteAction:
+          description: Post-Processing
+          enum:
+          - none
+          - shutdown
+          - sleep
+          - run_script
+          type: string
+        rules:
+          items:
+            $ref: '#/components/schemas/model.ScheduleRule'
+          type: array
+          uniqueItems: false
+        scheduleEnabled:
+          description: Scheduling
+          type: boolean
+        scriptPath:
+          example: /scripts/notify.sh
+          type: string
+      type: object
+    model.Category:
+      properties:
+        extensions:
+          example:
+          - mp4
+          - mkv
+          - avi
+          items:
+            type: string
+          type: array
+          uniqueItems: false
+        icon:
+          example: video
+          type: string
+        id:
+          example: cat_1
+          type: string
+        isDefault:
+          type: boolean
+        name:
+          example: Movies
+          type: string
+        path:
+          description: Sub-folder or absolute path
+          example: /downloads/movies
+          type: string
+      type: object
+    model.Download:
+      properties:
+        category:
+          type: string
+        completedAt:
+          type: string
+        createdAt:
+          type: string
+        destination:
+          type: string
+        downloadDir:
+          type: string
+        downloaded:
+          example: 5242880
+          type: integer
+        engine:
+          type: string
+        error:
+          type: string
+        eta:
+          example: 10
+          type: integer
+        filename:
+          type: string
+        files:
+          items:
+            $ref: '#/components/schemas/model.DownloadFile'
+          type: array
+          uniqueItems: false
+        filesComplete:
+          type: integer
+        id:
+          example: d_a1b2c3d4
+          type: string
+        isMagnet:
+          description: Multi-file support for magnets/torrents
+          type: boolean
+        magnetHash:
+          type: string
+        magnetSource:
+          description: '"alldebrid" or "aria2"'
+          enum:
+          - alldebrid
+          - aria2
+          type: string
+        metadataFetching:
+          type: boolean
+        options:
+          $ref: '#/components/schemas/model.TaskOptions'
+        peerDetails:
+          items:
+            $ref: '#/components/schemas/model.Peer'
+          type: array
+          uniqueItems: false
+        peers:
+          type: integer
+        provider:
+          type: string
+        resolvedUrl:
+          type: string
+        seeders:
+          type: integer
+        size:
+          example: 10485760
+          type: integer
+        speed:
+          example: 1024000
+          type: integer
+        startedAt:
+          type: string
+        status:
+          $ref: '#/components/schemas/model.DownloadStatus'
+        tags:
+          items:
+            type: string
+          type: array
+          uniqueItems: false
+        totalFiles:
+          type: integer
+        updatedAt:
+          type: string
+        uploadProgress:
+          example: 50
+          type: integer
+        uploadSpeed:
+          example: 512000
+          type: integer
+        uploadStatus:
+          enum:
+          - idle
+          - running
+          - complete
+          - error
+          type: string
+        url:
+          example: http://example.com/file.zip
+          type: string
+      required:
+      - createdAt
+      - downloaded
+      - eta
+      - files
+      - id
+      - options
+      - size
+      - speed
+      - status
+      - updatedAt
+      - uploadProgress
+      - uploadSpeed
+      - url
+      type: object
+    model.DownloadFile:
+      properties:
+        createdAt:
+          type: string
+        downloaded:
+          type: integer
+        error:
+          type: string
+        id:
+          type: string
+        name:
+          type: string
+        path:
+          description: 'relative path: "ubuntu/iso/file.iso"'
+          type: string
+        progress:
+          description: 0-100
+          type: integer
+        size:
+          type: integer
+        status:
+          $ref: '#/components/schemas/model.DownloadStatus'
+        updatedAt:
+          type: string
+      required:
+      - createdAt
+      - downloaded
+      - id
+      - name
+      - path
+      - progress
+      - size
+      - status
+      - updatedAt
+      type: object
+    model.DownloadSettings:
+      properties:
+        autoResume:
+          type: boolean
+        checkCertificate:
+          type: boolean
+        connectTimeout:
+          minimum: 1
+          type: integer
+        diskCache:
+          description: Reduce disk I/O overhead
+          example: 32M
+          type: string
+        downloadDir:
+          type: string
+        lowestSpeedLimit:
+          example: "0"
+          type: string
+        maxConcurrentDownloads:
+          maximum: 20
+          minimum: 1
+          type: integer
+        maxConnectionPerServer:
+          maximum: 16
+          minimum: 1
+          type: integer
+        maxDownloadSpeed:
+          description: 0 = unlimited
+          example: "0"
+          type: string
+        maxTries:
+          minimum: 0
+          type: integer
+        maxUploadSpeed:
+          example: "0"
+          type: string
+        minSplitSize:
+          example: 1M
+          type: string
+        preAllocateSpace:
+          description: Professional Enhancements
+          type: boolean
+        preferredEngine:
+          default: aria2
+          description: Engine Preferences
+          enum:
+          - aria2
+          - native
+          type: string
+        preferredMagnetEngine:
+          default: aria2
+          enum:
+          - aria2
+          - native
+          type: string
+        split:
+          maximum: 16
+          minimum: 1
+          type: integer
+        userAgent:
+          type: string
+      required:
+      - downloadDir
+      type: object
+    model.DownloadStatus:
+      description: active, waiting, paused, uploading, complete, error
+      enum:
+      - active
+      - waiting
+      - paused
+      - uploading
+      - complete
+      - error
+      - allocating
+      - active
+      - waiting
+      - paused
+      - uploading
+      - complete
+      - error
+      type: string
+      x-enum-varnames:
+      - StatusActive
+      - StatusWaiting
+      - StatusPaused
+      - StatusUploading
+      - StatusComplete
+      - StatusError
+      - StatusAllocating
+    model.IndexedFile:
+      properties:
+        id:
+          type: string
+        isDir:
+          type: boolean
+        lastIndexedAt:
+          type: string
+        modTime:
+          type: string
+        name:
+          type: string
+        path:
+          type: string
+        remote:
+          type: string
+        size:
+          type: integer
+      type: object
+    model.MagnetFile:
+      properties:
+        children:
+          items:
+            $ref: '#/components/schemas/model.MagnetFile'
+          type: array
+          uniqueItems: false
+        id:
+          description: AllDebrid file ID or aria2c 1-indexed file number
+          type: string
+        index:
+          description: 1-indexed file number for aria2c --select-file
+          type: integer
+        isFolder:
+          type: boolean
+        link:
+          description: direct download link (AllDebrid only)
+          type: string
+        name:
+          description: filename only
+          type: string
+        path:
+          description: full path within torrent
+          type: string
+        size:
+          type: integer
+      type: object
+    model.MagnetInfo:
+      properties:
+        cached:
+          description: true if cached on debrid service
+          type: boolean
+        files:
+          items:
+            $ref: '#/components/schemas/model.MagnetFile'
+          type: array
+          uniqueItems: false
+        hash:
+          type: string
+        magnetId:
+          description: debrid service magnet ID
+          type: string
+        name:
+          type: string
+        size:
+          type: integer
+        source:
+          description: '"alldebrid" or "aria2"'
+          type: string
+      type: object
+    model.NetworkSettings:
+      properties:
+        dnsOverHttps:
+          example: https://cloudflare-dns.com/dns-query
+          type: string
+        downloadProxy:
+          $ref: '#/components/schemas/model.ProxyConfig'
+        globalProxy:
+          $ref: '#/components/schemas/model.ProxyConfig'
+        interfaceBinding:
+          description: Professional Enhancements
+          example: eth0
+          type: string
+        magnetProxy:
+          $ref: '#/components/schemas/model.ProxyConfig'
+        proxyMode:
+          default: global
+          enum:
+          - global
+          - granular
+          type: string
+        tcpPortRange:
+          example: 6881-6999
+          type: string
+        uploadProxy:
+          $ref: '#/components/schemas/model.ProxyConfig'
+      type: object
+    model.Peer:
+      properties:
+        downloadSpeed:
+          type: integer
+        ip:
+          type: string
+        isSeeder:
+          type: boolean
+        port:
+          type: string
+        uploadSpeed:
+          type: integer
+      required:
+      - downloadSpeed
+      - ip
+      - isSeeder
+      - port
+      - uploadSpeed
+      type: object
+    model.Provider:
+      properties:
+        cachedAccount:
+          $ref: '#/components/schemas/model.AccountInfo'
+        cachedHosts:
+          items:
+            type: string
+          type: array
+          uniqueItems: false
+        config:
+          additionalProperties:
+            type: string
+          type: object
+        displayName:
+          type: string
+        enabled:
+          type: boolean
+        name:
+          type: string
+        priority:
+          type: integer
+        type:
+          $ref: '#/components/schemas/model.ProviderType'
+        updatedAt:
+          type: string
+      type: object
+    model.ProviderSummary:
+      properties:
+        account:
+          $ref: '#/components/schemas/model.AccountInfo'
+        configured:
+          type: boolean
+        displayName:
+          type: string
+        enabled:
+          type: boolean
+        name:
+          type: string
+        priority:
+          type: integer
+        type:
+          $ref: '#/components/schemas/model.ProviderType'
+      type: object
+    model.ProviderType:
+      enum:
+      - direct
+      - debrid
+      - filehost
+      type: string
+      x-enum-varnames:
+      - ProviderTypeDirect
+      - ProviderTypeDebrid
+      - ProviderTypeFileHost
+    model.ProxyConfig:
+      description: Proxy Configurations
+      properties:
+        enabled:
+          type: boolean
+        password:
+          type: string
+        url:
+          description: scheme://host:port
+          type: string
+        user:
+          type: string
+      type: object
+    model.RemoteIndexConfig:
+      properties:
+        autoIndexIntervalMin:
+          type: integer
+        errorMsg:
+          type: string
+        excludedPatterns:
+          type: string
+        includedExtensions:
+          type: string
+        lastIndexedAt:
+          type: string
+        minSizeBytes:
+          type: integer
+        remote:
+          type: string
+        status:
+          description: idle, indexing, error
+          type: string
+      type: object
+    model.ScheduleRule:
+      properties:
+        days:
+          description: 0=Sunday, 1=Monday...
+          example:
+          - 1
+          - 2
+          - 3
+          - 4
+          - 5
+          items:
+            type: integer
+          type: array
+          uniqueItems: false
+        downloadLimit:
+          description: Speed Limits during this window
+          example: 500K
+          type: string
+        enabled:
+          type: boolean
+        endTime:
+          example: "17:00"
+          type: string
+        id:
+          example: rule_1
+          type: string
+        label:
+          example: Work Hours
+          type: string
+        startTime:
+          example: "09:00"
+          type: string
+        uploadLimit:
+          example: 100K
+          type: string
+      type: object
+    model.SearchSettings:
+      properties:
+        configs:
+          items:
+            $ref: '#/components/schemas/model.RemoteIndexConfig'
+          type: array
+          uniqueItems: false
+      type: object
+    model.Settings:
+      properties:
+        advanced:
+          $ref: '#/components/schemas/model.AdvancedSettings'
+        automation:
+          $ref: '#/components/schemas/model.AutomationSettings'
+        download:
+          $ref: '#/components/schemas/model.DownloadSettings'
+        network:
+          $ref: '#/components/schemas/model.NetworkSettings'
+        search:
+          $ref: '#/components/schemas/model.SearchSettings'
+        torrent:
+          $ref: '#/components/schemas/model.TorrentSettings'
+        updatedAt:
+          type: string
+        upload:
+          $ref: '#/components/schemas/model.UploadSettings'
+        vfs:
+          $ref: '#/components/schemas/model.VfsSettings'
+      type: object
+    model.Speeds:
+      properties:
+        download:
+          type: integer
+        upload:
+          type: integer
+      required:
+      - download
+      - upload
+      type: object
+    model.Stats:
+      properties:
+        speeds:
+          $ref: '#/components/schemas/model.Speeds'
+        system:
+          $ref: '#/components/schemas/model.SystemStats'
+        tasks:
+          $ref: '#/components/schemas/model.TaskCounts'
+        usage:
+          $ref: '#/components/schemas/model.UsageStats'
+      required:
+      - speeds
+      - system
+      - tasks
+      - usage
+      type: object
+    model.SystemStats:
+      properties:
+        diskFree:
+          type: integer
+        diskTotal:
+          type: integer
+        diskUsage:
+          description: Percentage
+          type: number
+        uptime:
+          description: Seconds
+          type: integer
+      required:
+      - diskFree
+      - diskTotal
+      - diskUsage
+      - uptime
+      type: object
+    model.TaskCounts:
+      properties:
+        active:
+          type: integer
+        completed:
+          type: integer
+        failed:
+          type: integer
+        paused:
+          type: integer
+        uploading:
+          type: integer
+        waiting:
+          type: integer
+      required:
+      - active
+      - completed
+      - failed
+      - paused
+      - uploading
+      - waiting
+      type: object
+    model.TaskOptions:
+      properties:
+        connections:
+          type: integer
+        headers:
+          additionalProperties:
+            type: string
+          type: object
+        maxDownloadSpeed:
+          type: integer
+        proxyUrl:
+          type: string
+        split:
+          type: integer
+        uploadRemote:
+          type: string
+      required:
+      - connections
+      - split
+      type: object
+    model.TorrentSettings:
+      properties:
+        enableDht:
+          type: boolean
+        enableLpd:
+          type: boolean
+        enablePex:
+          type: boolean
+        encryption:
+          enum:
+          - forced
+          - enabled
+          - disabled
+          type: string
+        forceSave:
+          type: boolean
+        listenPort:
+          maximum: 65535
+          minimum: 1024
+          type: integer
+        maxPeers:
+          minimum: 0
+          type: integer
+        seedRatio:
+          example: "1.0"
+          type: string
+        seedTime:
+          description: Minutes
+          example: 60
+          type: integer
+      type: object
+    model.UploadSettings:
+      properties:
+        autoUpload:
+          type: boolean
+        chunkSize:
+          example: 64M
+          type: string
+        concurrentUploads:
+          minimum: 1
+          type: integer
+        defaultRemote:
+          type: string
+        maxRetryAttempts:
+          minimum: 0
+          type: integer
+        removeLocal:
+          type: boolean
+        uploadBandwidth:
+          description: Professional Enhancements
+          example: "0"
+          type: string
+      type: object
+    model.UsageStats:
+      properties:
+        sessionDownloaded:
+          type: integer
+        sessionUploaded:
+          type: integer
+        totalDownloaded:
+          type: integer
+        totalUploaded:
+          type: integer
+      required:
+      - sessionDownloaded
+      - sessionUploaded
+      - totalDownloaded
+      - totalUploaded
+      type: object
+    model.VfsSettings:
+      properties:
+        cacheMaxAge:
+          example: 24h
+          type: string
+        cacheMaxSize:
+          example: 10G
+          type: string
+        cacheMode:
+          enum:
+          - "off"
+          - minimal
+          - writes
+          - full
+          type: string
+        dirCacheTime:
+          example: 5m
+          type: string
+        pollInterval:
+          example: 1m
+          type: string
+        readAhead:
+          example: 128M
+          type: string
+        readChunkSize:
+          example: 128M
+          type: string
+        readChunkSizeLimit:
+          example: "off"
+          type: string
+        readChunkStreams:
+          minimum: 0
+          type: integer
+        writeBack:
+          example: 5s
+          type: string
+      type: object
+    provider.ConfigField:
+      properties:
+        description:
+          type: string
+        key:
+          type: string
+        label:
+          type: string
+        required:
+          type: boolean
+        type:
+          description: text, password, select
+          type: string
+      type: object
+    provider.ResolveResult:
+      properties:
+        error:
+          type: string
+        filename:
+          type: string
+        headers:
+          additionalProperties:
+            type: string
+          type: object
+        size:
+          type: integer
+        url:
+          type: string
+      type: object
+externalDocs:
+  description: ""
+  url: ""
+info:
+  description: API for Gravity Download Manager
+  title: Gravity API
+  version: "1.0"
+openapi: 3.1.0
+paths:
+  /downloads:
+    get:
+      description: Get a paginated list of downloads with optional status filtering
+      parameters:
+      - description: Comma-separated statuses to filter by
+        in: query
+        name: status
+        schema:
+          type: string
+      - description: Max number of items to return
+        in: query
+        name: limit
+        schema:
+          type: integer
+      - description: Offset for pagination
+        in: query
+        name: offset
+        schema:
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.DownloadListResponse'
+          description: OK
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal Server Error
+      summary: List downloads
+      tags:
+      - downloads
+    post:
+      description: Start a new download from a URL
+      requestBody:
+        content:
+          application/json:
+            schema:
+              oneOf:
+              - type: object
+              - $ref: '#/components/schemas/api.CreateDownloadRequest'
+                description: Download request
+                summary: request
+        description: Download request
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.DownloadResponse'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Bad Request
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal Server Error
+      summary: Create download
+      tags:
+      - downloads
+  /downloads/{id}:
+    delete:
+      description: Stop and delete a download, optionally removing files
+      parameters:
+      - description: Download ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      - description: If true, deletes files from disk
+        in: query
+        name: delete_files
+        schema:
+          type: boolean
+      responses:
+        "204":
+          description: No Content
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal Server Error
+      summary: Delete download
+      tags:
+      - downloads
+    get:
+      description: Get details of a specific download by ID
+      parameters:
+      - description: Download ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.DownloadResponse'
+          description: OK
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Not Found
+      summary: Get download
+      tags:
+      - downloads
+  /downloads/{id}/pause:
+    post:
+      description: Pause an active download
+      parameters:
+      - description: Download ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal Server Error
+      summary: Pause download
+      tags:
+      - downloads
+  /downloads/{id}/resume:
+    post:
+      description: Resume a paused download
+      parameters:
+      - description: Download ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal Server Error
+      summary: Resume download
+      tags:
+      - downloads
+  /downloads/{id}/retry:
+    post:
+      description: Retry a failed or completed download
+      parameters:
+      - description: Download ID
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal Server Error
+      summary: Retry download
+      tags:
+      - downloads
+  /events:
+    get:
+      description: |-
+        Open a Server-Sent Events (SSE) connection to receive real-time updates on downloads, uploads, and system status.
+        Data payload structure varies by type:
+        - download.progress / upload.progress: ProgressEventData
+        - stats: model.Stats
+        - download.* / upload.*: model.Download
+      responses:
+        "200":
+          content:
+            text/event-stream:
+              schema:
+                $ref: '#/components/schemas/api.EventResponse'
+          description: OK
+        "500":
+          content:
+            text/event-stream:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal Server Error
+      summary: Subscribe to real-time events
+      tags:
+      - events
+  /files/cat:
+    get:
+      description: Stream file content (supports Range requests)
+      parameters:
+      - description: Virtual path to file
+        in: query
+        name: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: file
+          description: File content
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Not Found
+      summary: Read file content
+      tags:
+      - files
+  /files/delete:
+    post:
+      description: Delete a file or directory
+      requestBody:
+        content:
+          application/json:
+            schema:
+              oneOf:
+              - type: object
+              - $ref: '#/components/schemas/api.DeleteFileRequest'
+                description: Path to delete
+                summary: request
+        description: Path to delete
+        required: true
+      responses:
+        "204":
+          description: No Content
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Bad Request
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal Server Error
+      summary: Delete file/directory
+      tags:
+      - files
+  /files/list:
+    get:
+      description: List files and directories at a path
+      parameters:
+      - description: Virtual path (default root)
+        in: query
+        name: path
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.FileInfoListResponse'
+          description: OK
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal Server Error
+      summary: List files
+      tags:
+      - files
+  /files/mkdir:
+    post:
+      description: Create a new directory
+      requestBody:
+        content:
+          application/json:
+            schema:
+              oneOf:
+              - type: object
+              - $ref: '#/components/schemas/api.MkdirRequest'
+                description: Directory path
+                summary: request
+        description: Directory path
+        required: true
+      responses:
+        "201":
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Bad Request
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal Server Error
+      summary: Create directory
+      tags:
+      - files
+  /files/restart:
+    post:
+      description: Restart the Virtual File System engine
+      responses:
+        "200":
+          description: OK
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal Server Error
+      summary: Restart VFS
+      tags:
+      - files
+  /magnets/check:
+    post:
+      description: Check availability and retrieve file list for a magnet link
+      requestBody:
+        content:
+          application/json:
+            schema:
+              oneOf:
+              - type: object
+              - $ref: '#/components/schemas/api.CheckMagnetRequest'
+                description: Magnet check request
+                summary: request
+        description: Magnet check request
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.MagnetInfoResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Bad Request
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal Server Error
+      summary: Check magnet link
+      tags:
+      - magnets
+  /magnets/check-torrent:
+    post:
+      description: Check availability and retrieve file list for a .torrent file (base64)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              oneOf:
+              - type: object
+              - $ref: '#/components/schemas/api.CheckTorrentRequest'
+                description: Torrent check request
+                summary: request
+        description: Torrent check request
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.MagnetInfoResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Bad Request
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal Server Error
+      summary: Check torrent file
+      tags:
+      - magnets
+  /magnets/download:
+    post:
+      description: Start a download using selected files from a magnet or torrent
+      requestBody:
+        content:
+          application/json:
+            schema:
+              oneOf:
+              - type: object
+              - $ref: '#/components/schemas/api.DownloadMagnetRequest'
+                description: Magnet download request
+                summary: request
+        description: Magnet download request
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.DownloadResponse'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Bad Request
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal Server Error
+      summary: Download from magnet/torrent
+      tags:
+      - magnets
+  /providers:
+    get:
+      description: Get a list of all configured download providers
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ProviderListResponse'
+          description: OK
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal Server Error
+      summary: List providers
+      tags:
+      - providers
+  /providers/{name}:
+    delete:
+      description: Delete configuration for a specific provider
+      parameters:
+      - description: Provider name
+        in: path
+        name: name
+        required: true
+        schema:
+          type: string
+      responses:
+        "204":
+          description: No Content
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal Server Error
+      summary: Remove provider configuration
+      tags:
+      - providers
+    get:
+      description: Get the configuration schema for a specific provider
+      parameters:
+      - description: Provider name
+        in: path
+        name: name
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ProviderSchemaResponse'
+          description: OK
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Not Found
+      summary: Get provider config schema
+      tags:
+      - providers
+    put:
+      description: Enable/disable or update configuration settings for a provider
+      parameters:
+      - description: Provider name
+        in: path
+        name: name
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              oneOf:
+              - type: object
+              - $ref: '#/components/schemas/api.ConfigureProviderRequest'
+                description: Configuration request
+                summary: request
+        description: Configuration request
+        required: true
+      responses:
+        "200":
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Bad Request
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal Server Error
+      summary: Update provider configuration
+      tags:
+      - providers
+  /providers/{name}/hosts:
+    get:
+      description: Get list of file hosts supported by a debrid provider
+      parameters:
+      - description: Provider name
+        in: path
+        name: name
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ProviderHostsResponse'
+          description: OK
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal Server Error
+      summary: Get supported hosts
+      tags:
+      - providers
+  /providers/{name}/status:
+    get:
+      description: Get current status and account info for a provider
+      parameters:
+      - description: Provider name
+        in: path
+        name: name
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.AccountInfoResponse'
+          description: OK
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal Server Error
+      summary: Get provider status
+      tags:
+      - providers
+  /providers/resolve:
+    post:
+      description: Resolve a download URL through providers to get direct links
+      requestBody:
+        content:
+          application/json:
+            schema:
+              oneOf:
+              - type: object
+              - $ref: '#/components/schemas/api.ResolveURLRequest'
+                description: Resolve request
+                summary: request
+        description: Resolve request
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ResolveResultResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Not Found
+      summary: Resolve URL
+      tags:
+      - providers
+  /remotes:
+    get:
+      description: Get a list of all configured rclone remotes
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.RemoteListResponse'
+          description: OK
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal Server Error
+      summary: List cloud remotes
+      tags:
+      - remotes
+    post:
+      description: Add a new cloud storage remote configuration
+      requestBody:
+        content:
+          application/json:
+            schema:
+              oneOf:
+              - type: object
+              - $ref: '#/components/schemas/api.CreateRemoteRequest'
+                description: Remote creation request
+                summary: request
+        description: Remote creation request
+        required: true
+      responses:
+        "201":
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Bad Request
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal Server Error
+      summary: Create remote
+      tags:
+      - remotes
+  /remotes/{name}:
+    delete:
+      description: Remove a cloud storage remote configuration
+      parameters:
+      - description: Remote name
+        in: path
+        name: name
+        required: true
+        schema:
+          type: string
+      responses:
+        "204":
+          description: No Content
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal Server Error
+      summary: Delete remote
+      tags:
+      - remotes
+  /remotes/{name}/test:
+    post:
+      description: Verify connectivity to a configured cloud storage remote
+      parameters:
+      - description: Remote name
+        in: path
+        name: name
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal Server Error
+      summary: Test remote connection
+      tags:
+      - remotes
+  /search:
+    get:
+      description: Global search across all indexed cloud remotes
+      parameters:
+      - description: Search query string
+        in: query
+        name: query
+        required: true
+        schema:
+          type: string
+      - description: Max number of results
+        in: query
+        name: limit
+        schema:
+          type: integer
+      - description: Offset for pagination
+        in: query
+        name: offset
+        schema:
+          type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.IndexedFileListResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Bad Request
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal Server Error
+      summary: Search indexed files
+      tags:
+      - search
+  /search/config:
+    get:
+      description: Get indexing settings and status for all remotes
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.RemoteIndexConfigListResponse'
+          description: OK
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal Server Error
+      summary: Get all indexing configurations
+      tags:
+      - search
+    post:
+      description: Update indexing settings for multiple remotes at once
+      requestBody:
+        content:
+          application/json:
+            schema:
+              oneOf:
+              - type: object
+              - $ref: '#/components/schemas/api.BatchUpdateConfigRequest'
+                description: Batch configuration request
+                summary: request
+        description: Batch configuration request
+        required: true
+      responses:
+        "200":
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Bad Request
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal Server Error
+      summary: Batch update indexing configurations
+      tags:
+      - search
+  /search/config/{remote}:
+    post:
+      description: Update indexing settings for a specific remote
+      parameters:
+      - description: Remote name
+        in: path
+        name: remote
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              oneOf:
+              - type: object
+              - $ref: '#/components/schemas/api.UpdateConfigRequest'
+                description: Configuration request
+                summary: request
+        description: Configuration request
+        required: true
+      responses:
+        "200":
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Bad Request
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal Server Error
+      summary: Update indexing configuration
+      tags:
+      - search
+  /search/index/{remote}:
+    post:
+      description: Manually start indexing process for a specific remote
+      parameters:
+      - description: Remote name
+        in: path
+        name: remote
+        required: true
+        schema:
+          type: string
+      responses:
+        "202":
+          description: Accepted
+      summary: Trigger indexing
+      tags:
+      - search
+  /settings:
+    get:
+      description: Retrieve all application settings organized by category
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.SettingsResponse'
+          description: OK
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal Server Error
+      summary: Get application settings
+      tags:
+      - settings
+    patch:
+      description: Update configuration settings category by category and emit change
+        events
+      requestBody:
+        content:
+          application/json:
+            schema:
+              oneOf:
+              - type: object
+              - $ref: '#/components/schemas/model.Settings'
+                description: Structured settings object
+                summary: request
+        description: Structured settings object
+        required: true
+      responses:
+        "200":
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Bad Request
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal Server Error
+      summary: Update application settings
+      tags:
+      - settings
+  /settings/export:
+    post:
+      description: Export all configuration settings as a JSON file
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/model.Settings'
+          description: OK
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal Server Error
+      summary: Export application settings
+      tags:
+      - settings
+  /settings/import:
+    post:
+      description: Import configuration settings from a JSON object
+      requestBody:
+        content:
+          application/json:
+            schema:
+              oneOf:
+              - type: object
+              - $ref: '#/components/schemas/model.Settings'
+                description: Settings to import
+                summary: request
+        description: Settings to import
+        required: true
+      responses:
+        "200":
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Bad Request
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal Server Error
+      summary: Import application settings
+      tags:
+      - settings
+  /settings/reset:
+    post:
+      description: Reset all configuration settings to their default values
+      responses:
+        "200":
+          description: OK
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal Server Error
+      summary: Reset application settings
+      tags:
+      - settings
+  /settings/status:
+    get:
+      description: Retrieve the current configuration status of various modules
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.SettingsStatusResponse'
+          description: OK
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal Server Error
+      summary: Get application settings status
+      tags:
+      - settings
+  /stats:
+    get:
+      description: Get real-time download/upload speeds, storage usage, and active
+        task counts
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.StatsResponse'
+          description: OK
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal Server Error
+      summary: Get live system statistics
+      tags:
+      - stats
+  /system/restart/aria2:
+    post:
+      description: Stop and restart the underlying Aria2 download engine
+      responses:
+        "200":
+          description: OK
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal Server Error
+      summary: Restart Aria2 engine
+      tags:
+      - system
+  /system/restart/rclone:
+    post:
+      description: Stop and restart the underlying Rclone upload engine
+      responses:
+        "200":
+          description: OK
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.ErrorResponse'
+          description: Internal Server Error
+      summary: Restart Rclone engine
+      tags:
+      - system
+  /system/restart/server:
+    post:
+      description: Exit the current process (expects supervisor to restart)
+      responses:
+        "200":
+          description: OK
+      summary: Restart Gravity server
+      tags:
+      - system
+  /system/version:
+    get:
+      description: Get versions of Gravity, Aria2, and Rclone
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/api.SystemVersionResponse'
+          description: OK
+      summary: Get system versions
+      tags:
+      - system
+servers:
+- url: localhost:8080/api/v1

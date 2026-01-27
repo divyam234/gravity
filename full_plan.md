@@ -945,7 +945,7 @@ const (
 type Event struct {
     Type      EventType   `json:"type"`
     Timestamp time.Time   `json:"timestamp"`
-    Data      interface{} `json:"data"`
+    Data      any `json:"data"`
 }
 ```
 

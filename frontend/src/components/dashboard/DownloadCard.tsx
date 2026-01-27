@@ -9,7 +9,9 @@ import { useEngineActions } from "../../hooks/useEngine";
 import { cn, formatBytes, formatTime } from "../../lib/utils";
 import { ProgressBar } from "../ui/ProgressBar";
 import { StatusChip } from "../ui/StatusChip";
-import type { Download } from "../../lib/types";
+import type { components } from "../../gen/api";
+
+type Download = components["schemas"]["model.Download"];
 
 interface DownloadCardProps {
   task: Download;
@@ -22,7 +24,7 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
 }) => {
   const { pause, unpause, remove } = useEngineActions();
 
-  const progress = task.size > 0 ? (task.downloaded / task.size) * 100 : 0;
+  const progress = (task.size || 0) > 0 ? ((task.downloaded || 0) / (task.size || 1)) * 100 : 0;
 
   const isPaused = task.status === "paused";
   const isActive = task.status === "active";
@@ -31,15 +33,17 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
   const isUploading = task.status === "uploading";
 
   // Calculate uploaded bytes from progress percentage
-  const uploadedBytes = task.size > 0 ? Math.floor((task.uploadProgress / 100) * task.size) : 0;
+  const uploadedBytes = (task.size || 0) > 0 ? Math.floor(((task.uploadProgress || 0) / 100) * (task.size || 0)) : 0;
 
   // Effective display values
-  const effectiveProgress = isUploading ? task.uploadProgress : progress;
-  const effectiveSpeed = isUploading ? task.uploadSpeed : task.speed;
+  const effectiveProgress = isUploading ? (task.uploadProgress || 0) : progress;
+  const effectiveSpeed = isUploading ? (task.uploadSpeed || 0) : (task.speed || 0);
   const isActionable = isActive || isPaused;
 
   const handleRemove = () => {
-    remove.mutate(task.id);
+    if (task.id) {
+        remove.mutate({ params: { path: { id: task.id } } });
+    }
   };
 
   const statusColor = isError
@@ -57,7 +61,7 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
       <div className="w-full flex items-center gap-6 py-4 px-6 hover:bg-default/5 transition-colors rounded-xl group/item min-h-[72px]">
         <Link
           to="/task/$gid"
-          params={{ gid: task.id }}
+          params={{ gid: task.id || "" }}
           className="flex-1 min-w-0 cursor-pointer outline-none flex items-center gap-8"
         >
           <div className="flex-1 min-w-0">
@@ -69,7 +73,7 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
             </h3>
             <div className="flex items-center gap-3 mt-1.5">
               <StatusChip
-                status={task.status}
+                status={task.status || "waiting"}
                 className="h-5 text-[10px] px-2"
               />
               {task.metadataFetching && (
@@ -84,8 +88,8 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
               )}
               <span className="text-xs text-muted font-bold">
                 {isUploading
-                  ? `${formatBytes(uploadedBytes)} / ${formatBytes(task.size)}`
-                  : `${formatBytes(task.downloaded)} / ${formatBytes(task.size)}`}
+                  ? `${formatBytes(uploadedBytes)} / ${formatBytes(task.size || 0)}`
+                  : `${formatBytes(task.downloaded || 0)} / ${formatBytes(task.size || 0)}`}
               </span>
               {task.isMagnet && task.totalFiles && (
                 <span className="text-[10px] text-muted font-black uppercase tracking-widest bg-default/10 px-1.5 py-0.5 rounded-md">
@@ -125,30 +129,30 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
             )}
             {!isUploading && isActive && (
               <span className="text-[10px] text-muted font-bold uppercase tracking-wider">
-                {formatTime(task.eta)}
+                {formatTime(task.eta || 0)}
               </span>
             )}
           </div>
         </Link>
 
         <div className="flex items-center gap-2 shrink-0 opacity-0 group-hover/item:opacity-100 transition-opacity ml-auto">
-          {isActive && (
+          {isActive && task.id && (
             <Button
               isIconOnly
               size="sm"
               variant="ghost"
-              onPress={() => pause.mutate(task.id)}
+              onPress={() => pause.mutate({ params: { path: { id: task.id! } } })}
               className="h-8 w-8 min-w-0"
             >
               <IconPause className="w-4 h-4 text-warning" />
             </Button>
           )}
-          {isPaused && (
+          {isPaused && task.id && (
             <Button
               isIconOnly
               size="sm"
               variant="ghost"
-              onPress={() => unpause.mutate(task.id)}
+              onPress={() => unpause.mutate({ params: { path: { id: task.id! } } })}
               className="h-8 w-8 min-w-0"
             >
               <IconPlay className="w-4 h-4 text-success" />
@@ -174,7 +178,7 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
         <div className="flex justify-between items-start gap-4">
           <Link
             to="/task/$gid"
-            params={{ gid: task.id }}
+            params={{ gid: task.id || "" }}
             className="flex-1 min-w-0 cursor-pointer group outline-none"
           >
             <h3
@@ -184,7 +188,7 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
               {task.filename || task.id}
             </h3>
             <div className="flex items-center gap-2 mt-1.5">
-              <StatusChip status={task.status} />
+              <StatusChip status={task.status || "waiting"} />
               {task.metadataFetching && (
                 <Chip
                   color="warning"
@@ -197,8 +201,8 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
               )}
               <span className="text-sm text-muted font-medium">
                 {isUploading
-                  ? `${formatBytes(uploadedBytes)} / ${formatBytes(task.size)}`
-                  : `${formatBytes(task.downloaded)} / ${formatBytes(task.size)}`}
+                  ? `${formatBytes(uploadedBytes)} / ${formatBytes(task.size || 0)}`
+                  : `${formatBytes(task.downloaded || 0)} / ${formatBytes(task.size || 0)}`}
               </span>
               {task.isMagnet && task.totalFiles && (
                 <span className="text-[10px] text-muted font-black uppercase tracking-widest bg-default/10 px-1.5 py-0.5 rounded-md ml-auto">
@@ -216,7 +220,7 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
           <div className="flex items-center gap-1">
             <Tooltip>
               <Tooltip.Trigger>
-                <Link to="/task/$gid" params={{ gid: task.id }}>
+                <Link to="/task/$gid" params={{ gid: task.id || "" }}>
                   <Button isIconOnly size="sm" variant="ghost">
                     <IconListUl className="w-4.5 h-4.5" />
                   </Button>
@@ -227,7 +231,7 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
               </Tooltip.Content>
             </Tooltip>
 
-            {isActionable && (
+            {isActionable && task.id && (
               <Tooltip>
                 <Tooltip.Trigger>
                   <Button
@@ -235,7 +239,7 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
                     size="sm"
                     variant="ghost"
                     onPress={() =>
-                      isActive ? pause.mutate(task.id) : unpause.mutate(task.id)
+                      isActive ? pause.mutate({ params: { path: { id: task.id! } } }) : unpause.mutate({ params: { path: { id: task.id! } } })
                     }
                   >
                     {isActive ? (
@@ -274,7 +278,7 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
           size="md"
           color={statusColor}
           className={progressClassName}
-          showValueLabel={effectiveProgress > 0}
+          showValueLabel={!!effectiveProgress && effectiveProgress > 0}
         />
 
         <div className="flex justify-between items-center text-sm text-muted bg-muted-background/50 p-2 rounded-xl border border-border/50">
@@ -303,7 +307,7 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
 
           <div className="flex gap-4 font-medium items-center">
             {!isUploading && isActive && (
-              <span>ETA: {formatTime(task.eta)}</span>
+              <span>ETA: {formatTime(task.eta || 0)}</span>
             )}
           </div>
         </div>
