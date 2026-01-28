@@ -49,16 +49,15 @@ type DownloadOptions struct {
 	Size          int64
 	Dir           string
 	Headers       map[string]string
-	MaxSpeed      int64
-	Connections   int
-	Split         int
 	TorrentData   string // Base64 encoded .torrent
 	SelectedFiles []int  // 1-indexed file numbers
 
-	// Proxy
-	ProxyURL      string
-	ProxyUser     string
-	ProxyPassword string
+	// Task-specific overrides
+	Split       int
+	MaxTries    int
+	UserAgent   string
+	ProxyURL    string
+	RemoveLocal bool
 }
 
 type DownloadEngine interface {

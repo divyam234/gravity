@@ -7,7 +7,6 @@ import { useRemotes } from "./useRemotes";
 import type { components } from "../gen/api";
 
 type SearchConfig = components["schemas"]["model.RemoteIndexConfig"];
-type ApiError = { code: number; error: string };
 
 export function useSearch() {
   const queryClient = useQueryClient();
@@ -41,8 +40,8 @@ export function useSearch() {
       });
       toast.success("Indexing started");
     },
-    onError: (err) => {
-      toast.error("Failed to start indexing: " + err.error);
+    onError: (err: { error?: string }) => {
+      toast.error("Failed to start indexing: " + (err.error || "Unknown error"));
     },
   });
 
@@ -53,8 +52,8 @@ export function useSearch() {
       });
       toast.success("Settings updated");
     },
-    onError: (err) => {
-      toast.error("Failed to update settings: " + err.error);
+    onError: (err: { error?: string }) => {
+      toast.error("Failed to update settings: " + (err.error || "Unknown error"));
     },
   });
 
@@ -65,13 +64,13 @@ export function useSearch() {
       });
       toast.success("All settings updated");
     },
-    onError: (err) => {
-      toast.error("Failed to update settings: " + err.error);
+    onError: (err: { error?: string }) => {
+      toast.error("Failed to update settings: " + (err.error || "Unknown error"));
     },
   });
 
   const search = openapi.useMutation("get", "/search", {
-    onError: (err) => toast.error("Search failed: " + err.error),
+    onError: (err: { error?: string }) => toast.error("Search failed: " + (err.error || "Unknown error")),
   });
 
   return {

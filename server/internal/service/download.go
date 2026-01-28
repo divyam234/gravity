@@ -134,7 +134,7 @@ func NewDownloadService(repo *store.DownloadRepo, settingsRepo *store.SettingsRe
 	return s
 }
 
-func (s *DownloadService) Create(ctx context.Context, url string, filename string, downloadDir string, destination string, options model.TaskOptions) (*model.Download, error) {
+func (s *DownloadService) Create(ctx context.Context, url string, filename string, options model.TaskOptions) (*model.Download, error) {
 	// 1. Resolve URL through providers
 	res, providerName, err := s.provider.Resolve(ctx, url, options.Headers)
 	if err != nil {
@@ -158,6 +158,7 @@ func (s *DownloadService) Create(ctx context.Context, url string, filename strin
 	}
 
 	var localPath string
+	downloadDir := options.DownloadDir
 
 	// If downloadDir is provided, use it (absolute or relative to default)
 	if downloadDir == "" {
@@ -176,12 +177,17 @@ func (s *DownloadService) Create(ctx context.Context, url string, filename strin
 		Provider:    providerName,
 		Filename:    filename,
 		Size:        res.Size,
-		Destination: destination, // Remote upload destination
-		DownloadDir: localPath,   // Actual local download directory
-		Options:     options,
+		Destination: options.Destination, // Remote upload destination
+		DownloadDir: localPath,           // Actual local download directory
 		Status:      model.StatusWaiting,
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
+		// Flattened task options
+		Split:       options.Split,
+		MaxTries:    options.MaxTries,
+		UserAgent:   options.UserAgent,
+		ProxyURL:    options.ProxyURL,
+		RemoveLocal: options.RemoveLocal,
 	}
 
 	// Merge user provided headers
@@ -672,17 +678,17 @@ func (s *DownloadService) executeDownload(d *model.Download) {
 	gid := fmt.Sprintf("%016s", d.ID[2:])
 
 	opts := engine.DownloadOptions{
-		Filename:      d.Filename,
-		Size:          d.Size,
-		Dir:           d.DownloadDir,
-		Headers:       d.Headers,
-		TorrentData:   d.TorrentData,
-		SelectedFiles: d.SelectedFiles,
-		ID:            gid,
-		MaxSpeed:      d.Options.MaxDownloadSpeed,
-		Connections:   d.Options.Connections,
-		Split:         d.Options.Split,
-		ProxyURL:      d.Options.ProxyURL,
+		Filename:    d.Filename,
+		Size:        d.Size,
+		Dir:         d.DownloadDir,
+		Headers:     d.Headers,
+		TorrentData: d.TorrentData,
+		ID:          gid,
+		Split:       d.Split,
+		MaxTries:    d.MaxTries,
+		UserAgent:   d.UserAgent,
+		ProxyURL:    d.ProxyURL,
+		RemoveLocal: d.RemoveLocal != nil && *d.RemoveLocal,
 	}
 
 	engineID, err := s.engine.Add(ctx, d.ResolvedURL, opts)
@@ -872,6 +878,7 @@ func (s *DownloadService) updateAggregateProgress(ctx context.Context, d *model.
 			d.Status = model.StatusUploading
 		} else {
 			d.Status = model.StatusComplete
+			d.Downloaded = d.Size
 		}
 		now := time.Now()
 		d.CompletedAt = &now
@@ -959,6 +966,8 @@ func (s *DownloadService) handleComplete(engineID string, filePath string) {
 			d.Status = model.StatusUploading
 		} else {
 			d.Status = model.StatusComplete
+			// Ensure downloaded amount matches size when complete
+			d.Downloaded = d.Size
 		}
 
 		now := time.Now()

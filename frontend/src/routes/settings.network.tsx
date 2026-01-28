@@ -29,18 +29,36 @@ function NetworkSettingsPage() {
   );
 }
 
-// Helper to parse/format proxy URL
+// Helper to parse/format proxy URL with auth support
 const parseProxyUrl = (url: string) => {
-  if (!url) return { type: "http", host: "", port: "1080" }; // Default to http to show placeholders
-  const match = url.match(/^(socks5|http):\/\/([^:]+):(\d+)/);
+  if (!url) return { type: "http", host: "", port: "1080", user: "", password: "" };
+  
+  // Match: protocol://[user:pass@]host:port
+  const match = url.match(/^(socks5|http):\/\/(([^:]+):([^@]+)@)?([^:]+):(\d+)$/);
   if (match) {
-    return { type: match[1], host: match[2], port: match[3] };
+    return { 
+      type: match[1], 
+      user: match[3] || "", 
+      password: match[4] || "",
+      host: match[5], 
+      port: match[6] 
+    };
   }
-  return { type: "http", host: "", port: "1080" };
+  
+  // Match without auth: protocol://host:port
+  const simpleMatch = url.match(/^(socks5|http):\/\/([^:]+):(\d+)$/);
+  if (simpleMatch) {
+    return { type: simpleMatch[1], host: simpleMatch[2], port: simpleMatch[3], user: "", password: "" };
+  }
+  
+  return { type: "http", host: "", port: "1080", user: "", password: "" };
 };
 
-const formatProxyUrl = (type: string, host: string, port: string) => {
+const formatProxyUrl = (type: string, host: string, port: string, user: string, password: string) => {
   if (!host) return "";
+  if (user && password) {
+    return `${type}://${user}:${password}@${host}:${port}`;
+  }
   return `${type}://${host}:${port}`;
 };
 
@@ -58,15 +76,13 @@ function ProxyConfigEditor({
     const newType = updates.type ?? parsed.type;
     const newHost = updates.host ?? parsed.host;
     const newPort = updates.port ?? parsed.port;
-    const newUser = updates.user ?? value.user;
-    const newPass = updates.password ?? value.password;
+    const newUser = updates.user ?? parsed.user;
+    const newPass = updates.password ?? parsed.password;
     const newEnabled = updates.enabled ?? value.enabled;
 
     onChange({
       enabled: !!newEnabled,
-      url: formatProxyUrl(newType, newHost, newPort),
-      user: newUser,
-      password: newPass,
+      url: formatProxyUrl(newType, newHost, newPort, newUser, newPass),
     });
   };
 
@@ -132,7 +148,7 @@ function ProxyConfigEditor({
                 <div className="space-y-1">
                     <span className="text-xs font-bold text-muted uppercase tracking-wider ml-1">Username</span>
                     <input
-                        value={value.user || ""}
+                        value={parsed.user || ""}
                         onChange={(e) => update({ user: e.target.value })}
                         placeholder="Optional"
                         className="w-full h-11 bg-default/10 rounded-2xl border-none font-mono text-xs px-3 outline-none focus:ring-2 ring-accent/50 transition-all"
@@ -141,7 +157,7 @@ function ProxyConfigEditor({
                 <div className="space-y-1">
                     <span className="text-xs font-bold text-muted uppercase tracking-wider ml-1">Password</span>
                     <input
-                        value={value.password || ""}
+                        value={parsed.password || ""}
                         onChange={(e) => update({ password: e.target.value })}
                         type="password"
                         placeholder="Optional"

@@ -115,9 +115,8 @@ type MagnetDownloadRequest struct {
 	MagnetID      string              `json:"magnetId"`
 	Name          string              `json:"name"`
 	SelectedFiles []string            `json:"selectedFiles"`
-	DownloadDir   string              `json:"downloadDir"`
-	Destination   string              `json:"destination"`
 	AllFiles      []*model.MagnetFile `json:"allFiles"`
+	Options       model.TaskOptions   `json:"options"`
 }
 
 // DownloadMagnet starts download of selected files from a magnet
@@ -134,14 +133,15 @@ func (s *MagnetService) DownloadMagnet(ctx context.Context, req MagnetDownloadRe
 	}
 
 	var localPath string
+	downloadDir := req.Options.DownloadDir
 
 	// If downloadDir is provided, use it (absolute or relative to default)
-	if req.DownloadDir == "" {
+	if downloadDir == "" {
 		localPath = defaultDir
-	} else if filepath.IsAbs(req.DownloadDir) {
-		localPath = req.DownloadDir
+	} else if filepath.IsAbs(downloadDir) {
+		localPath = downloadDir
 	} else {
-		localPath = filepath.Join(defaultDir, req.DownloadDir)
+		localPath = filepath.Join(defaultDir, downloadDir)
 	}
 
 	// Create download record
@@ -149,7 +149,7 @@ func (s *MagnetService) DownloadMagnet(ctx context.Context, req MagnetDownloadRe
 		ID:           "d_" + uuid.New().String()[:8],
 		URL:          req.Magnet,
 		Status:       model.StatusWaiting,
-		Destination:  req.Destination,
+		Destination:  req.Options.Destination,
 		DownloadDir:  localPath,
 		IsMagnet:     true,
 		MagnetSource: req.Source,
@@ -158,6 +158,12 @@ func (s *MagnetService) DownloadMagnet(ctx context.Context, req MagnetDownloadRe
 		TorrentData:  req.TorrentBase64,
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
+		// Flattened task options
+		Split:       req.Options.Split,
+		MaxTries:    req.Options.MaxTries,
+		UserAgent:   req.Options.UserAgent,
+		ProxyURL:    req.Options.ProxyURL,
+		RemoveLocal: req.Options.RemoveLocal,
 	}
 
 	// Build file list and calculate total size

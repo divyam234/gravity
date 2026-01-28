@@ -2,8 +2,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { openapi } from "../lib/openapi";
 
-type ApiError = { code: number; error: string };
-
 export function useDownloads(params?: {
   status?: string[];
   limit?: number;

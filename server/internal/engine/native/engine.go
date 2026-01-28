@@ -136,9 +136,6 @@ func (e *NativeEngine) Start(ctx context.Context) error {
 		if proxyCfg.Enabled && proxyCfg.URL != "" {
 			proxyURL, err := url.Parse(proxyCfg.URL)
 			if err == nil {
-				if proxyCfg.User != "" {
-					proxyURL.User = url.UserPassword(proxyCfg.User, proxyCfg.Password)
-				}
 				dialer, err := proxy.FromURL(proxyURL, proxy.Direct)
 				if err == nil {
 					cfg.HTTPProxy = http.ProxyURL(proxyURL)
@@ -190,7 +187,7 @@ func (e *NativeEngine) Add(ctx context.Context, url string, opts engine.Download
 		size:     opts.Size,
 		headers:  opts.Headers,
 		done:     make(chan struct{}),
-		split:    opts.Connections, // Use connections as split
+		split:    opts.Split,
 	}
 
 	if strings.HasPrefix(url, "magnet:") || strings.HasSuffix(url, ".torrent") || opts.TorrentData != "" {
@@ -301,6 +298,8 @@ func (e *NativeEngine) runRcloneDownload(ctx context.Context, t *task) {
 			ci.MultiThreadCutoff = 0 // Force multi-thread
 		}
 	}
+	ci.MultiThreadResume = true
+	ci.MultiThreadChunkSize = 16 * 1024 * 1024
 
 	// Set headers in rclone config
 	if len(t.headers) > 0 {
@@ -315,32 +314,6 @@ func (e *NativeEngine) runRcloneDownload(ctx context.Context, t *task) {
 	accCtx := accounting.WithStatsGroup(ctx, t.id)
 	t.stats = accounting.StatsGroup(accCtx, t.id)
 
-	u, err := url.Parse(t.url)
-	if err != nil {
-		if onError != nil {
-			onError(t.id, err)
-		}
-		return
-	}
-
-	filename := filepath.Base(u.Path)
-	if len(u.RawQuery) > 0 {
-		filename += "?" + u.RawQuery
-	}
-
-	baseU := *u
-	baseU.Path = filepath.Dir(u.Path)
-	baseU.RawQuery = ""
-	baseURL := baseU.String()
-
-	srcFs, err := fs.NewFs(accCtx, fmt.Sprintf(":http,url='%s',no_escape=true:", baseURL))
-	if err != nil {
-		if onError != nil {
-			onError(t.id, err)
-		}
-		return
-	}
-
 	dstFs, err := fs.NewFs(accCtx, t.dir)
 	if err != nil {
 		if onError != nil {
@@ -349,26 +322,17 @@ func (e *NativeEngine) runRcloneDownload(ctx context.Context, t *task) {
 		return
 	}
 
-	err = operations.CopyFile(accCtx, dstFs, srcFs, t.filename, filename)
+	destObj, err := operations.CopyURLMulti(accCtx, dstFs, t.filename, t.url, false)
 
 	if err != nil {
-		if accCtx.Err() == nil {
-			e.logger.Error("rclone download failed", zap.String("id", t.id), zap.Error(err))
-			if onError != nil {
-				onError(t.id, err)
-			}
+		e.logger.Error("rclone download failed", zap.String("id", t.id), zap.Error(err))
+		if onError != nil {
+			onError(t.id, err)
 		}
+
 	} else {
-		_, err = dstFs.NewObject(accCtx, t.filename)
 
-		if err != nil {
-			if onError != nil {
-				onError(t.id, err)
-			}
-			return
-		}
-
-		finalPath := filepath.Join(t.dir, t.filename)
+		finalPath := filepath.Join(destObj.Fs().Root(), destObj.Remote())
 
 		e.logger.Debug("download complete", zap.String("path", finalPath))
 

@@ -19,7 +19,7 @@ import { formatBytes } from "../lib/utils";
 import type { components } from "../gen/api";
 
 type MagnetFile = components["schemas"]["model.MagnetFile"];
-type TaskOptions = components["schemas"]["model.TaskOptions"];
+type TaskOptions = components["schemas"]["api.TaskOptions"];
 
 export const Route = createFileRoute("/add")({
   component: AddDownloadPage,
@@ -42,10 +42,11 @@ function AddDownloadPage() {
       downloadDir: "",
       destination: "",
       headersInput: "",
-      connections: 8,
       split: 8,
-      maxDownloadSpeed: "",
+      maxTries: 5,
+      userAgent: "",
       proxyUrl: "",
+      removeLocal: undefined as boolean | undefined,
     },
     onSubmit: async ({ value }) => {
       const currentUrlValue = value.uris.trim().split("\n")[0]?.trim();
@@ -63,10 +64,13 @@ function AddDownloadPage() {
       }
 
       const options: TaskOptions = {
-        connections: value.connections,
+        downloadDir: value.downloadDir || undefined,
+        destination: value.destination || undefined,
         split: value.split,
-        maxDownloadSpeed: value.maxDownloadSpeed ? Number(value.maxDownloadSpeed) : undefined,
+        maxTries: value.maxTries,
+        userAgent: value.userAgent || undefined,
         proxyUrl: value.proxyUrl || undefined,
+        removeLocal: value.removeLocal,
         headers: Object.keys(headers).length > 0 ? headers : undefined,
       };
 
@@ -82,8 +86,6 @@ function AddDownloadPage() {
                 magnetId: magnetInfo.magnetId,
                 name: magnetInfo.name,
                 selectedFiles: Array.from(selectedFiles),
-                downloadDir: value.downloadDir || undefined,
-                destination: value.destination || undefined,
                 files: (flattenFiles(magnetInfo.files || []) as unknown) as components["schemas"]["api.MagnetFileRequest"][],
                 options: options,
             }
@@ -100,8 +102,6 @@ function AddDownloadPage() {
             body: {
                 url: currentUrlValue,
                 filename: value.filename || undefined,
-                downloadDir: value.downloadDir || undefined,
-                destination: value.destination || undefined,
                 options: options,
             }
           },
@@ -466,47 +466,6 @@ function AddDownloadPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <form.Field
-                name="connections"
-                children={(field: any) => (
-                  <TextField className="flex flex-col gap-2">
-                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted px-1">
-                      Connections
-                    </Label>
-                    <Select
-                      selectedKey={String(field.state.value)}
-                      onSelectionChange={(key) => field.handleChange(Number(key))}
-                      className="w-full"
-                    >
-                      <Select.Trigger className="h-10 px-4 bg-default/10 rounded-xl border-none">
-                        <Select.Value className="text-sm font-bold" />
-                        <Select.Indicator className="text-muted">
-                          <IconChevronDown className="w-4 h-4" />
-                        </Select.Indicator>
-                      </Select.Trigger>
-                      <Select.Popover className="min-w-[100px] p-2 bg-background border border-border rounded-2xl shadow-xl">
-                        <ListBox
-                          items={[1, 2, 4, 8, 16].map((n) => ({
-                            id: String(n),
-                            name: String(n),
-                          }))}
-                        >
-                          {(item) => (
-                            <ListBox.Item
-                              id={item.id}
-                              textValue={item.name}
-                              className="px-3 py-2 rounded-lg data-[hover=true]:bg-default/15 text-sm cursor-pointer outline-none"
-                            >
-                              <Label>{item.name}</Label>
-                            </ListBox.Item>
-                          )}
-                        </ListBox>
-                      </Select.Popover>
-                    </Select>
-                  </TextField>
-                )}
-              />
-
-              <form.Field
                 name="split"
                 children={(field: any) => (
                   <TextField className="flex flex-col gap-2">
@@ -546,17 +505,58 @@ function AddDownloadPage() {
                   </TextField>
                 )}
               />
+
+              <form.Field
+                name="maxTries"
+                children={(field: any) => (
+                  <TextField className="flex flex-col gap-2">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted px-1">
+                      Max Retries
+                    </Label>
+                    <Select
+                      selectedKey={String(field.state.value)}
+                      onSelectionChange={(key) => field.handleChange(Number(key))}
+                      className="w-full"
+                    >
+                      <Select.Trigger className="h-10 px-4 bg-default/10 rounded-xl border-none">
+                        <Select.Value className="text-sm font-bold" />
+                        <Select.Indicator className="text-muted">
+                          <IconChevronDown className="w-4 h-4" />
+                        </Select.Indicator>
+                      </Select.Trigger>
+                      <Select.Popover className="min-w-[100px] p-2 bg-background border border-border rounded-2xl shadow-xl">
+                        <ListBox
+                          items={[0, 1, 3, 5, 10].map((n) => ({
+                            id: String(n),
+                            name: String(n),
+                          }))}
+                        >
+                          {(item) => (
+                            <ListBox.Item
+                              id={item.id}
+                              textValue={item.name}
+                              className="px-3 py-2 rounded-lg data-[hover=true]:bg-default/15 text-sm cursor-pointer outline-none"
+                            >
+                              <Label>{item.name}</Label>
+                            </ListBox.Item>
+                          )}
+                        </ListBox>
+                      </Select.Popover>
+                    </Select>
+                  </TextField>
+                )}
+              />
             </div>
 
             <form.Field
-              name="maxDownloadSpeed"
+              name="userAgent"
               children={(field: any) => (
                 <TextField className="flex flex-col gap-2">
                   <Label className="text-[10px] font-black uppercase tracking-widest text-muted px-1">
-                    Max Speed
+                    User Agent (Optional)
                   </Label>
                   <Input
-                    placeholder="e.g. 10M, 500K or 0"
+                    placeholder="Mozilla/5.0..."
                     value={field.state.value}
                     onChange={(e) => field.handleChange(e.target.value)}
                     className="w-full h-12 px-4 bg-default/10 rounded-2xl text-sm border-none focus:bg-default/15 transition-all outline-none"

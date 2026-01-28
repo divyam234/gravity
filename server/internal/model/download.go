@@ -25,7 +25,6 @@ type Download struct {
 	ResolvedURL      string            `json:"resolvedUrl,omitempty"`
 	Provider         string            `json:"provider,omitempty"`
 	Engine           string            `json:"engine,omitempty"`
-	Options          TaskOptions       `json:"options" gorm:"serializer:json" validate:"required" binding:"required"`
 	Status           DownloadStatus    `json:"status" example:"active" enums:"active,waiting,paused,uploading,complete,error" validate:"required" binding:"required"`
 	Error            string            `json:"error,omitempty"`
 	Filename         string            `json:"filename,omitempty"`
@@ -51,6 +50,13 @@ type Download struct {
 	CompletedAt      *time.Time        `json:"completedAt,omitempty"`
 	UpdatedAt        time.Time         `json:"updatedAt" validate:"required" binding:"required"`
 
+	// Task Options (flattened from TaskOptions)
+	Split       int    `json:"split"`       // File splitting count
+	MaxTries    int    `json:"maxTries"`    // Retry attempts
+	UserAgent   string `json:"userAgent"`   // Custom user agent
+	ProxyURL    string `json:"proxyUrl"`    // Full proxy URL
+	RemoveLocal *bool  `json:"removeLocal"` // Remove local file after upload
+
 	// Multi-file support for magnets/torrents
 	IsMagnet      bool           `json:"isMagnet"`
 	MagnetHash    string         `json:"magnetHash,omitempty"`
@@ -74,12 +80,14 @@ type Peer struct {
 }
 
 type TaskOptions struct {
-	MaxDownloadSpeed int64             `json:"maxDownloadSpeed"`
-	Connections      int               `json:"connections" binding:"required"`
-	Split            int               `json:"split" binding:"required"`
-	ProxyURL         string            `json:"proxyUrl"`
-	UploadRemote     string            `json:"uploadRemote"`
-	Headers          map[string]string `json:"headers"`
+	DownloadDir string            `json:"downloadDir"` // Local save path
+	Destination string            `json:"destination"` // Remote path (e.g., "gdrive:movies")
+	Split       int               `json:"split"`       // File splitting count
+	MaxTries    int               `json:"maxTries"`    // Retry attempts
+	UserAgent   string            `json:"userAgent"`   // Custom user agent
+	ProxyURL    string            `json:"proxyUrl"`    // Full proxy URL
+	RemoveLocal *bool             `json:"removeLocal"` // Remove local file after upload (nullable)
+	Headers     map[string]string `json:"headers"`     // Custom HTTP headers
 }
 
 // DownloadFile represents an individual file within a multi-file download (magnet/torrent)

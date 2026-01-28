@@ -1,10 +1,14 @@
-import { Button, Card, ScrollShadow } from "@heroui/react";
+import { Button, ScrollShadow } from "@heroui/react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useForm } from "@tanstack/react-form";
+import { z } from "zod";
 import IconChevronLeft from "~icons/gravity-ui/chevron-left";
 import { useSettingsStore } from "../store/useSettingsStore";
 import { useEngineActions } from "../hooks/useEngine";
-import { FormTextField, FormSwitch, FormSelect } from "../components/ui/FormFields";
+import {
+  DynamicSettings,
+  type SettingGroupConfig,
+} from "../components/ui/FormFields";
 import type { components } from "../gen/api";
 
 type Settings = components["schemas"]["model.Settings"];
@@ -28,6 +32,50 @@ function DownloadSettingsPage() {
   );
 }
 
+const downloadSettingsSchema = z.object({
+  downloadDir: z.string().min(1, "Download directory is required"),
+  maxConcurrentDownloads: z
+    .number()
+    .min(1, "Must allow at least 1 concurrent download")
+    .max(20, "Maximum 20 concurrent downloads allowed")
+    .default(3),
+  maxDownloadSpeed: z
+    .string()
+    .regex(/^\d+[KMGkmg]?$/, "Invalid speed format (e.g. 0, 500K, 5M)"),
+  maxUploadSpeed: z
+    .string()
+    .regex(/^\d+[KMGkmg]?$/, "Invalid speed format (e.g. 0, 500K, 1M)"),
+  preferredEngine: z
+    .enum(["aria2", "native"], {
+      error: "Please select a valid engine",
+    })
+    .default("aria2"),
+  preferredMagnetEngine: z
+    .enum(["aria2", "native"], {
+      error: "Please select a valid magnet engine",
+    })
+    .default("aria2"),
+  split: z
+    .number()
+    .min(1, "Must have at least 1 split")
+    .max(16, "Maximum 16 splits allowed per download")
+    .default(8),
+  autoResume: z.boolean(),
+  preAllocateSpace: z.boolean(),
+  diskCache: z
+    .string()
+    .regex(/^\d+[KMGkmg]?$/, "Invalid cache size (e.g. 16M, 64M)")
+    .default("16M"),
+  minSplitSize: z
+    .string()
+    .regex(/^\d+[KMGkmg]?$/, "Invalid size format (e.g. 1M, 10M)")
+    .default("1M"),
+  lowestSpeedLimit: z
+    .string()
+    .regex(/^\d+[KMGkmg]?$/, "Invalid speed format (e.g. 0, 10K)")
+    .default("0"),
+});
+
 function DownloadSettingsForm({
   serverSettings,
   updateServerSettings,
@@ -36,41 +84,146 @@ function DownloadSettingsForm({
   updateServerSettings: (settings: Settings) => void;
 }) {
   const navigate = useNavigate();
-  const download = serverSettings.download;
   const { changeGlobalOption } = useEngineActions();
 
   const form = useForm({
-    defaultValues: {
-      maxConcurrentDownloads: download?.maxConcurrentDownloads || 3,
-      downloadDir: download?.downloadDir || "",
-      autoResume: !!download?.autoResume,
-      preferredEngine: download?.preferredEngine || "aria2",
-      lowestSpeedLimit: download?.lowestSpeedLimit || "0",
-      diskCache: download?.diskCache || "16M",
+    defaultValues: serverSettings.download,
+    validators: {
+      onChange: downloadSettingsSchema as any,
     },
     onSubmit: async ({ value }) => {
       const updated: Settings = {
         ...serverSettings,
         download: {
           ...serverSettings.download,
-          downloadDir: value.downloadDir,
-          maxConcurrentDownloads: Number(value.maxConcurrentDownloads),
-          autoResume: value.autoResume,
-          preferredEngine: value.preferredEngine as any,
-          preferredMagnetEngine: serverSettings.download?.preferredMagnetEngine || "aria2",
-          lowestSpeedLimit: value.lowestSpeedLimit,
-          diskCache: value.diskCache,
+          ...value,
         },
       };
 
       try {
-        await changeGlobalOption.mutateAsync({ body: updated as any });
+        await changeGlobalOption.mutateAsync({ body: updated });
         updateServerSettings(updated);
       } catch (err) {
-        // Error toast handled by mutation
+        console.error(err);
       }
     },
   });
+
+  const settingGroups: SettingGroupConfig<
+    z.infer<typeof downloadSettingsSchema>
+  >[] = [
+    {
+      id: "general",
+      title: "General Options",
+      fields: [
+        {
+          name: "preferredEngine",
+          type: "select",
+          label: "Preferred Engine",
+          options: [
+            { value: "aria2", label: "aria2c (External)" },
+            { value: "native", label: "Native (Go-based)" },
+          ],
+        },
+        {
+          name: "preferredMagnetEngine",
+          type: "select",
+          label: "Default Magnet Engine",
+          options: [
+            { value: "aria2", label: "Aria2" },
+            { value: "native", label: "Native" },
+          ],
+        },
+        { type: "divider" },
+        {
+          name: "downloadDir",
+          type: "text",
+          label: "Default Download Directory",
+          placeholder: "/downloads",
+          description: "The location on disk where files are saved",
+          colSpan: 2,
+        },
+      ],
+    },
+    {
+      id: "performance",
+      title: "Performance",
+      fields: [
+        {
+          name: "maxDownloadSpeed",
+          type: "text",
+          label: "Max Download Speed",
+          placeholder: "0 (Unlimited)",
+          description: "Global limit for download bandwidth (e.g. 5M)",
+        },
+        {
+          name: "maxUploadSpeed",
+          type: "text",
+          label: "Max Upload Speed",
+          placeholder: "0 (Unlimited)",
+          description: "Global limit for upload bandwidth (e.g. 1M)",
+        },
+        { type: "divider" },
+        {
+          name: "maxConcurrentDownloads",
+          type: "number",
+          label: "Simultaneous Downloads",
+          placeholder: "3",
+          description: "Max number of active downloads allowed at once",
+        },
+        {
+          name: "split",
+          type: "number",
+          label: "Max Splits",
+          placeholder: "5",
+          description: "Number of connections per download (1-16)",
+        },
+      ],
+    },
+    {
+      id: "advanced",
+      title: "Advanced Options",
+      fields: [
+        {
+          name: "diskCache",
+          type: "text",
+          label: "Disk Cache",
+          placeholder: "16M",
+          description: "Aria2 disk cache size (e.g. 16M, 64M)",
+        },
+        {
+          name: "minSplitSize",
+          type: "text",
+          label: "Min Split Size",
+          placeholder: "1M",
+          description: "Min file size to split (e.g. 1M)",
+        },
+        {
+          name: "lowestSpeedLimit",
+          type: "text",
+          label: "Lowest Speed Limit",
+          placeholder: "0",
+          description: "Abort download if speed drops below (e.g. 10K)",
+        },
+        { type: "divider" },
+        {
+          name: "autoResume",
+          type: "switch",
+          label: "Auto-Resume Downloads",
+          description: "Automatically resume unfinished tasks on startup",
+          colSpan: 2,
+        },
+        {
+          name: "preAllocateSpace",
+          type: "switch",
+          label: "Pre-allocate Disk Space",
+          description:
+            "Reserve file space before downloading to reduce fragmentation",
+          colSpan: 2,
+        },
+      ],
+    },
+  ];
 
   return (
     <div className="flex flex-col h-full space-y-6">
@@ -84,17 +237,23 @@ function DownloadSettingsForm({
         </Button>
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Downloads</h2>
-          <p className="text-xs text-muted">Core engine & file storage options</p>
+          <p className="text-xs text-muted">
+            Core engine & file storage options
+          </p>
         </div>
         <div className="ml-auto">
           <form.Subscribe
-            selector={(state) => [state.canSubmit, state.isSubmitting]}
+            selector={(state) => [
+              state.canSubmit,
+              state.isSubmitting,
+              state.isDirty,
+            ]}
           >
-            {([canSubmit, isSubmitting]) => (
+            {([canSubmit, isSubmitting, isDirty]) => (
               <Button
                 variant="primary"
                 onPress={() => form.handleSubmit()}
-                isDisabled={!canSubmit}
+                isDisabled={!canSubmit || !isDirty}
                 isPending={isSubmitting as boolean}
                 className="rounded-xl font-bold"
               >
@@ -108,82 +267,7 @@ function DownloadSettingsForm({
       <div className="flex-1 bg-muted-background/40 rounded-3xl border border-border overflow-hidden min-h-0 mx-2">
         <ScrollShadow className="h-full">
           <div className="max-w-4xl mx-auto p-8 space-y-10">
-            {/* General */}
-            <section>
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-1.5 h-6 bg-accent rounded-full" />
-                <h3 className="text-lg font-bold">General Options</h3>
-              </div>
-              <Card className="bg-background/50 border-border overflow-hidden">
-                <Card.Content className="p-6 space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <FormSelect
-                      form={form}
-                      name="preferredEngine"
-                      label="Preferred Engine"
-                      items={[
-                        { value: "aria2", label: "aria2c (External)" },
-                        { value: "native", label: "Native (Go-based)" },
-                      ]}
-                    />
-                    <FormTextField
-                      form={form}
-                      name="maxConcurrentDownloads"
-                      label="Max Concurrent Tasks"
-                      type="number"
-                      placeholder="3"
-                    />
-                  </div>
-
-                  <div className="h-px bg-border" />
-
-                  <FormTextField
-                    form={form}
-                    name="downloadDir"
-                    label="Default Download Directory"
-                    placeholder="/downloads"
-                    description="The location on disk where files are saved"
-                  />
-
-                  <div className="h-px bg-border" />
-
-                  <FormSwitch
-                    form={form}
-                    name="autoResume"
-                    label="Auto Resume"
-                    description="Automatically resume unfinished tasks on startup"
-                  />
-                </Card.Content>
-              </Card>
-            </section>
-
-            {/* Performance */}
-            <section>
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-1.5 h-6 bg-accent rounded-full" />
-                <h3 className="text-lg font-bold">Performance</h3>
-              </div>
-              <Card className="bg-background/50 border-border overflow-hidden">
-                <Card.Content className="p-6 space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <FormTextField
-                      form={form}
-                      name="diskCache"
-                      label="Disk Cache"
-                      placeholder="16M"
-                      description="Aria2 disk cache size (e.g. 16M, 64M)"
-                    />
-                    <FormTextField
-                      form={form}
-                      name="lowestSpeedLimit"
-                      label="Lowest Speed Limit"
-                      placeholder="0"
-                      description="Abort download if speed drops below (e.g. 10K)"
-                    />
-                  </div>
-                </Card.Content>
-              </Card>
-            </section>
+            <DynamicSettings form={form} groups={settingGroups} />
           </div>
         </ScrollShadow>
       </div>

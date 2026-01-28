@@ -1,10 +1,15 @@
-import { Button, Card, ScrollShadow } from "@heroui/react";
+import {
+  Button,
+  Card,
+  ScrollShadow,
+} from "@heroui/react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useForm } from "@tanstack/react-form";
+import { z } from "zod";
 import IconChevronLeft from "~icons/gravity-ui/chevron-left";
 import { useSettingsStore } from "../store/useSettingsStore";
 import { useEngineActions } from "../hooks/useEngine";
-import { FormTextField, FormSwitch, FormSelect } from "../components/ui/FormFields";
+import { DynamicSettings, type SettingGroupConfig } from "../components/ui/FormFields";
 import type { components } from "../gen/api";
 
 type Settings = components["schemas"]["model.Settings"];
@@ -28,6 +33,16 @@ function AutomationSettingsPage() {
   );
 }
 
+const automationSettingsSchema = z.object({
+  scheduleEnabled: z.boolean(),
+  onCompleteAction: z.enum(["none", "run_script", "shutdown", "sleep"], {
+    error: "Select a valid completion action",
+  }),
+  scriptPath: z.string().refine((val) => val.length > 0 || true, {
+    error: "Script path is required when Run Script is selected",
+  }),
+});
+
 function AutomationSettingsForm({
   serverSettings,
   updateServerSettings,
@@ -42,8 +57,11 @@ function AutomationSettingsForm({
   const form = useForm({
     defaultValues: {
       scheduleEnabled: !!automation?.scheduleEnabled,
-      onCompleteAction: automation?.onCompleteAction || "none",
+      onCompleteAction: (automation?.onCompleteAction as "none" | "run_script" | "shutdown" | "sleep") || "none",
       scriptPath: automation?.scriptPath || "",
+    },
+    validators: {
+      onChange: automationSettingsSchema as any,
     },
     onSubmit: async ({ value }) => {
       const updated: Settings = {
@@ -51,7 +69,7 @@ function AutomationSettingsForm({
         automation: {
           ...serverSettings.automation,
           scheduleEnabled: value.scheduleEnabled,
-          onCompleteAction: value.onCompleteAction as NonNullable<Settings["automation"]>["onCompleteAction"],
+          onCompleteAction: value.onCompleteAction,
           scriptPath: value.scriptPath,
         },
       };
@@ -83,13 +101,13 @@ function AutomationSettingsForm({
         </div>
         <div className="ml-auto">
           <form.Subscribe
-            selector={(state) => [state.canSubmit, state.isSubmitting]}
+            selector={(state) => [state.canSubmit, state.isSubmitting, state.isDirty]}
           >
-            {([canSubmit, isSubmitting]) => (
+            {([canSubmit, isSubmitting, isDirty]) => (
               <Button
                 variant="primary"
                 onPress={() => form.handleSubmit()}
-                isDisabled={!canSubmit}
+                isDisabled={!canSubmit || !isDirty}
                 isPending={isSubmitting as boolean}
                 className="rounded-xl font-bold"
               >
@@ -103,87 +121,76 @@ function AutomationSettingsForm({
       <div className="flex-1 bg-muted-background/40 rounded-3xl border border-border overflow-hidden min-h-0 mx-2">
         <ScrollShadow className="h-full">
           <div className="max-w-4xl mx-auto p-8 space-y-10">
-            {/* Scheduling */}
-            <section>
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-1.5 h-6 bg-accent rounded-full" />
-                <h3 className="text-lg font-bold">Scheduling</h3>
-              </div>
-              <Card className="bg-background/50 border-border overflow-hidden">
-                <Card.Content className="p-6 space-y-6">
-                  <FormSwitch
-                    form={form}
-                    name="scheduleEnabled"
-                    label="Enable Scheduler"
-                    description="Restrict downloads to specific times of day"
-                  />
-                  
-                  <div className="p-4 bg-default/10 rounded-xl border border-dashed border-border text-center">
-                    <p className="text-sm text-muted">
-                        Detailed schedule rules interface coming soon
-                    </p>
-                  </div>
-                </Card.Content>
-              </Card>
-            </section>
-
-            {/* Post-Processing */}
-            <section>
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-1.5 h-6 bg-accent rounded-full" />
-                <h3 className="text-lg font-bold">Post-Processing</h3>
-              </div>
-              <Card className="bg-background/50 border-border overflow-hidden">
-                <Card.Content className="p-6 space-y-6">
-                  <FormSelect
-                    form={form}
-                    name="onCompleteAction"
-                    label="Action on Completion"
-                    items={[
-                      { value: "none", label: "None" },
-                      { value: "run_script", label: "Run Script" },
-                      { value: "shutdown", label: "Shutdown System" },
-                      { value: "sleep", label: "Sleep/Suspend" },
-                    ]}
-                  />
-
-                  <form.Subscribe
-                    selector={(state: any) => [state.values.onCompleteAction]}
-                  >
-                    {([action]) => (
-                        action === "run_script" && (
-                            <div className="animate-in slide-in-from-top-2 duration-200">
-                                <FormTextField
-                                    form={form}
-                                    name="scriptPath"
-                                    label="Script Path"
-                                    placeholder="/path/to/script.sh"
-                                    description="Absolute path to executable script"
-                                />
-                            </div>
-                        )
-                    )}
-                  </form.Subscribe>
-                </Card.Content>
-              </Card>
-            </section>
-
-            {/* Auto-Organization */}
-            <section>
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-1.5 h-6 bg-accent rounded-full" />
-                <h3 className="text-lg font-bold">Auto-Organization</h3>
-              </div>
-              <Card className="bg-background/50 border-border overflow-hidden">
-                <Card.Content className="p-6 space-y-6">
-                    <div className="p-4 bg-default/10 rounded-xl border border-dashed border-border text-center">
-                        <p className="text-sm text-muted">
-                            Category management interface coming soon
-                        </p>
-                    </div>
-                </Card.Content>
-              </Card>
-            </section>
+            <form.Subscribe
+                selector={(state) => state.values.onCompleteAction}
+            >
+                {(onCompleteAction) => {
+                    const settingGroups: SettingGroupConfig<z.infer<typeof automationSettingsSchema>>[] = [
+                        {
+                            id: "scheduling",
+                            title: "Scheduling",
+                            fields: [
+                                {
+                                    name: "scheduleEnabled",
+                                    type: "switch",
+                                    label: "Enable Scheduler",
+                                    description: "Restrict downloads to specific times of day",
+                                    colSpan: 2,
+                                },
+                            ],
+                        },
+                        {
+                            id: "post-processing",
+                            title: "Post-Processing",
+                            fields: [
+                                {
+                                    name: "onCompleteAction",
+                                    type: "select",
+                                    label: "Action on Completion",
+                                    options: [
+                                        { value: "none", label: "None" },
+                                        { value: "run_script", label: "Run Script" },
+                                        { value: "shutdown", label: "Shutdown System" },
+                                        { value: "sleep", label: "Sleep/Suspend" },
+                                    ],
+                                    description: "What to do after a download finishes",
+                                    colSpan: 2,
+                                },
+                                ...(onCompleteAction === "run_script" ? [{
+                                    name: "scriptPath" as const,
+                                    type: "text" as const,
+                                    label: "Script Path",
+                                    placeholder: "/path/to/script.sh",
+                                    description: "Absolute path to executable script",
+                                    colSpan: 2,
+                                }] : []),
+                            ],
+                        },
+                    ];
+                    return (
+                        <>
+                            <DynamicSettings form={form} groups={settingGroups} />
+                            
+                            {/* Manual sections for things not yet supported by DynamicSettings (like placeholder boxes) */}
+                            <section>
+                                <div className="flex items-center gap-3 mb-6">
+                                    <div className="w-1.5 h-6 bg-accent rounded-full" />
+                                    <h3 className="text-lg font-bold">Auto-Organization</h3>
+                                </div>
+                                <Card className="bg-background/50 border-border overflow-hidden">
+                                    <Card.Content className="p-6 space-y-6">
+                                        <div className="p-4 bg-default/10 rounded-xl border border-dashed border-border text-center">
+                                            <p className="text-sm text-muted">
+                                                Category management interface coming soon
+                                            </p>
+                                        </div>
+                                    </Card.Content>
+                                </Card>
+                            </section>
+                        </>
+                    );
+                }}
+            </form.Subscribe>
           </div>
         </ScrollShadow>
       </div>

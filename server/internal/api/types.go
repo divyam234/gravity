@@ -1,10 +1,10 @@
 package api
 
 import (
-	"time"
 	"gravity/internal/engine"
 	"gravity/internal/model"
 	"gravity/internal/provider"
+	"time"
 )
 
 // Type aliases for Swag to handle generics with slices
@@ -141,21 +141,21 @@ type ErrorResponse struct {
 }
 
 type TaskOptions struct {
-	MaxDownloadSpeed int64             `json:"maxDownloadSpeed"`
-	Connections      int               `json:"connections" binding:"required"`
-	Split            int               `json:"split" binding:"required"`
-	ProxyURL         string            `json:"proxyUrl"`
-	UploadRemote     string            `json:"uploadRemote"`
-	Headers          map[string]string `json:"headers"`
+	DownloadDir string            `json:"downloadDir" example:"/downloads"`    // Local save path
+	Destination string            `json:"destination" example:"gdrive:movies"` // Remote path
+	Split       int               `json:"split"`                               // File splitting count
+	MaxTries    int               `json:"maxTries"`                            // Retry attempts
+	UserAgent   string            `json:"userAgent"`                           // Custom user agent
+	ProxyURL    string            `json:"proxyUrl"`                            // Full proxy URL
+	RemoveLocal *bool             `json:"removeLocal"`                         // Remove local file after upload
+	Headers     map[string]string `json:"headers"`                             // Custom HTTP headers
 }
 
 // Downloads
 type CreateDownloadRequest struct {
-	URL         string      `json:"url" validate:"required" binding:"required" example:"http://example.com/file.zip"`
-	Filename    string      `json:"filename" example:"my_file.zip"`
-	DownloadDir string      `json:"downloadDir" example:"/downloads"`
-	Destination string      `json:"destination" example:"gdrive:movies"`
-	Options     TaskOptions `json:"options"`
+	URL      string      `json:"url" validate:"required" binding:"required" example:"http://example.com/file.zip"`
+	Filename string      `json:"filename" example:"my_file.zip"`
+	Options  TaskOptions `json:"options"`
 }
 
 // Magnets
@@ -183,8 +183,6 @@ type DownloadMagnetRequest struct {
 	MagnetID      string              `json:"magnetId"`
 	Name          string              `json:"name" example:"My Movie"`
 	SelectedFiles []string            `json:"selectedFiles" example:"1,2"`
-	DownloadDir   string              `json:"downloadDir" example:"/downloads"`
-	Destination   string              `json:"destination" example:"gdrive:movies"`
 	Files         []MagnetFileRequest `json:"files"`
 	Options       TaskOptions         `json:"options"`
 }

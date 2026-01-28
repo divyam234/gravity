@@ -1,10 +1,15 @@
-import { Button, Card, ScrollShadow } from "@heroui/react";
+import {
+  Button,
+  Card,
+  ScrollShadow,
+} from "@heroui/react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useForm } from "@tanstack/react-form";
+import { z } from "zod";
 import IconChevronLeft from "~icons/gravity-ui/chevron-left";
 import { useSettingsStore } from "../store/useSettingsStore";
 import { useEngineActions } from "../hooks/useEngine";
-import { FormTextField, FormSwitch } from "../components/ui/FormFields";
+import { DynamicSettings, type SettingGroupConfig } from "../components/ui/FormFields";
 import type { components } from "../gen/api";
 
 type Settings = components["schemas"]["model.Settings"];
@@ -28,6 +33,24 @@ function TorrentSettingsPage() {
   );
 }
 
+const torrentSettingsSchema = z.object({
+  seedEnabled: z.boolean(),
+  seedRatio: z.number()
+    .min(0, "Ratio cannot be negative")
+    .max(100, "Maximum ratio is 100"),
+  seedTime: z.number()
+    .min(0, "Seed time cannot be negative"),
+  enableDht: z.boolean(),
+  enablePex: z.boolean(),
+  enableLpd: z.boolean(),
+  listenPort: z.number()
+    .min(1024, "Please use a non-privileged port (1024-65535)")
+    .max(65535, "Port must be less than 65536"),
+  maxPeers: z.number()
+    .min(0, "Max peers cannot be negative")
+    .max(1000, "Maximum 1000 peers recommended"),
+});
+
 function TorrentSettingsForm({
   serverSettings,
   updateServerSettings,
@@ -39,26 +62,34 @@ function TorrentSettingsForm({
   const torrent = serverSettings.torrent;
   const { changeGlobalOption } = useEngineActions();
 
+  const initialRatio = parseFloat(torrent?.seedRatio || "0");
+  
   const form = useForm({
     defaultValues: {
-      enablePeerExchange: !!torrent?.enablePex,
-      enableDht: !!torrent?.enableDht,
-      enableLpd: !!torrent?.enableLpd,
-      seedRatio: torrent?.seedRatio || "1.0",
+      seedEnabled: initialRatio > 0,
+      seedRatio: initialRatio > 0 ? initialRatio : 1.0,
       seedTime: Number(torrent?.seedTime || 0),
+      enableDht: !!torrent?.enableDht,
+      enablePex: !!torrent?.enablePex,
+      enableLpd: !!torrent?.enableLpd,
       listenPort: Number(torrent?.listenPort || 6881),
+      maxPeers: Number(torrent?.maxPeers || 55),
+    },
+    validators: {
+      onChange: torrentSettingsSchema as any,
     },
     onSubmit: async ({ value }) => {
       const updated: Settings = {
         ...serverSettings,
         torrent: {
           ...serverSettings.torrent,
-          enablePex: value.enablePeerExchange,
-          enableDht: value.enableDht,
-          enableLpd: value.enableLpd,
-          seedRatio: value.seedRatio,
+          seedRatio: value.seedEnabled ? String(value.seedRatio) : "0",
           seedTime: Number(value.seedTime),
+          enableDht: value.enableDht,
+          enablePex: value.enablePex,
+          enableLpd: value.enableLpd,
           listenPort: Number(value.listenPort),
+          maxPeers: Number(value.maxPeers),
         },
       };
 
@@ -71,6 +102,7 @@ function TorrentSettingsForm({
     },
   });
 
+  // Use Subscribe to access reactive state
   return (
     <div className="flex flex-col h-full space-y-6">
       <div className="flex items-center gap-4 px-2 shrink-0">
@@ -83,17 +115,17 @@ function TorrentSettingsForm({
         </Button>
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Torrents</h2>
-          <p className="text-xs text-muted">P2P, seeding & tracker options</p>
+          <p className="text-xs text-muted">BitTorrent seeding, privacy & performance</p>
         </div>
         <div className="ml-auto">
           <form.Subscribe
-            selector={(state) => [state.canSubmit, state.isSubmitting]}
+            selector={(state) => [state.canSubmit, state.isSubmitting, state.isDirty]}
           >
-            {([canSubmit, isSubmitting]) => (
+            {([canSubmit, isSubmitting, isDirty]) => (
               <Button
                 variant="primary"
                 onPress={() => form.handleSubmit()}
-                isDisabled={!canSubmit}
+                isDisabled={!canSubmit || !isDirty}
                 isPending={isSubmitting as boolean}
                 className="rounded-xl font-bold"
               >
@@ -107,75 +139,104 @@ function TorrentSettingsForm({
       <div className="flex-1 bg-muted-background/40 rounded-3xl border border-border overflow-hidden min-h-0 mx-2">
         <ScrollShadow className="h-full">
           <div className="max-w-4xl mx-auto p-8 space-y-10">
-            {/* Swarm & Connectivity */}
-            <section>
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-1.5 h-6 bg-accent rounded-full" />
-                <h3 className="text-lg font-bold">Swarm Connectivity</h3>
-              </div>
-              <Card className="bg-background/50 border-border overflow-hidden">
-                <Card.Content className="p-6 space-y-6">
-                  <FormSwitch
-                    form={form}
-                    name="enableDht"
-                    label="Distributed Hash Table (DHT)"
-                    description="Find peers without a central tracker"
-                  />
-                  <div className="h-px bg-border" />
-                  <FormSwitch
-                    form={form}
-                    name="enablePeerExchange"
-                    label="Peer Exchange (PEX)"
-                    description="Share peer lists directly between clients"
-                  />
-                  <div className="h-px bg-border" />
-                  <FormSwitch
-                    form={form}
-                    name="enableLpd"
-                    label="Local Peer Discovery (LPD)"
-                    description="Find peers on your local network"
-                  />
-                </Card.Content>
-              </Card>
-            </section>
+            {/* Info Banner */}
+            <Card className="p-5 bg-warning/5 border-warning/20">
+              <Card.Content className="p-0">
+                <p className="text-sm text-muted">
+                  <span className="font-bold text-warning">ℹ️ Note:</span> These settings apply when downloading via BitTorrent (P2P)
+                  instead of through a premium debrid service.
+                </p>
+              </Card.Content>
+            </Card>
 
-            {/* Seeding & Limits */}
-            <section>
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-1.5 h-6 bg-accent rounded-full" />
-                <h3 className="text-lg font-bold">Seeding & Bandwidth</h3>
-              </div>
-              <Card className="bg-background/50 border-border overflow-hidden">
-                <Card.Content className="p-6 space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <FormTextField
-                      form={form}
-                      name="seedRatio"
-                      label="Seed Ratio"
-                      placeholder="1.0"
-                      description="Stop seeding at this ratio (0 to disable)"
-                    />
-                    <FormTextField
-                      form={form}
-                      name="seedTime"
-                      label="Minimum Seed Time (min)"
-                      type="number"
-                      placeholder="0"
-                      description="Seed for at least this long"
-                    />
-                  </div>
-                  <div className="h-px bg-border" />
-                  <FormTextField
-                    form={form}
-                    name="listenPort"
-                    label="Listen Port"
-                    type="number"
-                    placeholder="6881"
-                    description="Port for incoming P2P connections"
-                  />
-                </Card.Content>
-              </Card>
-            </section>
+            <form.Subscribe
+                selector={(state) => state.values.seedEnabled}
+            >
+                {(seedEnabled) => {
+                    const settingGroups: SettingGroupConfig<z.infer<typeof torrentSettingsSchema>>[] = [
+                        {
+                            id: "seeding",
+                            title: "Seeding",
+                            fields: [
+                                {
+                                    name: "seedEnabled",
+                                    type: "switch",
+                                    label: "Seed After Download",
+                                    description: "Share downloaded files with other peers",
+                                    colSpan: 2,
+                                },
+                                ...(seedEnabled ? [
+                                    { type: "divider" as const },
+                                    {
+                                        name: "seedRatio" as const,
+                                        type: "number" as const, 
+                                        label: "Stop Seeding at Ratio",
+                                        description: "0.1 (minimal) to 5.0 (generous)",
+                                        placeholder: "1.0",
+                                    },
+                                    {
+                                        name: "seedTime" as const,
+                                        type: "number" as const,
+                                        label: "Maximum Seed Time (Minutes)",
+                                        description: "0 = Unlimited",
+                                        placeholder: "60",
+                                    }
+                                ] : [])
+                            ]
+                        },
+                        {
+                            id: "privacy",
+                            title: "Privacy & Discovery",
+                            fields: [
+                                {
+                                    name: "enableDht",
+                                    type: "switch",
+                                    label: "DHT (Distributed Hash Table)",
+                                    description: "Find peers without relying on trackers",
+                                    colSpan: 2,
+                                },
+                                { type: "divider" as const },
+                                {
+                                    name: "enablePex",
+                                    type: "switch",
+                                    label: "PEX (Peer Exchange)",
+                                    description: "Share peer lists with connected peers",
+                                    colSpan: 2,
+                                },
+                                { type: "divider" as const },
+                                {
+                                    name: "enableLpd",
+                                    type: "switch",
+                                    label: "LPD (Local Peer Discovery)",
+                                    description: "Find peers on your local network",
+                                    colSpan: 2,
+                                }
+                            ]
+                        },
+                        {
+                            id: "connection",
+                            title: "Connection",
+                            fields: [
+                                {
+                                    name: "listenPort",
+                                    type: "number",
+                                    label: "Listen Port",
+                                    placeholder: "6881",
+                                    description: "TCP port used for incoming connections",
+                                },
+                                {
+                                    name: "maxPeers",
+                                    type: "number",
+                                    label: "Max Peers",
+                                    placeholder: "55",
+                                    description: "Max overall number of peers per torrent",
+                                }
+                            ]
+                        }
+                    ];
+                    return <DynamicSettings form={form} groups={settingGroups} />;
+                }}
+            </form.Subscribe>
           </div>
         </ScrollShadow>
       </div>

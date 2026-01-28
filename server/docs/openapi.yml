@@ -44,12 +44,6 @@ components:
       type: object
     api.CreateDownloadRequest:
       properties:
-        destination:
-          example: gdrive:movies
-          type: string
-        downloadDir:
-          example: /downloads
-          type: string
         filename:
           example: my_file.zip
           type: string
@@ -99,12 +93,6 @@ components:
       type: object
     api.DownloadMagnetRequest:
       properties:
-        destination:
-          example: gdrive:movies
-          type: string
-        downloadDir:
-          example: /downloads
-          type: string
         files:
           items:
             $ref: '#/components/schemas/api.MagnetFileRequest'
@@ -479,23 +467,34 @@ components:
       type: object
     api.TaskOptions:
       properties:
-        connections:
-          type: integer
+        destination:
+          description: Remote path
+          example: gdrive:movies
+          type: string
+        downloadDir:
+          description: Local save path
+          example: /downloads
+          type: string
         headers:
           additionalProperties:
             type: string
+          description: Custom HTTP headers
           type: object
-        maxDownloadSpeed:
+        maxTries:
+          description: Retry attempts
           type: integer
         proxyUrl:
+          description: Full proxy URL
           type: string
+        removeLocal:
+          description: Remove local file after upload
+          type: boolean
         split:
+          description: File splitting count
           type: integer
-        uploadRemote:
+        userAgent:
+          description: Custom user agent
           type: string
-      required:
-      - connections
-      - split
       type: object
     api.UpdateConfigRequest:
       properties:
@@ -680,10 +679,11 @@ components:
           - alldebrid
           - aria2
           type: string
+        maxTries:
+          description: Retry attempts
+          type: integer
         metadataFetching:
           type: boolean
-        options:
-          $ref: '#/components/schemas/model.TaskOptions'
         peerDetails:
           items:
             $ref: '#/components/schemas/model.Peer'
@@ -693,6 +693,12 @@ components:
           type: integer
         provider:
           type: string
+        proxyUrl:
+          description: Full proxy URL
+          type: string
+        removeLocal:
+          description: Remove local file after upload
+          type: boolean
         resolvedUrl:
           type: string
         seeders:
@@ -702,6 +708,9 @@ components:
           type: integer
         speed:
           example: 1024000
+          type: integer
+        split:
+          description: Task Options (flattened from TaskOptions)
           type: integer
         startedAt:
           type: string
@@ -732,13 +741,15 @@ components:
         url:
           example: http://example.com/file.zip
           type: string
+        userAgent:
+          description: Custom user agent
+          type: string
       required:
       - createdAt
       - downloaded
       - eta
       - files
       - id
-      - options
       - size
       - speed
       - status
@@ -1044,12 +1055,9 @@ components:
       properties:
         enabled:
           type: boolean
-        password:
-          type: string
         url:
-          description: scheme://host:port
-          type: string
-        user:
+          description: Full proxy URL with auth
+          example: http://user:pass@proxy.example.com:8080
           type: string
       type: object
     model.RemoteIndexConfig:
@@ -1202,26 +1210,6 @@ components:
       - paused
       - uploading
       - waiting
-      type: object
-    model.TaskOptions:
-      properties:
-        connections:
-          type: integer
-        headers:
-          additionalProperties:
-            type: string
-          type: object
-        maxDownloadSpeed:
-          type: integer
-        proxyUrl:
-          type: string
-        split:
-          type: integer
-        uploadRemote:
-          type: string
-      required:
-      - connections
-      - split
       type: object
     model.TorrentSettings:
       properties:

@@ -3,6 +3,7 @@ import {
   Card,
   Chip,
   ScrollShadow,
+  Alert,
 } from "@heroui/react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import IconChevronLeft from "~icons/gravity-ui/chevron-left";
@@ -15,9 +16,10 @@ import IconArrowUp from "~icons/gravity-ui/arrow-up";
 import {
   useTaskStatus,
 } from "../hooks/useEngine";
-import { formatBytes } from "../lib/utils";
+import { formatBytes, formatDate } from "../lib/utils";
 import { tasksLinkOptions } from "./tasks";
 import { ProgressBar } from "../components/ui/ProgressBar";
+import { StatusChip } from "../components/ui/StatusChip";
 import type { components } from "../gen/api";
 
 export const Route = createFileRoute("/task/$gid")({
@@ -31,6 +33,7 @@ function TaskDetailsPage() {
 
   if (!task) return <div>Loading...</div>;
 
+  const isError = task.status === 'error';
   const files = task.files || [];
   const peers = task.peerDetails || [];
 
@@ -89,8 +92,61 @@ function TaskDetailsPage() {
                           {task.url}
                         </p>
                       </div>
+                      {task.resolvedUrl && task.resolvedUrl !== task.url && (
+                        <div className="space-y-1.5 md:col-span-2">
+                          <p className="text-[10px] text-muted uppercase font-black tracking-widest">
+                            Resolved URL
+                          </p>
+                          <p className="text-xs font-mono break-all text-muted-foreground line-clamp-2">
+                            {task.resolvedUrl}
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </section>
+
+                  {isError && task.error && (
+                    <section>
+                      <Alert status="danger" className="rounded-[32px]">
+                        <Alert.Indicator />
+                        <Alert.Content>
+                          <Alert.Title className="text-xs font-black uppercase tracking-widest">
+                            Download Error
+                          </Alert.Title>
+                          <Alert.Description className="text-sm font-medium">
+                            {task.error}
+                          </Alert.Description>
+                        </Alert.Content>
+                      </Alert>
+                    </section>
+                  )}
+
+                  {task.uploadStatus && task.uploadStatus !== 'idle' && (
+                    <section>
+                      <h3 className="text-[10px] font-black uppercase tracking-widest text-muted mb-6 flex items-center gap-3">
+                        <div className="w-2 h-2 rounded-full bg-cyan-500" />
+                        Cloud Upload
+                      </h3>
+                      <div className="bg-cyan-500/5 p-6 rounded-[32px] border border-cyan-500/20">
+                        <div className="flex justify-between items-center mb-4">
+                          <div>
+                            <p className="text-xs font-bold text-cyan-600 uppercase tracking-widest">
+                              {task.uploadStatus === 'running' ? 'Uploading...' : 
+                               task.uploadStatus === 'complete' ? 'Upload Complete' : 
+                               task.uploadStatus === 'error' ? 'Upload Failed' : task.uploadStatus}
+                            </p>
+                            <p className="text-sm font-bold mt-1">{task.uploadProgress}%</p>
+                          </div>
+                          <p className="text-xs font-bold text-cyan-500">{formatBytes(task.uploadSpeed || 0)}/s</p>
+                        </div>
+                        <ProgressBar 
+                          value={task.uploadProgress || 0} 
+                          color="cyan"
+                          className="h-2"
+                        />
+                      </div>
+                    </section>
+                  )}
 
                     {task.isMagnet && files.length > 0 && (
                     <section>
@@ -182,6 +238,59 @@ function TaskDetailsPage() {
                       </div>
                     </section>
                   )}
+
+                  {/* Technical Details */}
+                  <section>
+                    <h3 className="text-[10px] font-black uppercase tracking-widest text-muted mb-6 flex items-center gap-3">
+                      <div className="w-2 h-2 rounded-full bg-accent" />
+                      Technical Details
+                    </h3>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 bg-default/5 p-6 rounded-[32px] border border-border/50">
+                      {task.engine && (
+                        <div className="space-y-1">
+                          <p className="text-[10px] text-muted uppercase font-black tracking-widest">Engine</p>
+                          <p className="text-sm font-bold">{task.engine}</p>
+                        </div>
+                      )}
+                      {task.provider && (
+                        <div className="space-y-1">
+                          <p className="text-[10px] text-muted uppercase font-black tracking-widest">Provider</p>
+                          <p className="text-sm font-bold">{task.provider}</p>
+                        </div>
+                      )}
+                      {task.category && (
+                        <div className="space-y-1">
+                          <p className="text-[10px] text-muted uppercase font-black tracking-widest">Category</p>
+                          <p className="text-sm font-bold">{task.category}</p>
+                        </div>
+                      )}
+                      <div className="space-y-1">
+                        <p className="text-[10px] text-muted uppercase font-black tracking-widest">Created</p>
+                        <p className="text-sm font-bold">{formatDate(task.createdAt)}</p>
+                      </div>
+                      {task.startedAt && (
+                        <div className="space-y-1">
+                          <p className="text-[10px] text-muted uppercase font-black tracking-widest">Started</p>
+                          <p className="text-sm font-bold">{formatDate(task.startedAt)}</p>
+                        </div>
+                      )}
+                      {task.completedAt && (
+                        <div className="space-y-1">
+                          <p className="text-[10px] text-muted uppercase font-black tracking-widest">Completed</p>
+                          <p className="text-sm font-bold">{formatDate(task.completedAt)}</p>
+                        </div>
+                      )}
+                    </div>
+                    {task.tags && task.tags.length > 0 && (
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        {task.tags.map((tag) => (
+                          <Chip key={tag} size="sm" variant="soft" className="text-xs">
+                            {tag}
+                          </Chip>
+                        ))}
+                      </div>
+                    )}
+                  </section>
               </Card.Content>
           </Card>
         </div>
@@ -201,14 +310,12 @@ function TaskDetailsPage() {
                             {isUploading ? "Upload Progress" : "Download Progress"}
                           </p>
                           <div className="bg-default/5 p-6 rounded-3xl border border-border/50">
-                              <div className="flex justify-between items-end mb-4">
-                                  <p className="text-3xl font-black tracking-tighter leading-none">
-                                      {Math.floor(progressValue || 0)}%
-                                  </p>
-                                  <p className="text-xs font-bold text-muted uppercase tracking-widest">
-                                      {task.status}
-                                  </p>
-                              </div>
+                               <div className="flex justify-between items-end mb-4">
+                                   <p className="text-3xl font-black tracking-tighter leading-none">
+                                       {Math.floor(progressValue || 0)}%
+                                   </p>
+                                   <StatusChip status={task.status} />
+                               </div>
                               <ProgressBar 
                                   value={progressValue || 0} 
                                   color={task.status === 'complete' ? 'success' : isUploading ? 'cyan' : 'accent'}

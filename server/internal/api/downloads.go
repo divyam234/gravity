@@ -112,15 +112,19 @@ func (h *DownloadHandler) Create(w http.ResponseWriter, r *http.Request) {
 	// We trust the service layer to handle the logic and the underlying engine/OS to handle permission errors.
 	// This allows power users to download to external drives.
 
+	// Convert API TaskOptions to model TaskOptions
 	opts := model.TaskOptions{
-		MaxDownloadSpeed: req.Options.MaxDownloadSpeed,
-		Connections:      req.Options.Connections,
-		Split:            req.Options.Split,
-		ProxyURL:         req.Options.ProxyURL,
-		UploadRemote:     req.Options.UploadRemote,
+		DownloadDir: req.Options.DownloadDir,
+		Destination: req.Options.Destination,
+		Split:       req.Options.Split,
+		MaxTries:    req.Options.MaxTries,
+		UserAgent:   req.Options.UserAgent,
+		ProxyURL:    req.Options.ProxyURL,
+		RemoveLocal: req.Options.RemoveLocal,
+		Headers:     req.Options.Headers,
 	}
 
-	d, err := h.service.Create(r.Context(), req.URL, cleanFilename, req.DownloadDir, req.Destination, opts)
+	d, err := h.service.Create(r.Context(), req.URL, cleanFilename, opts)
 	if err != nil {
 		sendError(w, err.Error(), http.StatusInternalServerError)
 		return

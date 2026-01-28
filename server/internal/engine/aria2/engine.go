@@ -170,21 +170,19 @@ func (e *Engine) Add(ctx context.Context, url string, opts engine.DownloadOption
 		}
 		ariaOpts["header"] = headers
 	}
-	if opts.MaxSpeed > 0 {
-		ariaOpts["max-download-limit"] = strconv.FormatInt(opts.MaxSpeed, 10)
+	if opts.Split > 0 {
+		ariaOpts["split"] = strconv.Itoa(opts.Split)
 	}
-	if opts.Connections > 0 {
-		ariaOpts["split"] = strconv.Itoa(opts.Connections)
-		ariaOpts["max-connection-per-server"] = strconv.Itoa(opts.Connections)
+	if opts.MaxTries > 0 {
+		ariaOpts["max-tries"] = strconv.Itoa(opts.MaxTries)
+	}
+	if opts.UserAgent != "" {
+		ariaOpts["user-agent"] = opts.UserAgent
 	}
 
 	// Proxy
 	if opts.ProxyURL != "" {
 		ariaOpts["all-proxy"] = opts.ProxyURL
-		if opts.ProxyUser != "" {
-			ariaOpts["all-proxy-user"] = opts.ProxyUser
-			ariaOpts["all-proxy-passwd"] = opts.ProxyPassword
-		}
 	} else {
 		// Auto-configure proxy based on settings
 		e.mu.RLock()
@@ -201,10 +199,6 @@ func (e *Engine) Add(ctx context.Context, url string, opts engine.DownloadOption
 
 			if p.Enabled && p.URL != "" {
 				ariaOpts["all-proxy"] = p.URL
-				if p.User != "" {
-					ariaOpts["all-proxy-user"] = p.User
-					ariaOpts["all-proxy-passwd"] = p.Password
-				}
 			}
 		}
 	}
@@ -422,13 +416,9 @@ func (e *Engine) Configure(ctx context.Context, settings *model.Settings) error 
 	// Network
 	if settings.Network.ProxyMode == "global" && settings.Network.GlobalProxy.Enabled {
 		ariaOpts["all-proxy"] = settings.Network.GlobalProxy.URL
-		ariaOpts["all-proxy-user"] = settings.Network.GlobalProxy.User
-		ariaOpts["all-proxy-passwd"] = settings.Network.GlobalProxy.Password
 	} else {
 		// Clear global proxy if disabled or granular
 		ariaOpts["all-proxy"] = ""
-		ariaOpts["all-proxy-user"] = ""
-		ariaOpts["all-proxy-passwd"] = ""
 	}
 	if settings.Network.InterfaceBinding != "" {
 		ariaOpts["interface"] = settings.Network.InterfaceBinding

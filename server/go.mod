@@ -318,6 +318,6 @@ require (
 	zombiezen.com/go/sqlite v0.13.1 // indirect
 )
 
-replace github.com/rclone/rclone => github.com/tgdrive/rclone v1.72.2-0.20260124141842-fd04c47a09d0
+replace github.com/rclone/rclone => github.com/tgdrive/rclone v1.72.2-0.20260128160932-d16d2713bdb5
 
 tool github.com/swaggo/swag/v2/cmd/swag

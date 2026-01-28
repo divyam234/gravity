@@ -623,7 +623,7 @@ function SearchSettingsForm({
   const form = useForm({
     defaultValues,
     validators: {
-      onChange: searchSettingsSchema,
+      onChange: searchSettingsSchema as any,
     },
     onSubmit: async ({ value }) => {
       const batch: Record<string, components["schemas"]["api.UpdateConfigRequest"]> = {};

@@ -72,10 +72,8 @@ type UploadSettings struct {
 }
 
 type ProxyConfig struct {
-	Enabled  bool   `json:"enabled"`
-	URL      string `json:"url"` // scheme://host:port
-	User     string `json:"user"`
-	Password string `json:"password"`
+	Enabled bool   `json:"enabled"`
+	URL     string `json:"url" example:"http://user:pass@proxy.example.com:8080"` // Full proxy URL with auth
 }
 
 type NetworkSettings struct {

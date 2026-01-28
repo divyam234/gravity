@@ -1,25 +1,225 @@
-import { Label, TextField, Select, ListBox, InputGroup, FieldError, Switch, type TextFieldProps, type SelectRootProps, type SwitchProps, cn } from "@heroui/react";
+import {
+  Label,
+  TextField,
+  Select,
+  ListBox,
+  InputGroup,
+  FieldError,
+  Switch,
+  Card,
+  type TextFieldProps,
+  type SelectRootProps,
+  type SwitchProps,
+  cn,
+} from "@heroui/react";
 import type { DeepKeys, DeepValue } from "@tanstack/react-form";
 import IconChevronDown from "~icons/gravity-ui/chevron-down";
 import React from "react";
+import type { ZodType } from "zod";
 
-// Simplified form API interface to avoid library-specific type mismatch errors
-interface AppFormApi {
+// --- Simplified Form API ---
+interface AppFormApi<_TData> {
   Field: any;
   handleSubmit: () => void;
   setFieldValue: (name: any, value: any) => void;
   reset: () => void;
 }
 
-// Generic FormSwitch component
-interface FormSwitchProps<TFormData, TName extends DeepKeys<TFormData>> extends Omit<SwitchProps, "name" | "form" | "children" | "onChange" | "isSelected" | "defaultSelected"> {
-  form: AppFormApi;
+// --- Dynamic Settings Types ---
+
+export type SettingFieldType =
+  | "text"
+  | "number"
+  | "switch"
+  | "select"
+  | "password";
+
+export interface SettingFieldOption {
+  label: string;
+  value: string | number;
+}
+
+export interface SettingFieldConfig<TData> {
+  name: DeepKeys<TData>;
+  type: SettingFieldType;
+  label: string;
+  description?: string;
+  placeholder?: string;
+  options?: SettingFieldOption[]; // For select
+  schema?: ZodType<any>; // Optional Zod schema for validation
+  format?: (value: any) => string;
+  parse?: (value: string) => any;
+  startContent?: React.ReactNode;
+  endContent?: React.ReactNode;
+  className?: string;
+  colSpan?: number; // Grid column span (default 1)
+}
+
+export interface SettingDividerConfig {
+  type: "divider";
+}
+
+export type SettingItemConfig<TData> =
+  | SettingFieldConfig<TData>
+  | SettingDividerConfig;
+
+export interface SettingGroupConfig<TData> {
+  id: string;
+  title: string;
+  description?: string;
+  fields: SettingItemConfig<TData>[];
+}
+
+export interface DynamicSettingsProps<TData> {
+  form: AppFormApi<TData>;
+  groups: SettingGroupConfig<TData>[];
+  className?: string;
+}
+
+// --- Dynamic Settings Component ---
+
+export function DynamicSettings<TData>({
+  form,
+  groups,
+  className,
+}: DynamicSettingsProps<TData>) {
+  return (
+    <div className={cn("space-y-10", className)}>
+      {groups.map((group) => (
+        <section key={group.id} className="space-y-6">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-1.5 h-6 bg-accent rounded-full" />
+            <h3 className="text-lg font-bold">{group.title}</h3>
+          </div>
+
+          <Card className="bg-background/50 border-border overflow-hidden">
+            <Card.Content className="p-6">
+              {group.description && (
+                <div className="p-4 bg-default/10 rounded-xl border border-dashed border-border mb-6">
+                  <p className="text-sm text-muted text-center">
+                    {group.description}
+                  </p>
+                </div>
+              )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {group.fields.map((item, index) => {
+                  if ("type" in item && item.type === "divider") {
+                    return (
+                      <div
+                        key={`div-${group.id}-${index}`}
+                        className="col-span-full h-px bg-border"
+                      />
+                    );
+                  }
+
+                  const config = item as SettingFieldConfig<TData>;
+                  return (
+                    <div
+                      key={String(config.name)}
+                      className={cn(
+                        config.colSpan &&
+                          `col-span-${config.colSpan} md:col-span-${config.colSpan}`,
+                      )}
+                      style={
+                        config.colSpan === 2
+                          ? { gridColumn: "1 / -1" }
+                          : undefined
+                      }
+                    >
+                      <RenderField form={form} config={config} />
+                    </div>
+                  );
+                })}
+              </div>
+            </Card.Content>
+          </Card>
+        </section>
+      ))}
+    </div>
+  );
+}
+
+// --- Field Renderer ---
+
+function RenderField<TData>({
+  form,
+  config,
+}: {
+  form: AppFormApi<TData>;
+  config: SettingFieldConfig<TData>;
+}) {
+  switch (config.type) {
+    case "switch":
+      return (
+        <FormSwitch
+          form={form}
+          name={config.name}
+          label={config.label}
+          description={config.description}
+          className={config.className}
+        />
+      );
+    case "select":
+      return (
+        <FormSelect
+          form={form}
+          name={config.name}
+          label={config.label}
+          description={config.description}
+          items={config.options || []}
+          className={config.className}
+        />
+      );
+    case "number":
+      return (
+        <FormTextField
+          form={form}
+          name={config.name}
+          label={config.label}
+          placeholder={config.placeholder}
+          description={config.description}
+          type="number"
+          parse={config.parse || Number}
+          format={config.format}
+          startContent={config.startContent}
+          endContent={config.endContent}
+          className={config.className}
+        />
+      );
+    case "text":
+    case "password":
+    default:
+      return (
+        <FormTextField
+          form={form}
+          name={config.name}
+          label={config.label}
+          placeholder={config.placeholder}
+          description={config.description}
+          type={config.type === "password" ? "password" : "text"}
+          parse={config.parse}
+          format={config.format}
+          startContent={config.startContent}
+          endContent={config.endContent}
+          className={config.className}
+        />
+      );
+  }
+}
+
+// --- Base Components ---
+
+interface FormSwitchProps<
+  TFormData,
+  TName extends DeepKeys<TFormData>,
+> extends Omit<
+  SwitchProps,
+  "name" | "form" | "children" | "onChange" | "isSelected" | "defaultSelected"
+> {
+  form: AppFormApi<TFormData>;
   name: TName;
   label?: React.ReactNode;
   description?: string;
-  validators?: {
-    onChange?: (params: { value: DeepValue<TFormData, TName> }) => string | undefined;
-  };
 }
 
 export function FormSwitch<TFormData, TName extends DeepKeys<TFormData>>({
@@ -27,32 +227,32 @@ export function FormSwitch<TFormData, TName extends DeepKeys<TFormData>>({
   name,
   label,
   description,
-  validators,
   className,
   ...props
 }: FormSwitchProps<TFormData, TName>) {
   return (
-    <form.Field
-      name={name}
-      validators={validators}
-    >
+    <form.Field name={name}>
       {(field: any) => (
-        <div className={cn("flex items-center justify-between", className)}>
-          <div className="flex flex-col gap-0.5">
+        <div
+          className={cn("flex items-center justify-between h-full", className)}
+        >
+          <div className="flex flex-col gap-0.5 mr-4">
             {label && (
-              <Label className="text-sm font-bold tracking-tight">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-muted mb-1.5 block">
                 {label}
               </Label>
             )}
             {description && (
-              <p className="text-xs text-muted">
+              <p className="text-[10px] text-muted font-medium leading-relaxed">
                 {description}
               </p>
             )}
           </div>
           <Switch
             isSelected={!!field.state.value}
-            onChange={(isSelected) => field.handleChange(isSelected as DeepValue<TFormData, TName>)}
+            onChange={(isSelected) =>
+              field.handleChange(isSelected as DeepValue<TFormData, TName>)
+            }
             {...props}
           >
             <Switch.Control>
@@ -65,19 +265,19 @@ export function FormSwitch<TFormData, TName extends DeepKeys<TFormData>>({
   );
 }
 
-// Generic FormTextField component
-interface FormTextFieldProps<TFormData, TName extends DeepKeys<TFormData>> extends Omit<TextFieldProps, "name" | "form" | "children" | "onChange" | "value" | "defaultValue"> {
-  form: AppFormApi;
+interface FormTextFieldProps<
+  TFormData,
+  TName extends DeepKeys<TFormData>,
+> extends Omit<
+  TextFieldProps,
+  "name" | "form" | "children" | "onChange" | "value" | "defaultValue"
+> {
+  form: AppFormApi<TFormData>;
   name: TName;
   label?: React.ReactNode;
   placeholder?: string;
   description?: string;
-  validators?: {
-    onChange?: (params: { value: DeepValue<TFormData, TName> }) => string | undefined;
-  };
-  // transform for display (e.g. bytes -> MB)
   format?: (value: DeepValue<TFormData, TName>) => string;
-  // transform for storage (e.g. MB -> bytes)
   parse?: (value: string) => DeepValue<TFormData, TName>;
   startContent?: React.ReactNode;
   endContent?: React.ReactNode;
@@ -87,7 +287,6 @@ export function FormTextField<TFormData, TName extends DeepKeys<TFormData>>({
   form,
   name,
   label,
-  validators,
   className,
   placeholder,
   format,
@@ -97,53 +296,53 @@ export function FormTextField<TFormData, TName extends DeepKeys<TFormData>>({
   ...props
 }: FormTextFieldProps<TFormData, TName>) {
   return (
-    <form.Field
-      name={name}
-      validators={validators}
-    >
+    <form.Field name={name}>
       {(field: any) => {
-        // Handle value conversion
-        const displayValue = format ? format(field.state.value) : String(field.state.value ?? "");
-        
+        const displayValue = format
+          ? format(field.state.value)
+          : String(field.state.value ?? "");
         return (
           <TextField
             className={cn("w-full group", className)}
-            isInvalid={field.state.meta.errors.length > 0}
+            isInvalid={field.state.meta.isTouched && !field.state.meta.isValid}
             validationBehavior="aria"
             {...props}
           >
             {label && (
-              <Label className="text-sm font-bold mb-1.5 block text-foreground/80">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-muted mb-1.5 block">
                 {label}
               </Label>
             )}
             {props.description && (
-                <p className="text-[10px] text-muted mb-2 -mt-1 font-medium leading-relaxed">
-                    {props.description}
-                </p>
+              <p className="text-[10px] text-muted mb-2 -mt-1 font-medium leading-relaxed">
+                {props.description}
+              </p>
             )}
             <InputGroup className="relative">
               {startContent && (
-                <InputGroup.Prefix>
-                  {startContent}
-                </InputGroup.Prefix>
+                <InputGroup.Prefix>{startContent}</InputGroup.Prefix>
               )}
               <InputGroup.Input
                 value={displayValue}
                 onChange={(e) => {
                   const val = e.target.value;
-                  field.handleChange(parse ? parse(val) : val as DeepValue<TFormData, TName>);
+                  field.handleChange(
+                    parse ? parse(val) : (val as DeepValue<TFormData, TName>),
+                  );
                 }}
                 onBlur={field.handleBlur}
                 placeholder={placeholder}
-                className="h-11 bg-default/10 rounded-2xl border-none font-mono text-xs w-full"
+                className="h-11 bg-default/10 rounded-2xl border-none text-xs w-full"
               />
               {endContent && (
-                <InputGroup.Suffix>
-                  {endContent}
-                </InputGroup.Suffix>
+                <InputGroup.Suffix>{endContent}</InputGroup.Suffix>
               )}
-              <FieldError className="absolute -bottom-5 right-0 text-[10px] text-danger font-bold uppercase tracking-tight animate-in fade-in slide-in-from-top-1" />
+              {field.state.meta.isTouched && !field.state.meta.isValid ? (
+                <FieldError className="absolute -bottom-5 right-0 text-[10px] text-danger font-bold uppercase tracking-tight animate-in fade-in slide-in-from-top-1">
+                  {field.state.meta.errors[0]?.message ||
+                    field.state.meta.errors[0]}
+                </FieldError>
+              ) : null}
             </InputGroup>
           </TextField>
         );
@@ -152,62 +351,79 @@ export function FormTextField<TFormData, TName extends DeepKeys<TFormData>>({
   );
 }
 
-// Generic FormSelect component
 interface FormSelectOption {
   value: string | number;
   label: string;
 }
 
-interface FormSelectProps<TFormData, TName extends DeepKeys<TFormData>> extends Omit<SelectRootProps<any>, "name" | "form" | "children" | "onChange" | "selectedKey" | "onSelectionChange" | "items"> {
-  form: AppFormApi;
+interface FormSelectProps<
+  TFormData,
+  TName extends DeepKeys<TFormData>,
+> extends Omit<
+  SelectRootProps<any>,
+  | "name"
+  | "form"
+  | "children"
+  | "onChange"
+  | "selectedKey"
+  | "onSelectionChange"
+  | "items"
+> {
+  form: AppFormApi<TFormData>;
   name: TName;
   label?: React.ReactNode;
+  description?: string;
   items: FormSelectOption[];
-  validators?: {
-    onChange?: (params: { value: DeepValue<TFormData, TName> }) => string | undefined;
-  };
 }
 
 export function FormSelect<TFormData, TName extends DeepKeys<TFormData>>({
   form,
   name,
   label,
+  description,
   items,
-  validators,
   className,
   ...props
 }: FormSelectProps<TFormData, TName>) {
   return (
-    <form.Field
-      name={name}
-      validators={validators}
-    >
+    <form.Field name={name}>
       {(field: any) => (
         <Select
-          className={cn("w-full", className)}
-          selectedKey={String(field.state.value)}
-          onSelectionChange={(key) => {
+          className={cn("w-full group", className)}
+          value={
+            field.state.value !== undefined && field.state.value !== null
+              ? String(field.state.value)
+              : undefined
+          }
+          onChange={(key) => {
             const val = key as string;
-            // Infer type from the first item value if possible, default to string
-            const isNumber = typeof items[0]?.value === 'number';
-            field.handleChange((isNumber ? Number(val) : val) as DeepValue<TFormData, TName>);
+            const isNumber =
+              items.length > 0 && typeof items[0]?.value === "number";
+            field.handleChange(
+              (isNumber ? Number(val) : val) as DeepValue<TFormData, TName>,
+            );
           }}
           isInvalid={field.state.meta.errors.length > 0}
           validationBehavior="aria"
           {...props}
         >
           {label && (
-            <Label className="text-[10px] font-black uppercase tracking-widest text-muted ml-1 mb-1.5 block">
+            <Label className="text-[10px] font-black uppercase tracking-widest text-muted mb-1.5 block">
               {label}
             </Label>
           )}
-          <Select.Trigger className="h-[38px] px-3 bg-default/10 border border-border rounded-xl outline-none focus:ring-2 focus:ring-accent/50 transition-all min-w-[160px]">
-            <Select.Value className="text-sm font-bold" />
+          {description && (
+            <p className="text-[10px] text-muted mb-2 -mt-1 font-medium leading-relaxed">
+              {description}
+            </p>
+          )}
+          <Select.Trigger className="h-11 px-3 bg-default/10 border-none rounded-2xl outline-none data-[focus=true]:ring-2 data-[focus=true]:ring-accent/50 transition-all w-full flex items-center justify-between">
+            <Select.Value className="text-xs font-mono" />
             <Select.Indicator className="text-muted">
               <IconChevronDown className="w-4 h-4" />
             </Select.Indicator>
           </Select.Trigger>
-          <Select.Popover className="min-w-[160px] p-2 bg-background border border-border rounded-2xl shadow-xl">
+          <Select.Popover className="min-w-40 p-2 bg-background border border-border rounded-2xl shadow-xl">
             <ListBox>
               {items.map((opt) => (
                 <ListBox.Item
@@ -221,7 +437,11 @@ export function FormSelect<TFormData, TName extends DeepKeys<TFormData>>({
               ))}
             </ListBox>
           </Select.Popover>
-          <FieldError className="absolute -bottom-5 right-0 text-[10px] text-danger font-bold uppercase tracking-tight animate-in fade-in slide-in-from-top-1" />
+          {field.state.meta.isTouched && !field.state.meta.isValid && (
+            <FieldError className="absolute -bottom-5 right-0 text-[10px] text-danger font-bold uppercase tracking-tight animate-in fade-in slide-in-from-top-1">
+              {field.state.meta.errors[0]?.message || field.state.meta.errors[0]}
+            </FieldError>
+          )}
         </Select>
       )}
     </form.Field>

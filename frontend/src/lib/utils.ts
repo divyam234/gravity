@@ -26,6 +26,19 @@ export function formatTime(seconds: number | string) {
 	return `${h}h ${m}m ${s}s`.replace(/^0h /, "").replace(/^0m /, "");
 }
 
+export function formatDate(date: string | Date | undefined | null) {
+	if (!date) return "--";
+	const d = typeof date === "string" ? new Date(date) : date;
+	if (isNaN(d.getTime())) return "--";
+	
+	return new Intl.DateTimeFormat("en-US", {
+		month: "short",
+		day: "numeric",
+		hour: "2-digit",
+		minute: "2-digit",
+	}).format(d);
+}
+
 export function formatCategoryName(key: string) {
 	const mapping: Record<string, string> = {
 		basicOptions: "General",
