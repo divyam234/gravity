@@ -2,9 +2,10 @@ package store
 
 import (
 	"context"
-	"time"
-
+	"encoding/json"
+	"fmt"
 	"gravity/internal/model"
+	"time"
 
 	"gorm.io/gorm"
 )
@@ -15,6 +16,50 @@ type DownloadRepo struct {
 
 func NewDownloadRepo(db *gorm.DB) *DownloadRepo {
 	return &DownloadRepo{db: db}
+}
+
+func (r *DownloadRepo) UpdateFile(ctx context.Context, downloadID string, f *model.DownloadFile) error {
+	fileJSON, err := json.Marshal(f)
+	if err != nil {
+		return err
+	}
+
+	dbName := r.db.Dialector.Name()
+
+	if dbName == "sqlite" {
+		// SQLite JSON update
+		// We find the index of the element with matching ID and replace it
+		query := `
+			UPDATE downloads 
+			SET files = json_replace(files, 
+				'$[' || (
+					SELECT key 
+					FROM json_each(files) 
+					WHERE json_extract(value, '$.id') = ?
+				) || ']', 
+				json(?)
+			) 
+			WHERE id = ?`
+		return r.db.WithContext(ctx).Exec(query, f.ID, string(fileJSON), downloadID).Error
+	} else if dbName == "postgres" {
+		// Postgres JSONB update
+		// We reconstruct the array replacing the matching element
+		query := `
+			UPDATE downloads 
+			SET files = (
+				SELECT jsonb_agg(
+					CASE 
+						WHEN elem->>'id' = ? THEN ?::jsonb 
+						ELSE elem 
+					END
+				)
+				FROM jsonb_array_elements(files) elem
+			)
+			WHERE id = ?`
+		return r.db.WithContext(ctx).Exec(query, f.ID, string(fileJSON), downloadID).Error
+	}
+
+	return fmt.Errorf("unsupported database for partial JSON update: %s", dbName)
 }
 
 func (r *DownloadRepo) Create(ctx context.Context, d *model.Download) error {
@@ -99,73 +144,4 @@ func (r *DownloadRepo) GetStatusCounts(ctx context.Context) (map[model.DownloadS
 		counts[res.Status] = res.Count
 	}
 	return counts, nil
-}
-
-// CreateWithFiles creates a download with its associated files
-func (r *DownloadRepo) CreateWithFiles(ctx context.Context, d *model.Download) error {
-	// GORM handles associations automatically with Create
-	return r.db.WithContext(ctx).Create(d).Error
-}
-
-// GetFiles returns all files for a download with pagination
-func (r *DownloadRepo) GetFiles(ctx context.Context, downloadID string, limit, offset int) ([]model.DownloadFile, int, error) {
-	var total int64
-	if err := r.db.WithContext(ctx).Model(&model.DownloadFile{}).Where("download_id = ?", downloadID).Count(&total).Error; err != nil {
-		return nil, 0, err
-	}
-
-	var files []model.DownloadFile
-	err := r.db.WithContext(ctx).Where("download_id = ?", downloadID).
-		Order("file_index ASC").
-		Limit(limit).Offset(offset).
-		Find(&files).Error
-
-	return files, int(total), err
-}
-
-// UpdateFile updates a single download file
-func (r *DownloadRepo) UpdateFile(ctx context.Context, f *model.DownloadFile) error {
-	// Use Select to ensure we only update specific fields if needed, or just Save
-	return r.db.WithContext(ctx).Save(f).Error
-}
-
-// UpdateFiles updates all files for a download
-func (r *DownloadRepo) UpdateFiles(ctx context.Context, downloadID string, files []model.DownloadFile) error {
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		for _, f := range files {
-			if err := tx.Save(&f).Error; err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-}
-
-// GetFileByEngineID finds a download file by its aria2c GID
-func (r *DownloadRepo) GetFileByEngineID(ctx context.Context, engineID string) (*model.DownloadFile, error) {
-	var f model.DownloadFile
-	err := r.db.WithContext(ctx).First(&f, "engine_id = ?", engineID).Error
-	return &f, err
-}
-
-// MarkAllFilesComplete marks all files for a download as complete
-func (r *DownloadRepo) MarkAllFilesComplete(ctx context.Context, downloadID string) error {
-	return r.db.WithContext(ctx).Model(&model.DownloadFile{}).Where("download_id = ?", downloadID).Updates(map[string]any{
-		"status":     model.StatusComplete,
-		"progress":   100,
-		"downloaded": gorm.Expr("size"),
-		"updated_at": time.Now(),
-	}).Error
-}
-
-// GetFileByDownloadIDAndIndex finds a download file by its parent ID and index
-func (r *DownloadRepo) GetFileByDownloadIDAndIndex(ctx context.Context, downloadID string, index int) (*model.DownloadFile, error) {
-	var f model.DownloadFile
-	err := r.db.WithContext(ctx).First(&f, "download_id = ? AND file_index = ?", downloadID, index).Error
-	return &f, err
-}
-
-// DeleteFiles deletes all files for a download
-func (r *DownloadRepo) DeleteFiles(ctx context.Context, downloadID string) error {
-	return r.db.WithContext(ctx).Delete(&model.DownloadFile{}, "download_id = ?", downloadID).Error
 }

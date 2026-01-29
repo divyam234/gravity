@@ -14,7 +14,9 @@ import (
 	"gravity/internal/engine"
 	"gravity/internal/event"
 	"gravity/internal/model"
+	"gravity/internal/service/options"
 	"gravity/internal/store"
+	"gravity/internal/utils"
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"
@@ -134,71 +136,82 @@ func NewDownloadService(repo *store.DownloadRepo, settingsRepo *store.SettingsRe
 	return s
 }
 
-func (s *DownloadService) Create(ctx context.Context, url string, filename string, options model.Download) (*model.Download, error) {
-	// 1. Resolve URL through providers
-	res, providerName, err := s.provider.Resolve(ctx, url, options.Headers)
+func (s *DownloadService) Create(ctx context.Context, d *model.Download) (*model.Download, error) {
+
+	res, providerName, err := s.provider.Resolve(ctx, d.URL, d.Headers, d.TorrentData)
 	if err != nil {
-		s.logger.Warn("failed to resolve URL", zap.String("url", url), zap.Error(err))
+		s.logger.Warn("failed to resolve URL", zap.String("url", d.URL), zap.Error(err))
 		return nil, fmt.Errorf("failed to resolve URL: %w", err)
 	}
-
-	if filename == "" {
-		filename = res.Filename
+	settings, err := s.settingsRepo.Get(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	// 2. Determine paths
-	settings, _ := s.settingsRepo.Get(ctx)
-	defaultDir := ""
-	if settings != nil {
-		defaultDir = settings.Download.DownloadDir
-	}
-	if defaultDir == "" {
-		home, _ := os.UserHomeDir()
-		defaultDir = filepath.Join(home, ".gravity", "downloads")
-	}
+	// Finalize options using builder
+	finalOpts := options.NewBuilder().
+		WithSettings(settings).
+		WithModel(d).
+		Build()
 
-	var localPath string
-	downloadDir := options.DownloadDir
+	// Apply final options back to model
+	d.ID = "d_" + uuid.New().String()[:8]
+	d.Provider = providerName
+	d.Dir = finalOpts.DownloadDir
+	d.Destination = finalOpts.Destination
+	d.Status = model.StatusWaiting
+	d.CreatedAt = time.Now()
+	d.UpdatedAt = time.Now()
+	d.Split = finalOpts.Split
+	d.Proxies = d.Proxies // Keep proxies from model
+	d.RemoveLocal = finalOpts.RemoveLocal
+	d.Engine = finalOpts.Engine
 
-	// If downloadDir is provided, use it (absolute or relative to default)
-	if downloadDir == "" {
-		localPath = defaultDir
-	} else if filepath.IsAbs(downloadDir) {
-		localPath = downloadDir
-	} else {
-		localPath = filepath.Join(defaultDir, downloadDir)
-	}
-
-	d := &model.Download{
-		ID:          "d_" + uuid.New().String()[:8],
-		URL:         url,
-		ResolvedURL: res.URL,
-		Headers:     res.Headers,
-		Provider:    providerName,
-		Filename:    filename,
-		Size:        res.Size,
-		Destination: options.Destination, // Remote upload destination
-		DownloadDir: localPath,           // Actual local download directory
-		Status:      model.StatusWaiting,
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
-		// Flattened options
-		Split:       options.Split,
-		MaxTries:    options.MaxTries,
-		UserAgent:   options.UserAgent,
-		ProxyURL:    options.ProxyURL,
-		RemoveLocal: options.RemoveLocal,
+	if d.Filename == "" {
+		d.Filename = res.Name
+	} else if !utils.IsSafeFilename(d.Filename) {
+		return nil, fmt.Errorf("invalid filename")
 	}
 
-	// Merge user provided headers - but don't overwrite resolved headers
-	if options.Headers != nil {
-		if d.Headers == nil {
-			d.Headers = make(map[string]string)
-		}
-		for k, v := range options.Headers {
-			if _, exists := d.Headers[k]; !exists {
-				d.Headers[k] = v
+	d.ResolvedURL = res.URL
+	d.Headers = res.Headers
+	d.Size = res.Size
+	d.MagnetHash = res.Hash
+	d.IsMagnet = res.IsMagnet
+
+	if res.IsMagnet {
+		if len(res.Files) > 0 {
+			var totalSize int64
+			var selectedIndexes []int
+			for _, f := range res.Files {
+				if len(d.SelectedFiles) > 0 {
+					found := false
+					for _, idx := range d.SelectedFiles {
+						if idx == f.Index {
+							found = true
+							break
+						}
+					}
+					if !found && f.Index > 0 {
+						continue
+					}
+				}
+				d.Files = append(d.Files, model.DownloadFile{
+					ID:     "df_" + uuid.New().String()[:8],
+					Name:   f.Name,
+					Path:   f.Path,
+					Size:   f.Size,
+					Status: model.StatusWaiting,
+					URL:    f.URL,
+					Index:  f.Index,
+				})
+				totalSize += f.Size
+				if f.Index > 0 {
+					selectedIndexes = append(selectedIndexes, f.Index)
+				}
 			}
+			d.Size = totalSize
+			d.SelectedFiles = selectedIndexes
 		}
 	}
 
@@ -219,10 +232,59 @@ func (s *DownloadService) Create(ctx context.Context, url string, filename strin
 		Timestamp: time.Now(),
 	})
 
-	// Signal queue to check for work
-	s.signalQueueCheck()
+	if d.IsMagnet && d.Provider == "alldebrid" {
+		d.Status = model.StatusActive
+		s.repo.Update(ctx, d)
+
+		// Use service lifecycle context for background task
+		bgCtx := s.ctx
+		if bgCtx == nil {
+			bgCtx = context.Background()
+		}
+		go s.startDebridDownload(bgCtx, d)
+	} else {
+		// Signal queue to check for work (Standard Flow)
+		s.signalQueueCheck()
+	}
 
 	return d, nil
+}
+
+// startDebridDownload downloads files via Provider direct links
+func (s *DownloadService) startDebridDownload(ctx context.Context, d *model.Download) {
+	// Download each file in parallel via aria2
+	for i := range d.Files {
+		file := &d.Files[i]
+		if file.URL == "" {
+			continue
+		}
+
+		// Unlock the link first (if needed, or re-resolve)
+		// We use provider service to resolve/unlock
+		resolved, _, err := s.provider.Resolve(ctx, file.URL, nil, "")
+		if err != nil {
+			d.Files[i].Status = model.StatusError
+			d.Files[i].Error = "Link unlock failed: " + err.Error()
+			s.repo.UpdateFile(ctx, d.ID, &d.Files[i])
+			continue
+		}
+
+		// Add to aria2
+		opts := *options.NewBuilder().WithModel(d).Build()
+		opts.DownloadDir = d.Dir  // Base directory
+		opts.Filename = file.Path // Preserve path structure
+		// Use gid:index format so handleProgress can attribute progress to the correct file
+		parentGID := fmt.Sprintf("%016s", d.ID[2:])
+		opts.ID = fmt.Sprintf("%s:%d", parentGID, file.Index)
+		_, err = s.engine.Add(ctx, resolved.URL, opts)
+
+		if err != nil {
+			d.Files[i].Status = model.StatusError
+			d.Files[i].Error = err.Error()
+			s.repo.UpdateFile(ctx, d.ID, &d.Files[i])
+			continue
+		}
+	}
 }
 
 func (s *DownloadService) Get(ctx context.Context, id string) (*model.Download, error) {
@@ -236,12 +298,6 @@ func (s *DownloadService) Get(ctx context.Context, id string) (*model.Download, 
 		return nil, err
 	}
 
-	// Attach files for multi-file downloads
-	files, _, err := s.repo.GetFiles(ctx, id, 10000, 0)
-	if err == nil && len(files) > 0 {
-		d.Files = files
-	}
-
 	// Merge live stats from engine if active
 	if d.Status == model.StatusActive && d.EngineID != "" {
 		status, err := s.engine.Status(ctx, d.EngineID)
@@ -252,10 +308,13 @@ func (s *DownloadService) Get(ctx context.Context, id string) (*model.Download, 
 			d.ETA = status.Eta
 			d.Seeders = status.Seeders
 			d.Peers = status.Peers
-			d.MetadataFetching = status.MetadataFetching
+
+			if status.Status == "resolving" {
+				d.Status = model.StatusResolving
+			}
 
 			// Also fetch detailed peers for active aria2 downloads
-			if d.MagnetSource == "aria2" || !d.IsMagnet {
+			if d.Engine == "aria2" || d.IsMagnet {
 				peers, err := s.engine.GetPeers(ctx, d.EngineID)
 				if err == nil {
 					d.PeerDetails = make([]model.Peer, 0, len(peers))
@@ -305,7 +364,10 @@ func (s *DownloadService) List(ctx context.Context, status []string, limit, offs
 					d.ETA = live.Eta
 					d.Seeders = live.Seeders
 					d.Peers = live.Peers
-					d.MetadataFetching = live.MetadataFetching
+
+					if live.Status == "resolving" {
+						d.Status = model.StatusResolving
+					}
 				}
 			}
 		}
@@ -389,7 +451,7 @@ func (s *DownloadService) Retry(ctx context.Context, id string) error {
 	}
 
 	// Re-add to engine
-	engineOpts := toEngineOptionsFromDownload(d)
+	engineOpts := *options.NewBuilder().WithModel(d).Build()
 	engineOpts.Filename = d.Filename
 	engineID, err := s.engine.Add(ctx, d.ResolvedURL, engineOpts)
 	if err != nil {
@@ -425,9 +487,9 @@ func (s *DownloadService) Delete(ctx context.Context, id string, deleteFiles boo
 	// 1. Resolve paths for deletion before stopping engine
 	var pathsToDelete []string
 	if deleteFiles {
-		// If we have a stored DownloadDir, that's the primary target
-		if d.DownloadDir != "" {
-			pathsToDelete = append(pathsToDelete, d.DownloadDir)
+		// If we have a stored Dir, that's the primary target
+		if d.Dir != "" {
+			pathsToDelete = append(pathsToDelete, d.Dir)
 		}
 
 		// If active/paused in engine, query it for current path
@@ -455,15 +517,7 @@ func (s *DownloadService) Delete(ctx context.Context, id string, deleteFiles boo
 	}
 
 	// 2. Stop in engine
-	if d.IsMagnet && d.MagnetSource == "alldebrid" {
-		files, _, _ := s.repo.GetFiles(ctx, d.ID, 1000, 0)
-		for _, f := range files {
-			if f.EngineID != "" {
-				s.engine.Cancel(ctx, f.EngineID)
-				s.engine.Remove(ctx, f.EngineID)
-			}
-		}
-	} else if d.EngineID != "" {
+	if d.EngineID != "" {
 		s.engine.Cancel(ctx, d.EngineID)
 		s.engine.Remove(ctx, d.EngineID)
 	}
@@ -649,9 +703,8 @@ func (s *DownloadService) executeDownload(d *model.Download) {
 
 	// Calculate total size for multi-file downloads
 	var totalSize int64
-	files, _, _ := s.repo.GetFiles(ctx, d.ID, 1000, 0)
-	if len(files) > 0 {
-		for _, f := range files {
+	if len(d.Files) > 0 {
+		for _, f := range d.Files {
 			totalSize += f.Size
 		}
 		d.Size = totalSize
@@ -659,16 +712,16 @@ func (s *DownloadService) executeDownload(d *model.Download) {
 
 	// Check disk space before submission
 	if d.Size > 0 {
-		free, err := s.checkDiskSpace(d.DownloadDir)
+		free, err := s.checkDiskSpace(d.Dir)
 		if err == nil && free < uint64(d.Size) {
 			s.logger.Warn("insufficient disk space",
 				zap.String("id", d.ID),
 				zap.Int64("required", d.Size),
 				zap.Uint64("available", free),
-				zap.String("dir", d.DownloadDir))
+				zap.String("dir", d.Dir))
 
 			d.Status = model.StatusError
-			d.Error = fmt.Sprintf("Insufficient disk space in %s (required: %d, available: %d)", d.DownloadDir, d.Size, free)
+			d.Error = fmt.Sprintf("Insufficient disk space in %s (required: %d, available: %d)", d.Dir, d.Size, free)
 			s.repo.Update(ctx, d)
 
 			s.bus.PublishLifecycle(event.LifecycleEvent{
@@ -684,12 +737,16 @@ func (s *DownloadService) executeDownload(d *model.Download) {
 	// Submit to engine
 	gid := fmt.Sprintf("%016s", d.ID[2:])
 
-	opts := toEngineOptionsFromDownload(d)
+	opts := *options.NewBuilder().WithModel(d).Build()
 	opts.Filename = d.Filename
 	opts.Size = d.Size
 	opts.Headers = d.Headers
 	opts.TorrentData = d.TorrentData
 	opts.ID = gid
+
+	if len(d.SelectedFiles) > 0 {
+		opts.SelectedFiles = d.SelectedFiles
+	}
 
 	engineID, err := s.engine.Add(ctx, d.ResolvedURL, opts)
 
@@ -762,25 +819,27 @@ func (s *DownloadService) handleProgress(engineID string, p engine.Progress) {
 
 			parent, err := s.repo.GetByEngineID(ctx, parentGID)
 			if err == nil {
-				file, err := s.repo.GetFileByDownloadIDAndIndex(ctx, parent.ID, fileIndex)
-				if err == nil {
-					file.Downloaded = p.Downloaded
-					file.Progress = 0
-					if file.Size > 0 {
-						file.Progress = int((file.Downloaded * 100) / file.Size)
-					}
+				found := false
+				for i := range parent.Files {
+					if parent.Files[i].Index == fileIndex {
+						file := &parent.Files[i]
+						file.Downloaded = p.Downloaded
+						file.Progress = 0
+						if file.Size > 0 {
+							file.Progress = int((file.Downloaded * 100) / file.Size)
+						}
 
-					oldStatus := file.Status
-					if file.Progress == 100 {
-						file.Status = model.StatusComplete
-					} else {
-						file.Status = model.StatusActive
+						if file.Progress == 100 {
+							file.Status = model.StatusComplete
+						} else {
+							file.Status = model.StatusActive
+						}
+						found = true
+						break
 					}
+				}
 
-					if file.Status != oldStatus {
-						s.repo.UpdateFile(ctx, file)
-					}
-
+				if found {
 					s.updateAggregateProgress(ctx, parent)
 					return
 				}
@@ -802,7 +861,6 @@ func (s *DownloadService) handleProgress(engineID string, p engine.Progress) {
 		d.ETA = event.CalculateETA(p.Size-p.Downloaded, p.Speed)
 		d.Seeders = p.Seeders
 		d.Peers = p.Peers
-		d.MetadataFetching = p.MetadataFetching
 
 		// Update progress buffer (will be flushed periodically)
 		s.progressBuffer.update(d)
@@ -820,47 +878,17 @@ func (s *DownloadService) handleProgress(engineID string, p engine.Progress) {
 		return
 	}
 
-	// 3. Try file within magnet (AllDebrid)
-	file, err := s.repo.GetFileByEngineID(ctx, engineID)
-	if err == nil {
-		// Prevent overwriting terminal states
-		if file.Status == model.StatusComplete || file.Status == model.StatusError {
-			return
-		}
-
-		file.Downloaded = p.Downloaded
-		file.Progress = 0
-		if file.Size > 0 {
-			file.Progress = int((file.Downloaded * 100) / file.Size)
-		}
-
-		oldStatus := file.Status
-		file.Status = model.StatusActive
-
-		if file.Status != oldStatus {
-			s.repo.UpdateFile(ctx, file)
-		}
-
-		parent, err := s.repo.Get(ctx, file.DownloadID)
-		if err == nil {
-			parent.Speed = p.Speed
-			s.updateAggregateProgress(ctx, parent)
-		}
-		return
-	}
+	// 3. Try file within magnet (embedded in another download)
+	// Usually magnets are handled by 1. if engineID is gid:index
+	// But some engines might return just a sub-GID.
 }
 
 func (s *DownloadService) updateAggregateProgress(ctx context.Context, d *model.Download) {
-	files, _, err := s.repo.GetFiles(ctx, d.ID, 10000, 0)
-	if err != nil {
-		return
-	}
-
 	var totalDownloaded int64
 	var totalSize int64
 	filesComplete := 0
 
-	for _, f := range files {
+	for _, f := range d.Files {
 		totalDownloaded += f.Downloaded
 		totalSize += f.Size
 		if f.Status == model.StatusComplete {
@@ -870,7 +898,6 @@ func (s *DownloadService) updateAggregateProgress(ctx context.Context, d *model.
 
 	d.Downloaded = totalDownloaded
 	d.Size = totalSize
-	d.FilesComplete = filesComplete
 	d.ETA = event.CalculateETA(totalSize-totalDownloaded, d.Speed)
 
 	// Override with accurate engine stats if available
@@ -882,7 +909,7 @@ func (s *DownloadService) updateAggregateProgress(ctx context.Context, d *model.
 		}
 	}
 
-	if filesComplete == len(files) && len(files) > 0 && d.Status != model.StatusComplete && d.Status != model.StatusUploading {
+	if filesComplete == len(d.Files) && len(d.Files) > 0 && d.Status != model.StatusComplete && d.Status != model.StatusUploading {
 		if d.Destination != "" {
 			d.Status = model.StatusUploading
 		} else {
@@ -916,15 +943,14 @@ func (s *DownloadService) updateAggregateProgress(ctx context.Context, d *model.
 
 func (s *DownloadService) publishProgress(d *model.Download) {
 	s.bus.PublishProgress(event.ProgressEvent{
-		ID:               d.ID,
-		Type:             "download",
-		Downloaded:       d.Downloaded,
-		Size:             d.Size,
-		Speed:            d.Speed,
-		ETA:              d.ETA,
-		Seeders:          d.Seeders,
-		Peers:            d.Peers,
-		MetadataFetching: d.MetadataFetching,
+		ID:         d.ID,
+		Type:       "download",
+		Downloaded: d.Downloaded,
+		Size:       d.Size,
+		Speed:      d.Speed,
+		ETA:        d.ETA,
+		Seeders:    d.Seeders,
+		Peers:      d.Peers,
 	})
 }
 
@@ -965,7 +991,7 @@ func (s *DownloadService) handleComplete(engineID string, filePath string) {
 				if err == nil {
 					parts := strings.Split(filepath.ToSlash(rel), "/")
 					if len(parts) > 0 {
-						d.DownloadDir = filepath.Join(status.Dir, parts[0])
+						d.Dir = filepath.Join(status.Dir, parts[0])
 					}
 				}
 			}
@@ -981,8 +1007,12 @@ func (s *DownloadService) handleComplete(engineID string, filePath string) {
 
 		now := time.Now()
 		d.CompletedAt = &now
+		for i := range d.Files {
+			d.Files[i].Status = model.StatusComplete
+			d.Files[i].Downloaded = d.Files[i].Size
+			d.Files[i].Progress = 100
+		}
 		s.repo.Update(ctx, d)
-		s.repo.MarkAllFilesComplete(ctx, d.ID)
 		s.progressBuffer.remove(d.ID)
 
 		s.bus.PublishLifecycle(event.LifecycleEvent{
@@ -996,26 +1026,15 @@ func (s *DownloadService) handleComplete(engineID string, filePath string) {
 		return
 	}
 
-	file, err := s.repo.GetFileByEngineID(ctx, engineID)
-	if err == nil {
-		file.Status = model.StatusComplete
-		file.Downloaded = file.Size
-		file.Progress = 100
-		s.repo.UpdateFile(ctx, file)
-
-		parent, err := s.repo.Get(ctx, file.DownloadID)
-		if err == nil {
-			s.updateAggregateProgress(ctx, parent)
-		}
-
-		s.engine.Remove(ctx, engineID)
-		return
-	}
+	// Sub-files are handled in handleProgress via gid:index usually
 }
 
 func (s *DownloadService) GetFiles(ctx context.Context, id string) ([]model.DownloadFile, error) {
-	files, _, err := s.repo.GetFiles(ctx, id, 10000, 0)
-	return files, err
+	d, err := s.repo.Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return d.Files, nil
 }
 
 func (s *DownloadService) checkDiskSpace(path string) (uint64, error) {
@@ -1065,19 +1084,27 @@ func (s *DownloadService) handleError(engineID string, err error) {
 		return
 	}
 
-	file, repoErr := s.repo.GetFileByEngineID(ctx, engineID)
-	if repoErr == nil {
-		file.Status = model.StatusError
-		file.Error = err.Error()
-		s.repo.UpdateFile(ctx, file)
+	// Handle sub-file error
+	if strings.Contains(engineID, ":") {
+		parts := strings.Split(engineID, ":")
+		if len(parts) == 2 {
+			parentGID := parts[0]
+			fileIndex, _ := strconv.Atoi(parts[1])
 
-		parent, err := s.repo.Get(ctx, file.DownloadID)
-		if err == nil {
-			s.updateAggregateProgress(ctx, parent)
+			parent, err := s.repo.GetByEngineID(ctx, parentGID)
+			if err == nil {
+				for i := range parent.Files {
+					if parent.Files[i].Index == fileIndex {
+						parent.Files[i].Status = model.StatusError
+						parent.Files[i].Error = err.Error()
+						break
+					}
+				}
+				s.updateAggregateProgress(ctx, parent)
+				s.engine.Remove(ctx, engineID)
+				return
+			}
 		}
-
-		s.engine.Remove(ctx, engineID)
-		return
 	}
 }
 

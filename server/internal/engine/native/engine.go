@@ -122,26 +122,14 @@ func (e *NativeEngine) Start(ctx context.Context) error {
 	e.storage = NewDynamicStorage(defaultDownloadsDir, cfg.DataDir)
 	cfg.DefaultStorage = e.storage
 
-	if s != nil {
-		var proxyCfg model.ProxyConfig
-		// Determine which proxy to use
-		if s.Network.ProxyMode == "global" {
-			proxyCfg = s.Network.GlobalProxy
-		} else {
-			// Native engine mostly used for Torrent/Magnet in this context
-			// But check just in case
-			proxyCfg = s.Network.MagnetProxy
-		}
-
-		if proxyCfg.Enabled && proxyCfg.URL != "" {
-			proxyURL, err := url.Parse(proxyCfg.URL)
+	if s != nil && len(s.Network.Proxies) > 0 {
+		proxyURL, err := url.Parse(s.Network.Proxies[0].URL)
+		if err == nil {
+			dialer, err := proxy.FromURL(proxyURL, proxy.Direct)
 			if err == nil {
-				dialer, err := proxy.FromURL(proxyURL, proxy.Direct)
-				if err == nil {
-					cfg.HTTPProxy = http.ProxyURL(proxyURL)
-					cfg.TrackerDialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
-						return dialer.Dial(network, addr)
-					}
+				cfg.HTTPProxy = http.ProxyURL(proxyURL)
+				cfg.TrackerDialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+					return dialer.Dial(network, addr)
 				}
 			}
 		}
@@ -247,7 +235,24 @@ func (e *NativeEngine) Add(ctx context.Context, url string, opts engine.Download
 
 			select {
 			case <-torrentTask.GotInfo():
-				torrentTask.DownloadAll()
+				if len(opts.SelectedFiles) > 0 {
+					files := torrentTask.Files()
+					for i, f := range files {
+						selected := false
+						// Check if current file index (1-based) is in requested list
+						for _, targetIdx := range opts.SelectedFiles {
+							if i+1 == targetIdx {
+								selected = true
+								break
+							}
+						}
+						if selected {
+							f.Download()
+						}
+					}
+				} else {
+					torrentTask.DownloadAll()
+				}
 			case <-time.After(timeout):
 				if onError != nil {
 					onError(taskId, fmt.Errorf("metadata resolution timeout"))
@@ -407,8 +412,7 @@ func (e *NativeEngine) reportProgress() {
 		if t.taskType == taskTypeTorrent {
 			if t.tDownload.Info() == nil {
 				onProgress(t.id, engine.Progress{
-					MetadataFetching: true,
-					Peers:            t.tDownload.Stats().ActivePeers,
+					Peers: t.tDownload.Stats().ActivePeers,
 				})
 				return true
 			}
@@ -488,8 +492,8 @@ func (e *NativeEngine) Status(ctx context.Context, id string) (*engine.DownloadS
 	}
 
 	if t.taskType == taskTypeTorrent {
-		status.Status = "active"
 		if t.tDownload.Info() != nil {
+			status.Status = "active"
 			status.Downloaded = t.tDownload.BytesCompleted()
 			status.Size = t.tDownload.Length()
 			status.Speed = t.downSpeed
@@ -502,6 +506,8 @@ func (e *NativeEngine) Status(ctx context.Context, id string) (*engine.DownloadS
 					status.Eta = int(rem / status.Speed)
 				}
 			}
+		} else {
+			status.Status = "resolving"
 		}
 	} else {
 		status.Status = "active"

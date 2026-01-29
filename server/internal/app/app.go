@@ -47,7 +47,6 @@ type App struct {
 	downloadService *service.DownloadService
 	uploadService   *service.UploadService
 	providerService *service.ProviderService
-	magnetService   *service.MagnetService
 	statsService    *service.StatsService
 	searchService   *service.SearchService
 
@@ -114,10 +113,9 @@ func New(ctx context.Context, de engine.DownloadEngine, ue engine.UploadEngine) 
 	registry.Register(megadebrid.New())
 
 	// Services
-	ps := service.NewProviderService(pr, registry, l)
+	ps := service.NewProviderService(pr, registry, de, l)
 	ds := service.NewDownloadService(dr, setr, de, ue, bus, ps, l)
 	us := service.NewUploadService(dr, setr, ue, bus, l)
-	ms := service.NewMagnetService(dr, setr, de, ad, ue, bus, l)
 	ss := service.NewStatsService(sr, setr, dr, de, ue, bus, l)
 	searchService := service.NewSearchService(searchRepo, setr, ue, l)
 
@@ -130,7 +128,6 @@ func New(ctx context.Context, de engine.DownloadEngine, ue engine.UploadEngine) 
 	sh := api.NewStatsHandler(ss)
 	seth := api.NewSettingsHandler(setr, pr, de, ue, bus)
 	sysh := api.NewSystemHandler(ctx, de, ue)
-	mh := api.NewMagnetHandler(ms)
 	fh := api.NewFileHandler(ue, ue)
 	searchHandler := api.NewSearchHandler(ctx, searchService)
 	eh := api.NewEventHandler(bus, de, ss)
@@ -145,7 +142,6 @@ func New(ctx context.Context, de engine.DownloadEngine, ue engine.UploadEngine) 
 	v1.Mount("/stats", sh.Routes())
 	v1.Mount("/settings", seth.Routes())
 	v1.Mount("/system", sysh.Routes())
-	v1.Mount("/magnets", mh.Routes())
 	v1.Mount("/files", fh.Routes())
 	v1.Mount("/search", searchHandler.Routes())
 	v1.Mount("/events", eh.Routes())
@@ -169,7 +165,6 @@ func New(ctx context.Context, de engine.DownloadEngine, ue engine.UploadEngine) 
 		downloadService: ds,
 		uploadService:   us,
 		providerService: ps,
-		magnetService:   ms,
 		statsService:    ss,
 		searchService:   searchService,
 		httpServer:      srv,
@@ -243,7 +238,6 @@ func (a *App) StartEngines(ctx context.Context) error {
 	a.uploadService.Start(ctx)
 	a.statsService.Start(ctx)
 	a.searchService.Start(ctx)
-	a.magnetService.Start(ctx)
 
 	return nil
 }

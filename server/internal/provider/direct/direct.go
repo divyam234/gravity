@@ -55,8 +55,8 @@ func (p *DirectProvider) Priority() int {
 func (p *DirectProvider) Resolve(ctx context.Context, rawURL string, headers map[string]string) (*provider.ResolveResult, error) {
 	if strings.HasPrefix(rawURL, "magnet:") {
 		return &provider.ResolveResult{
-			URL:      rawURL,
-			Filename: "",
+			URL:  rawURL,
+			Name: "",
 		}, nil
 	}
 
@@ -120,9 +120,9 @@ func (p *DirectProvider) Resolve(ctx context.Context, rawURL string, headers map
 	}
 
 	return &provider.ResolveResult{
-		URL:      rawURL,
-		Filename: filename,
-		Size:     size,
+		URL:  rawURL,
+		Name: filename,
+		Size: size,
 	}, nil
 }
 

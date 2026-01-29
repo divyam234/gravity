@@ -56,8 +56,16 @@ type DownloadOptions struct {
 	RemoveLocal       *bool `json:"removeLocal,omitempty"`       // Remove local file after upload
 	ConcurrentUploads *int  `json:"concurrentUploads,omitempty"` // Parallel uploads
 
-	// Proxy (nil = use global, "" = no proxy, URL = custom proxy)
-	ProxyURL *string `json:"proxyUrl,omitempty"`
+	// Proxies
+	Proxies []Proxy `json:"proxies,omitempty"`
+
+	// Engine selection
+	Engine string `json:"engine,omitempty"`
+}
+
+type Proxy struct {
+	URL  string `json:"url"`
+	Type string `json:"type"`
 }
 
 // EffectiveOptions holds the resolved/final values after merging with global settings
@@ -105,6 +113,7 @@ func (r *OptionResolver) Resolve(opts DownloadOptions) EffectiveOptions {
 			MagnetHash:    opts.MagnetHash,
 			SelectedFiles: opts.SelectedFiles,
 			Size:          opts.Size,
+			Engine:        opts.Engine,
 
 			// Resolve all overrideable fields
 			Split:                  derefInt(opts.Split, ds.Split, 8),
@@ -129,8 +138,8 @@ func (r *OptionResolver) Resolve(opts DownloadOptions) EffectiveOptions {
 			Referer:   derefString(opts.Referer, "", ""),
 			UserAgent: derefString(opts.UserAgent, ds.UserAgent, ""),
 
-			// Proxy
-			ProxyURL: derefString(opts.ProxyURL, "", ""),
+			// Proxies
+			Proxies: opts.Proxies,
 		},
 	}
 

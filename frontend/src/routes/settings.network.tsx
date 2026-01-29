@@ -1,14 +1,23 @@
-import { Button, Card, ScrollShadow, Tabs } from "@heroui/react";
+import { 
+  Button, 
+  Card, 
+  ScrollShadow, 
+  Input, 
+  Select, 
+  ListBox, 
+  Label, 
+  Description 
+} from "@heroui/react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useForm } from "@tanstack/react-form";
 import IconChevronLeft from "~icons/gravity-ui/chevron-left";
+import IconTrashBin from "~icons/gravity-ui/trash-bin";
 import { useSettingsStore } from "../store/useSettingsStore";
 import { useEngineActions } from "../hooks/useEngine";
 import { FormTextField, FormSwitch } from "../components/ui/FormFields";
 import type { components } from "../gen/api";
 
 type Settings = components["schemas"]["model.Settings"];
-type ProxyConfig = components["schemas"]["model.ProxyConfig"];
 
 export const Route = createFileRoute("/settings/network")({
   component: NetworkSettingsPage,
@@ -29,144 +38,86 @@ function NetworkSettingsPage() {
   );
 }
 
-// Helper to parse/format proxy URL with auth support
-const parseProxyUrl = (url: string) => {
-  if (!url) return { type: "http", host: "", port: "1080", user: "", password: "" };
-  
-  // Match: protocol://[user:pass@]host:port
-  const match = url.match(/^(socks5|http):\/\/(([^:]+):([^@]+)@)?([^:]+):(\d+)$/);
-  if (match) {
-    return { 
-      type: match[1], 
-      user: match[3] || "", 
-      password: match[4] || "",
-      host: match[5], 
-      port: match[6] 
-    };
-  }
-  
-  // Match without auth: protocol://host:port
-  const simpleMatch = url.match(/^(socks5|http):\/\/([^:]+):(\d+)$/);
-  if (simpleMatch) {
-    return { type: simpleMatch[1], host: simpleMatch[2], port: simpleMatch[3], user: "", password: "" };
-  }
-  
-  return { type: "http", host: "", port: "1080", user: "", password: "" };
-};
-
-const formatProxyUrl = (type: string, host: string, port: string, user: string, password: string) => {
-  if (!host) return "";
-  if (user && password) {
-    return `${type}://${user}:${password}@${host}:${port}`;
-  }
-  return `${type}://${host}:${port}`;
-};
-
-// Reusable Proxy Configuration Component
-function ProxyConfigEditor({
-  value,
-  onChange
-}: {
-  value: ProxyConfig,
-  onChange: (val: ProxyConfig) => void
+function ProxyListEditor({ 
+  value, 
+  onChange 
+}: { 
+  value: components["schemas"]["model.Proxy"][], 
+  onChange: (val: components["schemas"]["model.Proxy"][]) => void 
 }) {
-  const parsed = parseProxyUrl(value.url || "");
-  
-  const update = (updates: { type?: string, host?: string, port?: string, user?: string, password?: string, enabled?: boolean }) => {
-    const newType = updates.type ?? parsed.type;
-    const newHost = updates.host ?? parsed.host;
-    const newPort = updates.port ?? parsed.port;
-    const newUser = updates.user ?? parsed.user;
-    const newPass = updates.password ?? parsed.password;
-    const newEnabled = updates.enabled ?? value.enabled;
+  const addProxy = () => {
+    onChange([...value, { url: "", type: "all" }]);
+  };
 
-    onChange({
-      enabled: !!newEnabled,
-      url: formatProxyUrl(newType, newHost, newPort, newUser, newPass),
-    });
+  const removeProxy = (index: number) => {
+    onChange(value.filter((_, i) => i !== index));
+  };
+
+  const updateProxy = (index: number, updates: Partial<components["schemas"]["model.Proxy"]>) => {
+    onChange(value.map((p, i) => i === index ? { ...p, ...updates } : p));
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <span className="text-sm font-bold">Enable Proxy</span>
-        <Button
-            size="sm"
-            variant={value.enabled ? "primary" : "secondary"}
-            onPress={() => update({ enabled: !value.enabled })}
-            className="capitalize"
-        >
-            {value.enabled ? "Enabled" : "Disabled"}
-        </Button>
-      </div>
-
-      {value.enabled && (
-        <div className="space-y-6 animate-in slide-in-from-top-2 duration-200">
-            <div className="space-y-3">
-                <span className="text-sm font-bold">Protocol</span>
-                <div className="flex gap-2">
-                    {(["http", "socks5"] as const).map((type) => (
-                        <Button
-                            key={type}
-                            size="sm"
-                            variant={parsed.type === type ? "primary" : "secondary"}
-                            onPress={() => update({ type })}
-                            className="rounded-xl font-bold capitalize"
-                        >
-                            {type.toUpperCase()}
-                        </Button>
-                    ))}
-                </div>
+      {value.map((proxy, index) => (
+        <Card key={`${proxy.url}-${index}`} className="p-6 bg-default-50 border-default-200">
+          <div className="flex flex-col md:flex-row gap-6 items-start">
+            <div className="flex-1 w-full space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+                Proxy URL
+              </Label>
+              <Input
+                value={proxy.url || ""}
+                onChange={(e) => updateProxy(index, { url: e.target.value })}
+                placeholder="http://user:pass@host:port"
+                className="w-full"
+              />
+              <Description>Include protocol (e.g. http:// or socks5://)</Description>
+            </div>
+            
+            <div className="w-full md:w-48 space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">
+                Scope
+              </Label>
+              <Select 
+                placeholder="Select scope"
+                value={proxy.type || "all"}
+                onChange={(val) => updateProxy(index, { type: val as any })}
+              >
+                <Select.Trigger>
+                  <Select.Value />
+                  <Select.Indicator />
+                </Select.Trigger>
+                <Select.Popover>
+                  <ListBox>
+                    <ListBox.Item id="all" textValue="Global">Global (All)</ListBox.Item>
+                    <ListBox.Item id="downloads" textValue="Downloads">Downloads Only</ListBox.Item>
+                    <ListBox.Item id="uploads" textValue="Uploads">Uploads Only</ListBox.Item>
+                    <ListBox.Item id="magnets" textValue="Magnets">Magnets Only</ListBox.Item>
+                  </ListBox>
+                </Select.Popover>
+              </Select>
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
-                <div className="col-span-2">
-                    <div className="space-y-1">
-                        <span className="text-xs font-bold text-muted uppercase tracking-wider ml-1">Host</span>
-                        <input
-                            value={parsed.host}
-                            onChange={(e) => update({ host: e.target.value })}
-                            placeholder="proxy.example.com"
-                            className="w-full h-11 bg-default/10 rounded-2xl border-none font-mono text-xs px-3 outline-none focus:ring-2 ring-accent/50 transition-all"
-                        />
-                    </div>
-                </div>
-                <div className="space-y-1">
-                    <span className="text-xs font-bold text-muted uppercase tracking-wider ml-1">Port</span>
-                    <input
-                        value={parsed.port}
-                        onChange={(e) => update({ port: e.target.value })}
-                        placeholder="1080"
-                        className="w-full h-11 bg-default/10 rounded-2xl border-none font-mono text-xs px-3 outline-none focus:ring-2 ring-accent/50 transition-all"
-                    />
-                </div>
-            </div>
-
-            <div className="h-px bg-border" />
-
-            <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                    <span className="text-xs font-bold text-muted uppercase tracking-wider ml-1">Username</span>
-                    <input
-                        value={parsed.user || ""}
-                        onChange={(e) => update({ user: e.target.value })}
-                        placeholder="Optional"
-                        className="w-full h-11 bg-default/10 rounded-2xl border-none font-mono text-xs px-3 outline-none focus:ring-2 ring-accent/50 transition-all"
-                    />
-                </div>
-                <div className="space-y-1">
-                    <span className="text-xs font-bold text-muted uppercase tracking-wider ml-1">Password</span>
-                    <input
-                        value={parsed.password || ""}
-                        onChange={(e) => update({ password: e.target.value })}
-                        type="password"
-                        placeholder="Optional"
-                        className="w-full h-11 bg-default/10 rounded-2xl border-none font-mono text-xs px-3 outline-none focus:ring-2 ring-accent/50 transition-all"
-                    />
-                </div>
-            </div>
-        </div>
-      )}
+            <Button
+              isIconOnly
+              variant="ghost"
+              className="mt-6 text-danger"
+              onPress={() => removeProxy(index)}
+            >
+              <IconTrashBin className="w-5 h-5" />
+            </Button>
+          </div>
+        </Card>
+      ))}
+      
+      <Button
+        variant="secondary"
+        className="w-full h-16 border-dashed border-2 bg-transparent hover:bg-default-100 font-bold"
+        onPress={addProxy}
+      >
+        + Add Proxy Server
+      </Button>
     </div>
   );
 }
@@ -185,13 +136,10 @@ function NetworkSettingsForm({
 
   const form = useForm({
     defaultValues: {
-      proxyMode: network?.proxyMode || "global",
-      globalProxy: network?.globalProxy || { enabled: false, url: "", user: "", password: "" },
-      magnetProxy: network?.magnetProxy || { enabled: false, url: "", user: "", password: "" },
-      downloadProxy: network?.downloadProxy || { enabled: false, url: "", user: "", password: "" },
-      uploadProxy: network?.uploadProxy || { enabled: false, url: "", user: "", password: "" },
+      proxies: network?.proxies || [],
       
       dnsOverHttps: network?.dnsOverHttps || "",
+
       interfaceBinding: network?.interfaceBinding || "",
       tcpPortRange: network?.tcpPortRange || "",
       maxConnectionPerServer: Number(download?.maxConnectionPerServer || 8),
@@ -203,17 +151,14 @@ function NetworkSettingsForm({
     onSubmit: async ({ value }) => {
       const updated: Settings = {
         ...serverSettings,
-          network: {
-            ...serverSettings.network,
-            proxyMode: value.proxyMode as any,
-            globalProxy: value.globalProxy,
-            magnetProxy: value.magnetProxy,
-            downloadProxy: value.downloadProxy,
-            uploadProxy: value.uploadProxy,
-            dnsOverHttps: value.dnsOverHttps,
-            interfaceBinding: value.interfaceBinding,
-            tcpPortRange: value.tcpPortRange,
-          },
+            network: {
+              ...serverSettings.network,
+              proxies: value.proxies,
+              dnsOverHttps: value.dnsOverHttps,
+              interfaceBinding: value.interfaceBinding,
+              tcpPortRange: value.tcpPortRange,
+            },
+
         download: {
           ...serverSettings.download,
           downloadDir: serverSettings.download?.downloadDir || "/downloads",
@@ -272,112 +217,20 @@ function NetworkSettingsForm({
       <div className="flex-1 bg-muted-background/40 rounded-3xl border border-border overflow-hidden min-h-0 mx-2">
         <ScrollShadow className="h-full">
           <div className="max-w-4xl mx-auto p-8 space-y-10">
-            {/* Proxy */}
+            {/* Proxy Servers */}
             <section>
               <div className="flex items-center gap-3 mb-6">
                 <div className="w-1.5 h-6 bg-accent rounded-full" />
-                <h3 className="text-lg font-bold">Proxy Configuration</h3>
+                <h3 className="text-lg font-bold">Proxy Servers</h3>
               </div>
-              <Card className="bg-background/50 border-border overflow-hidden">
-                <Card.Content className="p-6">
-                    <form.Field name="proxyMode">
-                        {(field: any) => (
-                            <div className="flex justify-center mb-8">
-                                <div className="bg-default/10 p-1 rounded-2xl flex">
-                                    <button
-                                        type="button"
-                                        onClick={() => field.handleChange("global")}
-                                        className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${
-                                            field.state.value === "global" 
-                                            ? "bg-background shadow text-foreground" 
-                                            : "text-muted hover:text-foreground"
-                                        }`}
-                                    >
-                                        Global
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => field.handleChange("granular")}
-                                        className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${
-                                            field.state.value === "granular" 
-                                            ? "bg-background shadow text-foreground" 
-                                            : "text-muted hover:text-foreground"
-                                        }`}
-                                    >
-                                        Per-Protocol
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-                    </form.Field>
-
-                    <form.Subscribe
-                        selector={(state: any) => [state.values.proxyMode]}
-                    >
-                        {([proxyMode]) => (
-                            proxyMode === "global" ? (
-                                <form.Field name="globalProxy">
-                                    {(field: any) => (
-                                        <ProxyConfigEditor 
-                                            value={field.state.value} 
-                                            onChange={field.handleChange} 
-                                        />
-                                    )}
-                                </form.Field>
-                            ) : (
-                                <div className="space-y-8">
-                                    <Tabs className="w-full">
-                                        <Tabs.ListContainer>
-                                            <Tabs.List aria-label="Proxy Protocols">
-                                                <Tabs.Tab id="magnet">Magnet / Torrent<Tabs.Indicator /></Tabs.Tab>
-                                                <Tabs.Tab id="download">File Download<Tabs.Indicator /></Tabs.Tab>
-                                                <Tabs.Tab id="upload">Upload<Tabs.Indicator /></Tabs.Tab>
-                                            </Tabs.List>
-                                        </Tabs.ListContainer>
-
-                                        <Tabs.Panel id="magnet">
-                                            <div className="pt-4">
-                                                <form.Field name="magnetProxy">
-                                                    {(field: any) => (
-                                                        <ProxyConfigEditor 
-                                                            value={field.state.value} 
-                                                            onChange={field.handleChange} 
-                                                        />
-                                                    )}
-                                                </form.Field>
-                                            </div>
-                                        </Tabs.Panel>
-                                        <Tabs.Panel id="download">
-                                            <div className="pt-4">
-                                                <form.Field name="downloadProxy">
-                                                    {(field: any) => (
-                                                        <ProxyConfigEditor 
-                                                            value={field.state.value} 
-                                                            onChange={field.handleChange} 
-                                                        />
-                                                    )}
-                                                </form.Field>
-                                            </div>
-                                        </Tabs.Panel>
-                                        <Tabs.Panel id="upload">
-                                            <div className="pt-4">
-                                                <form.Field name="uploadProxy">
-                                                    {(field: any) => (
-                                                        <ProxyConfigEditor 
-                                                            value={field.state.value} 
-                                                            onChange={field.handleChange} 
-                                                        />
-                                                    )}
-                                                </form.Field>
-                                            </div>
-                                        </Tabs.Panel>
-                                    </Tabs>
-                                </div>
-                            )
-                        )}
-                    </form.Subscribe>
-                </Card.Content>
-              </Card>
+              <form.Field name="proxies">
+                {(field: any) => (
+                  <ProxyListEditor 
+                    value={field.state.value} 
+                    onChange={field.handleChange} 
+                  />
+                )}
+              </form.Field>
             </section>
 
             {/* Connection Limits */}

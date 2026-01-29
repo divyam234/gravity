@@ -1,4 +1,4 @@
-import { Button, Card, Chip, Kbd, Tooltip } from "@heroui/react";
+import { Button, Card, Kbd, Tooltip } from "@heroui/react";
 import { Link } from "@tanstack/react-router";
 import type React from "react";
 import IconListUl from "~icons/gravity-ui/list-ul";
@@ -34,6 +34,9 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
   const isError = task.status === "error";
   const isComplete = task.status === "complete";
   const isUploading = task.status === "uploading";
+
+  const totalFiles = task.files?.length || 0;
+  const filesComplete = task.files?.filter((f) => f.status === "complete").length || 0;
 
   // Calculate uploaded bytes from progress percentage
   const uploadedBytes =
@@ -82,24 +85,14 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
                 status={task.status || "waiting"}
                 className="h-5 text-[10px] px-2"
               />
-              {task.metadataFetching && (
-                <Chip
-                  color="warning"
-                  size="sm"
-                  variant="soft"
-                  className="h-5 text-[10px] px-2 font-black uppercase tracking-widest animate-pulse"
-                >
-                  Metadata
-                </Chip>
-              )}
               <span className="text-xs text-muted font-bold">
                 {isUploading
                   ? `${formatBytes(uploadedBytes)} / ${formatBytes(task.size || 0)}`
                   : `${formatBytes(task.downloaded || 0)} / ${formatBytes(task.size || 0)}`}
               </span>
-              {task.isMagnet && task.totalFiles && (
+              {task.isMagnet && !!totalFiles && (
                 <span className="text-[10px] text-muted font-black uppercase tracking-widest bg-default/10 px-1.5 py-0.5 rounded-md">
-                  {task.filesComplete || 0} / {task.totalFiles} files
+                  {filesComplete} / {totalFiles} files
                 </span>
               )}
             </div>
@@ -130,12 +123,13 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
                 {isUploading ? "↑" : "↓"} {formatBytes(effectiveSpeed)}/s
               </span>
             )}
-            {isActive && task.isMagnet && task.magnetSource === "aria2" && (
+            {isActive && task.isMagnet && (
               <span className="text-[9px] font-black uppercase tracking-tighter text-muted">
                 S: <span className="text-success">{task.seeders || 0}</span> P:{" "}
                 <span className="text-foreground">{task.peers || 0}</span>
               </span>
             )}
+
             {!isUploading && isActive && (
               <span className="text-[10px] text-muted font-bold uppercase tracking-wider">
                 {formatTime(task.eta || 0)}
@@ -202,24 +196,14 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
             </h3>
             <div className="flex items-center gap-2 mt-1.5">
               <StatusChip status={task.status || "waiting"} />
-              {task.metadataFetching && (
-                <Chip
-                  color="warning"
-                  size="sm"
-                  variant="soft"
-                  className="h-5 text-[10px] px-2 font-black uppercase tracking-widest animate-pulse"
-                >
-                  Metadata
-                </Chip>
-              )}
               <span className="text-sm text-muted font-medium">
                 {isUploading
                   ? `${formatBytes(uploadedBytes)} / ${formatBytes(task.size || 0)}`
                   : `${formatBytes(task.downloaded || 0)} / ${formatBytes(task.size || 0)}`}
               </span>
-              {task.isMagnet && task.totalFiles && (
+              {task.isMagnet && !!totalFiles && (
                 <span className="text-[10px] text-muted font-black uppercase tracking-widest bg-default/10 px-1.5 py-0.5 rounded-md ml-auto">
-                  {task.filesComplete || 0} / {task.totalFiles} files
+                  {filesComplete} / {totalFiles} files
                 </span>
               )}
             </div>
@@ -314,12 +298,13 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
                 {isUploading ? "↑" : "↓"} {formatBytes(effectiveSpeed)}/s
               </span>
             )}
-            {isActive && task.isMagnet && task.magnetSource === "aria2" && (
+            {isActive && task.isMagnet && (
               <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-tighter text-muted">
                 S: <span className="text-success">{task.seeders || 0}</span>
                 P: <span className="text-foreground">{task.peers || 0}</span>
               </span>
             )}
+
           </div>
 
           <div className="flex gap-4 font-medium items-center">

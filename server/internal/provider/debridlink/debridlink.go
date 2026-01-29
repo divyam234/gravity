@@ -113,9 +113,9 @@ func (p *DebridLinkProvider) Resolve(ctx context.Context, rawURL string, headers
 	}
 
 	return &provider.ResolveResult{
-		URL:      result.Value.DownloadLink,
-		Filename: result.Value.Name,
-		Size:     result.Value.Size,
+		URL:  result.Value.DownloadLink,
+		Name: result.Value.Name,
+		Size: result.Value.Size,
 	}, nil
 }
 

@@ -52,14 +52,6 @@ export function useDownloadActions() {
     onError: (err) => toast.error(`Failed to start download: ${err.error}`),
   });
 
-  const downloadMagnet = openapi.useMutation("post", "/magnets/download", {
-    onSuccess: () => {
-      invalidate();
-      toast.success("Download started");
-    },
-    onError: (err) => toast.error(`Failed to start download: ${err.error}`),
-  });
-
   const pause = openapi.useMutation("post", "/downloads/{id}/pause", {
     onSuccess: () => {
       invalidate();
@@ -84,5 +76,5 @@ export function useDownloadActions() {
     onError: (err) => toast.error(`Failed to remove download: ${err.error}`),
   });
 
-  return { create, downloadMagnet, pause, resume, remove };
+  return { create, pause, resume, remove };
 }

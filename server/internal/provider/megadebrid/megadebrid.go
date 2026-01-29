@@ -118,7 +118,7 @@ func (p *MegaDebridProvider) getToken(ctx context.Context) (string, error) {
 
 	opts := rest.Opts{
 		Method:      "POST",
-		Path:        "", 
+		Path:        "",
 		Parameters:  url.Values{"action": {"connectUser"}},
 		ContentType: "application/x-www-form-urlencoded",
 		Body:        strings.NewReader(form.Encode()),
@@ -129,7 +129,7 @@ func (p *MegaDebridProvider) getToken(ctx context.Context) (string, error) {
 		ResponseText string `json:"response_text"`
 		Token        string `json:"token"`
 	}
-	
+
 	_, err := p.client.CallJSON(ctx, &opts, nil, &result)
 	if err != nil {
 		return "", err
@@ -176,11 +176,11 @@ func (p *MegaDebridProvider) fetchRegexes(ctx context.Context) error {
 	}
 
 	var result struct {
-		ResponseCode string `json:"response_code"`
-		ResponseText string `json:"response_text"`
-		Hosters      []string `json:"hosters"` 
+		ResponseCode string   `json:"response_code"`
+		ResponseText string   `json:"response_text"`
+		Hosters      []string `json:"hosters"`
 	}
-	
+
 	_, err = p.client.CallJSON(ctx, &opts, nil, &result)
 	if err != nil {
 		return err
@@ -231,7 +231,7 @@ func (p *MegaDebridProvider) Resolve(ctx context.Context, rawURL string, headers
 		Filename     string `json:"filename"`
 		Filesize     int64  `json:"filesize"`
 	}
-	
+
 	_, err = p.client.CallJSON(ctx, &opts, nil, &result)
 	if err != nil {
 		return nil, err
@@ -249,9 +249,9 @@ func (p *MegaDebridProvider) Resolve(ctx context.Context, rawURL string, headers
 	}
 
 	return &provider.ResolveResult{
-		URL:      result.DebridLink,
-		Filename: result.Filename,
-		Size:     result.Filesize,
+		URL:  result.DebridLink,
+		Name: result.Filename,
+		Size: result.Filesize,
 	}, nil
 }
 

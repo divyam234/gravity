@@ -1,14 +1,12 @@
-import { useState, useEffect, useId, useDeferredValue } from "react";
+import { useState, useId, useDeferredValue, useMemo } from "react";
 import { Button, Chip, Label, Input, TextArea, TextField, Select, ListBox } from "@heroui/react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
 import { useForm, useStore } from "@tanstack/react-form";
-import { toast } from "sonner";
 import IconChevronLeft from "~icons/gravity-ui/chevron-left";
 import IconMagnet from "~icons/gravity-ui/magnet";
 import IconChevronDown from "~icons/gravity-ui/chevron-down";
 import { useDownloadActions } from "../hooks/useDownloads";
-import { client } from "../lib/openapi";
+import { openapi } from "../lib/openapi";
 import { tasksLinkOptions } from "./tasks";
 import {
   FileTree,
@@ -18,7 +16,8 @@ import {
 import { formatBytes } from "../lib/utils";
 import type { components } from "../gen/api";
 
-type MagnetFile = components["schemas"]["model.MagnetFile"];
+type DownloadFile = components["schemas"]["model.DownloadFile"];
+type MagnetFile = DownloadFile & { isFolder?: boolean; children?: MagnetFile[] };
 
 export const Route = createFileRoute("/add")({
   component: AddDownloadPage,
@@ -27,11 +26,16 @@ export const Route = createFileRoute("/add")({
 function AddDownloadPage() {
   const navigate = useNavigate();
   const fileInputId = useId();
-  const { create, downloadMagnet } = useDownloadActions();
+  const { create } = useDownloadActions();
 
   const [isTorrent, setIsTorrent] = useState(false);
   const [torrentBase64, setTorrentBase64] = useState<string | null>(null);
-  const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
+
+  // Selection state with ID tracking to avoid useEffect for syncing
+  const [selection, setSelection] = useState<{ id: string | null, keys: Set<string> }>({ 
+    id: null, 
+    keys: new Set() 
+  });
 
   // Form setup
   const form = useForm({
@@ -73,42 +77,44 @@ function AddDownloadPage() {
         headers: Object.keys(headers).length > 0 ? headers : undefined,
       };
 
-      const isMagnetLocal = !!currentUrlValue && currentUrlValue.startsWith("magnet:");
+      const payload: any = {
+        ...flatOptions,
+      };
 
-      if ((isMagnetLocal || isTorrent) && magnetInfo) {
-        try {
-          await downloadMagnet.mutateAsync({
-            body: {
-                magnet: isMagnetLocal ? currentUrlValue : "",
-                torrentBase64: torrentBase64 || "",
-                source: (magnetInfo.source || "aria2") as "alldebrid" | "aria2",
-                magnetId: magnetInfo.magnetId,
-                name: magnetInfo.name,
-                selectedFiles: Array.from(selectedFiles),
-                files: (flattenFiles(magnetInfo.files || []) as unknown) as components["schemas"]["api.MagnetFileRequest"][],
-                ...flatOptions,
-            } as any
-          });
-          toast.success(isTorrent ? "Torrent download started" : "Magnet download started");
-          navigate(tasksLinkOptions("active"));
-        } catch (err: unknown) {
-          // Error handled by mutation toast
+      if (isTorrent && torrentBase64) {
+        payload.url = ""; 
+        payload.torrentData = torrentBase64;
+      } else if (currentUrlValue) {
+        payload.url = currentUrlValue;
+      } else {
+        return;
+      }
+
+      if (resolveData?.data?.result) {
+        const result = resolveData.data.result;
+        payload.provider = resolveData.data.provider;
+        payload.filename = result.name || value.filename || undefined;
+        
+        if (result.isMagnet || isTorrent) {
+            const allFiles = (result.files || []) as DownloadFile[];
+            const selectedIndexes = allFiles
+                .map((f, i) => selectedFiles.has(f.path || "") ? i : -1)
+                .filter(i => i !== -1);
+            
+            payload.selectedFiles = selectedIndexes;
         }
       } else {
-        if (!currentUrlValue) return;
-        create.mutate(
-          {
-            body: {
-                url: currentUrlValue,
-                filename: value.filename || undefined,
-                ...flatOptions,
-            } as any
-          },
-          {
-            onSuccess: () => navigate(tasksLinkOptions("active")),
-          },
-        );
+        payload.filename = value.filename || undefined;
       }
+
+      create.mutate(
+        {
+          body: payload,
+        },
+        {
+          onSuccess: () => navigate(tasksLinkOptions("active")),
+        },
+      );
     },
   });
 
@@ -117,52 +123,54 @@ function AddDownloadPage() {
   const deferredUris = useDeferredValue(uris);
   const currentUrl = deferredUris.trim().split("\n")[0]?.trim();
 
-  // 1. Magnet Check Query
-  const { data: magnetCheckData, isLoading: isCheckingMagnet, error: magnetError } = useQuery({
-    queryKey: ["magnet", currentUrl],
-    queryFn: async () => {
-        const { data } = await client.POST("/magnets/check", {
-            body: { magnet: currentUrl! }
-        });
-        const info = data?.data;
-        if (!info) throw new Error("Failed to check magnet");
-        // @ts-ignore - manual tree building
-        info.files = buildTreeFromFlatFiles(info.files as components["schemas"]["model.MagnetFile"][]);
-        return info;
+  // Unified Resolve Query
+  const { data: resolveInfo, isLoading: isResolving, error: resolveError } = openapi.useQuery(
+    "post",
+    "/providers/resolve",
+    {
+        body: {
+            url: isTorrent ? "" : currentUrl!,
+            torrentBase64: torrentBase64 || undefined,
+        }
     },
-    enabled: !!currentUrl && currentUrl.startsWith("magnet:"),
-    staleTime: 60000,
-  });
+    {
+        enabled: (!!currentUrl && currentUrl.startsWith("magnet:")) || (isTorrent && !!torrentBase64),
+        staleTime: 60000,
+        select: (response) => {
+            const result = response.data?.result;
+            if (!result || !result.files) return { ...response, tree: [] as MagnetFile[] };
 
-  // 2. Torrent Check Query
-  const { data: torrentCheckData, isLoading: isCheckingTorrent, error: torrentError } = useQuery({
-    queryKey: ["torrent", torrentBase64],
-    queryFn: async () => {
-        const { data } = await client.POST("/magnets/check-torrent", {
-            body: { torrentBase64: torrentBase64! }
-        });
-        const info = data?.data;
-        if (!info) throw new Error("Failed to check torrent");
-        // @ts-ignore - manual tree building
-        info.files = buildTreeFromFlatFiles(info.files as components["schemas"]["model.MagnetFile"][]);
-        return info;
-    },
-    enabled: isTorrent && !!torrentBase64,
-    staleTime: 60000,
-  });
+            const files = (result.files as DownloadFile[]).map(f => ({
+                ...f,
+                id: f.path || f.id || "",
+            } as MagnetFile));
 
-  const magnetInfo = isTorrent ? torrentCheckData : magnetCheckData;
-  const isMagnet = !!currentUrl && currentUrl.startsWith("magnet:");
-  const isLoadingInfo = isCheckingMagnet || isCheckingTorrent;
-  const anyError = magnetError || torrentError;
-
-  // Sync selected files when magnet info loads
-  useEffect(() => {
-    if (magnetInfo) {
-        const allIds = getAllFileIds(magnetInfo.files as MagnetFile[]);
-        setSelectedFiles(new Set(allIds));
+            return {
+                ...response,
+                tree: buildTreeFromFlatFiles(files)
+            };
+        }
     }
-  }, [magnetInfo]);
+  );
+
+  const resolveData = resolveInfo; // Alias for compatibility with rest of code
+  const resolveResult = resolveInfo?.data?.result;
+  const fileTree = resolveInfo?.tree || [];
+  const isMagnet = !!currentUrl && currentUrl.startsWith("magnet:");
+  const isComplex = isMagnet || isTorrent || (resolveResult?.files && resolveResult.files.length > 1);
+
+  const currentResolveId = resolveResult?.hash || currentUrl || (isTorrent ? "torrent-upload" : null);
+
+  // Sync selection when ID changes (Standard React pattern to replace useEffect for syncing state with props/data)
+  if (currentResolveId !== selection.id && fileTree.length > 0) {
+    setSelection({
+      id: currentResolveId,
+      keys: new Set(getAllFileIds(fileTree))
+    });
+  }
+
+  const selectedFiles = selection.keys;
+  const setSelectedFiles = (keys: Set<string>) => setSelection({ id: currentResolveId, keys });
 
   const handleTorrentUpload = async (file: File) => {
     setIsTorrent(true);
@@ -177,8 +185,8 @@ function AddDownloadPage() {
   };
 
   const selectAllFiles = () => {
-    if (magnetInfo) {
-      setSelectedFiles(new Set(getAllFileIds(magnetInfo.files as MagnetFile[])));
+    if (fileTree.length > 0) {
+      setSelectedFiles(new Set(getAllFileIds(fileTree)));
     }
   };
 
@@ -186,9 +194,10 @@ function AddDownloadPage() {
     setSelectedFiles(new Set());
   };
 
-  const selectedSize = magnetInfo
-    ? getSelectedSize(magnetInfo.files as MagnetFile[], selectedFiles)
-    : 0;
+  const selectedSize = useMemo(() => {
+    if (fileTree.length === 0) return 0;
+    return getSelectedSize(fileTree, selectedFiles);
+  }, [fileTree, selectedFiles]);
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-20 px-4 md:px-0 mt-6">
@@ -221,10 +230,10 @@ function AddDownloadPage() {
             isDisabled={
               (!currentUrl && !isTorrent) ||
               create.isPending ||
-              isLoadingInfo ||
-              ((isMagnet || isTorrent) && selectedFiles.size === 0)
+              isResolving ||
+              (isComplex && selectedFiles.size === 0)
             }
-            isPending={create.isPending || isLoadingInfo}
+            isPending={create.isPending || isResolving}
           >
             Start
           </Button>
@@ -299,43 +308,40 @@ function AddDownloadPage() {
               )}
 
               {/* Error display */}
-              {anyError && (
+              {resolveError && (
                 <div className="mt-2 p-4 rounded-2xl bg-danger/5 border border-danger/20 text-danger text-xs font-bold">
-                  {(anyError as Error).message || "Failed to process link"}
+                  {(resolveError as any).error || "Failed to process link"}
                 </div>
               )}
             </div>
           </div>
 
-          {/* File Selection (Magnet or Torrent) */}
-          {(isMagnet || isTorrent) && magnetInfo && (
+          {/* File Selection */}
+          {isComplex && resolveResult && (
             <div className="bg-background p-8 rounded-[32px] border border-border shadow-sm">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex-1 min-w-0 mr-4">
                   <h3
                     className="font-bold text-lg truncate"
-                    title={magnetInfo.name}
+                    title={resolveResult.name}
                   >
-                    {magnetInfo.name}
+                    {resolveResult.name}
                   </h3>
                   <div className="flex items-center gap-2 text-xs text-muted font-black uppercase tracking-widest mt-1">
-                    <span>{formatBytes(magnetInfo.size || 0)}</span>
+                    <span>{formatBytes(resolveResult.size || 0)}</span>
                     <span>•</span>
-                    <span>{getAllFileIds(magnetInfo.files || []).length} files</span>
+                    <span>{resolveResult.files?.length || 0} files</span>
                   </div>
                 </div>
-                <Chip
-                  color={magnetInfo.cached ? "success" : "default"}
-                  variant="soft"
-                  size="sm"
-                  className="font-black uppercase tracking-widest"
-                >
-                  {magnetInfo.cached
-                    ? "Cached"
-                    : magnetInfo.source === "aria2"
-                      ? "P2P"
-                      : "Not Cached"}
-                </Chip>
+                {resolveData?.data?.provider && (
+                    <Chip
+                        variant="soft"
+                        size="sm"
+                        className="font-black uppercase tracking-widest"
+                    >
+                        {resolveData.data.provider}
+                    </Chip>
+                )}
               </div>
 
               {/* Select/Deselect buttons */}
@@ -361,7 +367,7 @@ function AddDownloadPage() {
               {/* File Tree */}
               <div className="max-h-[500px] overflow-y-auto rounded-2xl border border-border bg-default/5 custom-scrollbar overscroll-y-contain relative">
                 <FileTree
-                  files={magnetInfo.files || []}
+                  files={fileTree as any}
                   selectedKeys={selectedFiles}
                   onSelectionChange={setSelectedFiles}
                 />
@@ -379,13 +385,13 @@ function AddDownloadPage() {
             </div>
           )}
 
-          {/* Loading state for magnet/torrent check */}
-          {(isMagnet || isTorrent) && isLoadingInfo && (
+          {/* Loading state for resolution */}
+          {isResolving && (
             <div className="bg-background p-8 rounded-[32px] border border-border shadow-sm">
               <div className="flex items-center justify-center gap-3 py-8 flex-col">
                 <div className="animate-spin rounded-full h-8 w-8 border-3 border-accent border-t-transparent" />
                 <span className="text-sm text-muted font-bold uppercase tracking-widest">
-                  {isCheckingTorrent ? "Parsing torrent file..." : "Checking cache & peers..."}
+                  {isTorrent ? "Parsing torrent file..." : "Resolving link..."}
                 </span>
               </div>
             </div>
@@ -395,8 +401,8 @@ function AddDownloadPage() {
         {/* Right Column - Options */}
         <div className="lg:col-span-5 space-y-6">
           <div className="bg-background p-8 rounded-[32px] border border-border shadow-sm space-y-6">
-            {/* Filename (only for non-magnet/torrent) */}
-            {!isMagnet && !isTorrent && (
+            {/* Filename (only for non-complex) */}
+            {!isComplex && (
               <form.Field
                 name="filename"
                 children={(field: any) => (
@@ -405,7 +411,7 @@ function AddDownloadPage() {
                       Filename (Optional)
                     </Label>
                     <Input
-                      placeholder="original-name.zip"
+                      placeholder={resolveResult?.name || "original-name.zip"}
                       value={field.state.value}
                       onChange={(e) => field.handleChange(e.target.value)}
                       className="w-full h-12 px-4 bg-default/10 rounded-2xl text-sm border-none focus:bg-default/15 transition-all outline-none"
@@ -599,30 +605,23 @@ function AddDownloadPage() {
             />
           </div>
 
-          {/* Magnet/Torrent source info */}
-          {(isMagnet || isTorrent) && magnetInfo && (
+          {/* Resolve info */}
+          {resolveData?.data?.provider && (
             <div className="bg-background p-6 rounded-[32px] border border-border shadow-sm">
               <div className="flex items-center gap-4">
                 <div
-                  className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg ${magnetInfo.source === "alldebrid"
-                    ? "bg-success/10 text-success shadow-success/10"
-                    : "bg-accent/10 text-accent shadow-accent/10"
-                  }`}
+                  className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg bg-accent/10 text-accent shadow-accent/10"
                 >
                   <span className="font-black text-lg">
-                    {magnetInfo.source === "alldebrid" ? "AD" : "P2P"}
+                    {resolveData.data.provider.slice(0, 2).toUpperCase()}
                   </span>
                 </div>
                 <div>
                   <p className="font-bold text-sm">
-                    {magnetInfo.source === "alldebrid"
-                      ? "AllDebrid High-Speed"
-                      : "BitTorrent Network"}
+                    {resolveData.data.provider}
                   </p>
                   <p className="text-xs text-muted font-medium mt-0.5">
-                    {magnetInfo.source === "alldebrid"
-                      ? "Downloading from AllDebrid cache via high-speed HTTP."
-                      : "Downloading from BitTorrent swarm using peers and seeds."}
+                    Link resolved via {resolveData.data.provider}.
                   </p>
                 </div>
               </div>
@@ -632,25 +631,6 @@ function AddDownloadPage() {
       </div>
     </div>
   );
-}
-
-// Helper to flatten nested files for API request
-function flattenFiles(files: MagnetFile[]): MagnetFile[] {
-  const result: MagnetFile[] = [];
-
-  function traverse(items: MagnetFile[]) {
-    for (const file of items) {
-      if (!file.isFolder) {
-        result.push(file);
-      }
-      if (file.children) {
-        traverse(file.children as MagnetFile[]);
-      }
-    }
-  }
-
-  traverse(files);
-  return result;
 }
 
 function buildTreeFromFlatFiles(files: MagnetFile[]): MagnetFile[] {
@@ -668,7 +648,7 @@ function buildTreeFromFlatFiles(files: MagnetFile[]): MagnetFile[] {
     let currentLevel = root;
     let currentPath = "";
 
-    parts.forEach((part, index) => {
+    parts.forEach((part: string, index: number) => {
       currentPath = currentPath ? `${currentPath}/${part}` : part;
       const isFile = index === parts.length - 1;
 
@@ -676,7 +656,7 @@ function buildTreeFromFlatFiles(files: MagnetFile[]): MagnetFile[] {
       const existing = currentLevel.find((n) => n.name === part);
 
       if (existing) {
-        if (existing.isFolder) {
+        if (!isFile) {
           if (!existing.children) existing.children = [];
           currentLevel = existing.children as MagnetFile[];
           existing.size = (existing.size || 0) + (file.size || 0); // Aggregate size

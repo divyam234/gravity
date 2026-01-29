@@ -45,16 +45,15 @@ const ETAUnknown = -1
 
 // ProgressEvent represents a high-frequency progress update
 type ProgressEvent struct {
-	ID               string `json:"id"`
-	Type             string `json:"type"` // "download" or "upload"
-	Downloaded       int64  `json:"downloaded,omitempty"`
-	Uploaded         int64  `json:"uploaded,omitempty"`
-	Size             int64  `json:"size"`
-	Speed            int64  `json:"speed"`
-	ETA              int    `json:"eta"` // -1 = unknown, 0 = done, >0 = seconds remaining
-	Seeders          int    `json:"seeders,omitempty"`
-	Peers            int    `json:"peers,omitempty"`
-	MetadataFetching bool   `json:"metadataFetching,omitempty"`
+	ID         string `json:"id"`
+	Type       string `json:"type"` // "download" or "upload"
+	Downloaded int64  `json:"downloaded,omitempty"`
+	Uploaded   int64  `json:"uploaded,omitempty"`
+	Size       int64  `json:"size"`
+	Speed      int64  `json:"speed"`
+	ETA        int    `json:"eta"` // -1 = unknown, 0 = done, >0 = seconds remaining
+	Seeders    int    `json:"seeders,omitempty"`
+	Peers      int    `json:"peers,omitempty"`
 }
 
 // LifecycleEvent represents a state change event

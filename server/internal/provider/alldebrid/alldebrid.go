@@ -135,9 +135,9 @@ func (p *AllDebridProvider) Resolve(ctx context.Context, rawURL string, headers 
 	}
 
 	return &provider.ResolveResult{
-		URL:      result.Data.Link,
-		Filename: result.Data.Filename,
-		Size:     result.Data.Filesize,
+		URL:  result.Data.Link,
+		Name: result.Data.Filename,
+		Size: result.Data.Filesize,
 	}, nil
 }
 

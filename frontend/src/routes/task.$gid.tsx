@@ -38,6 +38,9 @@ function TaskDetailsPage() {
       ? ((task.downloaded || 0) / (task.size || 1)) * 100
       : 0;
 
+  const totalFiles = files.length;
+  const filesComplete = files.filter((f) => f.status === "complete").length;
+
   const currentSpeed = isUploading ? task.uploadSpeed || 0 : task.speed || 0;
   const speedLabel = isUploading ? "Upload Speed" : "Download Speed";
   const speedColor = isUploading ? "text-cyan-500" : "text-success";
@@ -49,6 +52,7 @@ function TaskDetailsPage() {
     error: { label: "Error", color: "text-danger" },
     complete: { label: "Finished", color: "text-accent" },
     uploading: { label: "Uploading", color: "text-cyan-500" },
+    resolving: { label: "Resolving", color: "text-warning animate-pulse" },
   };
 
   const config = statusConfig[task.status as keyof typeof statusConfig] || {
@@ -236,7 +240,7 @@ function TaskDetailsPage() {
                 </section>
               )}
 
-              {peers.length > 0 && task.magnetSource === "aria2" && (
+              {peers.length > 0 && task.isMagnet && (
                 <section>
                   <h3 className="text-[10px] font-black uppercase tracking-widest text-muted mb-6 flex items-center gap-3">
                     <div className="w-2 h-2 rounded-full bg-accent" />
@@ -323,14 +327,6 @@ function TaskDetailsPage() {
                       <p className="text-sm font-bold">{task.provider}</p>
                     </div>
                   )}
-                  {task.category && (
-                    <div className="space-y-1">
-                      <p className="text-[10px] text-muted uppercase font-black tracking-widest">
-                        Category
-                      </p>
-                      <p className="text-sm font-bold">{task.category}</p>
-                    </div>
-                  )}
                   <div className="space-y-1">
                     <p className="text-[10px] text-muted uppercase font-black tracking-widest">
                       Created
@@ -360,20 +356,6 @@ function TaskDetailsPage() {
                     </div>
                   )}
                 </div>
-                {task.tags && task.tags.length > 0 && (
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {task.tags.map((tag) => (
-                      <Chip
-                        key={tag}
-                        size="sm"
-                        variant="soft"
-                        className="text-xs"
-                      >
-                        {tag}
-                      </Chip>
-                    ))}
-                  </div>
-                )}
               </section>
             </Card.Content>
           </Card>
@@ -458,10 +440,10 @@ function TaskDetailsPage() {
                           Files
                         </span>
                         <span className="text-xs font-black">
-                          {task.filesComplete || 0} / {task.totalFiles || 0}
+                          {filesComplete} / {totalFiles}
                         </span>
                       </div>
-                      {task.magnetSource === "aria2" && (
+                      {task.isMagnet && (
                         <div className="flex justify-between items-center">
                           <span className="text-xs font-medium text-muted-foreground">
                             Seeders / Peers
@@ -479,10 +461,10 @@ function TaskDetailsPage() {
                       )}
                       <div className="flex justify-between items-center">
                         <span className="text-xs font-medium text-muted-foreground">
-                          Source
+                          Provider
                         </span>
                         <span className="text-xs font-black uppercase tracking-widest">
-                          {task.magnetSource}
+                          {task.provider}
                         </span>
                       </div>
                     </div>

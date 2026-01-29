@@ -8,7 +8,6 @@ import (
 
 	"gravity/internal/model"
 	"gravity/internal/service"
-	"gravity/internal/utils"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -90,41 +89,35 @@ func (h *DownloadHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Initialize cleanFilename as empty
-	// If req.Filename is empty, we leave it empty so Aria2 uses the URL's filename.
-	cleanFilename := ""
-	if req.Filename != "" {
-		if !utils.IsSafeFilename(req.Filename) {
-			sendError(w, "invalid filename", http.StatusBadRequest)
-			return
-		}
-		// If provided, use it directly (IsSafeFilename checks for traversal)
-		cleanFilename = req.Filename
-	}
-
-	// Smart Destination Logic:
-	// We allow the user to specify:
-	// 1. A local absolute path (e.g. /mnt/data) -> Direct Download
-	// 2. A remote path (e.g. gdrive:) -> Download to default -> Upload
-	// 3. A relative path (e.g. movies) -> Download to default/movies (Direct Download)
-
-	// Therefore, we do NOT strictly sanitize the paths against the default data directory here.
-	// We trust the service layer to handle the logic and the underlying engine/OS to handle permission errors.
-	// This allows power users to download to external drives.
-
-	// Convert flattened request fields to model.Download carrier
+	// 1. Map request to carrier model
 	opts := model.Download{
-		DownloadDir: req.DownloadDir,
-		Destination: req.Destination,
-		Split:       req.Split,
-		MaxTries:    req.MaxTries,
-		UserAgent:   req.UserAgent,
-		ProxyURL:    req.ProxyURL,
-		RemoveLocal: req.RemoveLocal,
-		Headers:     req.Headers,
+		URL:           req.URL,
+		Filename:      req.Filename,
+		Dir:           req.Dir,
+		Destination:   req.Destination,
+		Split:         req.Split,
+		RemoveLocal:   req.RemoveLocal,
+		Headers:       req.Headers,
+		Engine:        req.Engine,
+		TorrentData:   req.TorrentData,
+		MagnetHash:    req.Hash,
+		SelectedFiles: req.SelectedFiles,
 	}
 
-	d, err := h.service.Create(r.Context(), req.URL, cleanFilename, opts)
+	if req.Hash != "" || req.TorrentData != "" || strings.HasPrefix(req.URL, "magnet:") {
+		opts.IsMagnet = true
+	}
+
+	// Map Proxies
+	for _, p := range req.Proxies {
+		opts.Proxies = append(opts.Proxies, model.Proxy{
+			URL:  p.URL,
+			Type: p.Type,
+		})
+	}
+
+	// 2. Call service
+	d, err := h.service.Create(r.Context(), &opts)
 	if err != nil {
 		sendError(w, err.Error(), http.StatusInternalServerError)
 		return

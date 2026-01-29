@@ -180,26 +180,18 @@ func (e *Engine) Add(ctx context.Context, url string, opts engine.DownloadOption
 		ariaOpts["user-agent"] = *opts.UserAgent
 	}
 
-	// Proxy
-	if opts.ProxyURL != nil && *opts.ProxyURL != "" {
-		ariaOpts["all-proxy"] = *opts.ProxyURL
+	// Proxies
+	if len(opts.Proxies) > 0 {
+		// aria2 takes a single proxy via all-proxy
+		ariaOpts["all-proxy"] = opts.Proxies[0].URL
 	} else {
 		// Auto-configure proxy based on settings
 		e.mu.RLock()
 		s := e.settings
 		e.mu.RUnlock()
 
-		if s != nil && s.Network.ProxyMode == "granular" {
-			var p model.ProxyConfig
-			if strings.HasPrefix(url, "magnet:") || opts.TorrentData != "" {
-				p = s.Network.MagnetProxy
-			} else {
-				p = s.Network.DownloadProxy
-			}
-
-			if p.Enabled && p.URL != "" {
-				ariaOpts["all-proxy"] = p.URL
-			}
+		if s != nil && len(s.Network.Proxies) > 0 {
+			ariaOpts["all-proxy"] = s.Network.Proxies[0].URL
 		}
 	}
 
@@ -414,10 +406,9 @@ func (e *Engine) Configure(ctx context.Context, settings *model.Settings) error 
 	}
 
 	// Network
-	if settings.Network.ProxyMode == "global" && settings.Network.GlobalProxy.Enabled {
-		ariaOpts["all-proxy"] = settings.Network.GlobalProxy.URL
+	if len(settings.Network.Proxies) > 0 {
+		ariaOpts["all-proxy"] = settings.Network.Proxies[0].URL
 	} else {
-		// Clear global proxy if disabled or granular
 		ariaOpts["all-proxy"] = ""
 	}
 	if settings.Network.InterfaceBinding != "" {
@@ -544,28 +535,26 @@ func (e *Engine) mapStatus(t *Aria2Task) *engine.DownloadStatus {
 		}
 	}
 
-	isMetadata := false
 	if t.BitTorrent != nil && (t.BitTorrent.Info == nil || t.BitTorrent.Info.Name == "") {
-		isMetadata = true
+		status = "resolving"
 	}
 
 	return &engine.DownloadStatus{
-		ID:               t.Gid,
-		Status:           status,
-		Filename:         filename,
-		Dir:              t.Dir,
-		Size:             total,
-		Downloaded:       completed,
-		Speed:            speed,
-		Connections:      conn,
-		Seeders:          seeders,
-		Peers:            conn - seeders,
-		Eta:              eta,
-		Error:            t.ErrorMessage,
-		Files:            files,
-		FollowedBy:       t.FollowedBy,
-		IsSeeder:         t.Seeder == "true",
-		MetadataFetching: isMetadata,
+		ID:          t.Gid,
+		Status:      status,
+		Filename:    filename,
+		Dir:         t.Dir,
+		Size:        total,
+		Downloaded:  completed,
+		Speed:       speed,
+		Connections: conn,
+		Seeders:     seeders,
+		Peers:       conn - seeders,
+		Eta:         eta,
+		Error:       t.ErrorMessage,
+		Files:       files,
+		FollowedBy:  t.FollowedBy,
+		IsSeeder:    t.Seeder == "true",
 	}
 }
 
@@ -737,14 +726,13 @@ func (e *Engine) poll() {
 			status := e.mapStatus(t)
 
 			onProgress(status.ID, engine.Progress{
-				Downloaded:       status.Downloaded,
-				Size:             status.Size,
-				Speed:            status.Speed,
-				ETA:              status.Eta,
-				Seeders:          status.Seeders,
-				Peers:            status.Peers,
-				MetadataFetching: status.MetadataFetching,
-				IsSeeder:         status.IsSeeder,
+				Downloaded: status.Downloaded,
+				Size:       status.Size,
+				Speed:      status.Speed,
+				ETA:        status.Eta,
+				Seeders:    status.Seeders,
+				Peers:      status.Peers,
+				IsSeeder:   status.IsSeeder,
 			})
 
 			// File progress

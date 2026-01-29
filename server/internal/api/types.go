@@ -27,10 +27,6 @@ type DownloadResponse struct {
 	Data *model.Download `json:"data" binding:"required"`
 }
 
-type MagnetInfoResponse struct {
-	Data *model.MagnetInfo `json:"data" binding:"required"`
-}
-
 type ProviderListResponse struct {
 	Data ProviderList `json:"data" binding:"required"`
 }
@@ -110,15 +106,14 @@ type StatsResponse struct {
 // These help generate strictly typed TypeScript unions for the EventSource
 
 type ProgressEventData struct {
-	ID               string `json:"id" validate:"required" binding:"required"`
-	Downloaded       int64  `json:"downloaded" validate:"required" binding:"required"`
-	Uploaded         int64  `json:"uploaded" validate:"required" binding:"required"`
-	Size             int64  `json:"size" validate:"required" binding:"required"`
-	Speed            int64  `json:"speed" validate:"required" binding:"required"`
-	ETA              int    `json:"eta" validate:"required" binding:"required"`
-	Seeders          int    `json:"seeders"`
-	Peers            int    `json:"peers"`
-	MetadataFetching bool   `json:"metadataFetching"`
+	ID         string `json:"id" validate:"required" binding:"required"`
+	Downloaded int64  `json:"downloaded" validate:"required" binding:"required"`
+	Uploaded   int64  `json:"uploaded" validate:"required" binding:"required"`
+	Size       int64  `json:"size" validate:"required" binding:"required"`
+	Speed      int64  `json:"speed" validate:"required" binding:"required"`
+	ETA        int    `json:"eta" validate:"required" binding:"required"`
+	Seeders    int    `json:"seeders"`
+	Peers      int    `json:"peers"`
 }
 
 // EventResponse represents a unified SSE event wrapper
@@ -159,45 +154,10 @@ type CreateDownloadRequest struct {
 	Headers     map[string]string `json:"headers"`
 
 	//Fields For magnets
-	TorrentBase64 string   `json:"torrentBase64"`
-	Hash          string   `json:"hash"`
-	SelectedFiles []string `json:"selectedFiles" example:"1,2"`
-}
-
-// Magnets
-type CheckMagnetRequest struct {
-	Magnet string `json:"magnet" validate:"required" binding:"required" example:"magnet:?xt=urn:btih:..."`
-}
-
-type CheckTorrentRequest struct {
-	TorrentBase64 string `json:"torrentBase64" validate:"required" binding:"required"`
-}
-
-type MagnetFileRequest struct {
-	ID    string `json:"id" example:"1" binding:"required"`
-	Name  string `json:"name" example:"movie.mp4" binding:"required"`
-	Path  string `json:"path" example:"Release/movie.mp4" binding:"required"`
-	Size  int64  `json:"size" example:"1048576" binding:"required"`
-	Link  string `json:"link,omitempty"`
-	Index int    `json:"index" example:"1" binding:"required"`
-}
-
-type DownloadMagnetRequest struct {
-	Magnet        string   `json:"magnet" example:"magnet:?xt=urn:btih:..."`
-	TorrentBase64 string   `json:"torrentBase64"`
-	Source        string   `json:"source" validate:"required" binding:"required" enums:"alldebrid,aria2"`
-	MagnetID      string   `json:"magnetId"`
-	Name          string   `json:"name" example:"My Movie"`
-	SelectedFiles []string `json:"selectedFiles" example:"1,2"`
-
-	DownloadDir string            `json:"downloadDir" example:"/downloads"`    // Local save path
-	Destination string            `json:"destination" example:"gdrive:movies"` // Remote path
-	Split       *int              `json:"split"`                               // File splitting count
-	MaxTries    *int              `json:"maxTries"`                            // Retry attempts
-	UserAgent   *string           `json:"userAgent"`                           // Custom user agent
-	ProxyURL    *string           `json:"proxyUrl"`                            // Full proxy URL
-	RemoveLocal *bool             `json:"removeLocal"`                         // Remove local file after upload
-	Headers     map[string]string `json:"headers"`                             // Custom HTTP headers
+	TorrentData   string               `json:"torrentData"`
+	Hash          string               `json:"hash"`
+	SelectedFiles []int                `json:"selectedFiles" example:"1,2"`
+	Files         []model.DownloadFile `json:"files"`
 }
 
 // Search
@@ -238,8 +198,9 @@ type ConfigureProviderRequest struct {
 }
 
 type ResolveURLRequest struct {
-	URL     string            `json:"url" validate:"required" binding:"required" example:"http://example.com/file.zip"`
-	Headers map[string]string `json:"headers"`
+	URL           string            `json:"url" validate:"required" binding:"required" example:"http://example.com/file.zip"`
+	Headers       map[string]string `json:"headers"`
+	TorrentBase64 string            `json:"torrentBase64"`
 }
 
 type ProviderHosts struct {

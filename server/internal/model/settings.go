@@ -77,13 +77,7 @@ type ProxyConfig struct {
 }
 
 type NetworkSettings struct {
-	ProxyMode string `json:"proxyMode" enums:"global,granular" default:"global"`
-
-	// Proxy Configurations
-	GlobalProxy   ProxyConfig `json:"globalProxy"`
-	MagnetProxy   ProxyConfig `json:"magnetProxy"`
-	DownloadProxy ProxyConfig `json:"downloadProxy"`
-	UploadProxy   ProxyConfig `json:"uploadProxy"`
+	Proxies []Proxy `json:"proxies" gorm:"serializer:json"`
 
 	DNSOverHTTPS string `json:"dnsOverHttps" example:"https://cloudflare-dns.com/dns-query"`
 

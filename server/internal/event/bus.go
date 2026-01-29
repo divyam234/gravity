@@ -81,15 +81,14 @@ func (b *Bus) PublishProgress(e ProgressEvent) {
 		Type:      eventType,
 		Timestamp: time.Now(),
 		Data: map[string]any{
-			"id":               e.ID,
-			"downloaded":       e.Downloaded,
-			"uploaded":         e.Uploaded,
-			"size":             e.Size,
-			"speed":            e.Speed,
-			"eta":              e.ETA,
-			"seeders":          e.Seeders,
-			"peers":            e.Peers,
-			"metadataFetching": e.MetadataFetching,
+			"id":         e.ID,
+			"downloaded": e.Downloaded,
+			"uploaded":   e.Uploaded,
+			"size":       e.Size,
+			"speed":      e.Speed,
+			"eta":        e.ETA,
+			"seeders":    e.Seeders,
+			"peers":      e.Peers,
 		},
 	})
 }

@@ -16,7 +16,8 @@ import IconFile from "~icons/gravity-ui/file";
 import { formatBytes } from "../../lib/utils";
 import type { components } from "../../gen/api";
 
-type MagnetFile = components["schemas"]["model.MagnetFile"];
+type DownloadFile = components["schemas"]["model.DownloadFile"];
+type MagnetFile = DownloadFile & { isFolder?: boolean; children?: MagnetFile[] };
 
 interface FileTreeProps {
   files: MagnetFile[];
@@ -68,7 +69,7 @@ export function FileTree({
       const ids: string[] = [];
       const node = nodeMap.get(id);
       if (node && node.children) {
-        node.children.forEach((child) => {
+        node.children.forEach((child: MagnetFile) => {
           if (child.id) {
             ids.push(child.id);
             ids.push(...getDescendants(child.id));

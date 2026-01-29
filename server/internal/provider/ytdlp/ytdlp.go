@@ -218,10 +218,10 @@ func (p *YtDlpProvider) Resolve(ctx context.Context, rawURL string, headers map[
 	filename = strings.ReplaceAll(filename, "\\", "_")
 
 	return &provider.ResolveResult{
-		URL:      finalURL,
-		Filename: filename,
-		Size:     size,
-		Headers:  meta.HttpHeaders,
+		URL:     finalURL,
+		Name:    filename,
+		Size:    size,
+		Headers: meta.HttpHeaders,
 	}, nil
 }
 

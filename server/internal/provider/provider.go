@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-
 	"gravity/internal/model"
 )
 
@@ -15,11 +14,14 @@ type ConfigField struct {
 }
 
 type ResolveResult struct {
-	URL      string            `json:"url"`
-	Filename string            `json:"filename"`
-	Size     int64             `json:"size"`
-	Headers  map[string]string `json:"headers"`
-	Error    string            `json:"error,omitempty"`
+	URL      string                `json:"url"`
+	Name     string                `json:"name"`
+	Size     int64                 `json:"size"`
+	Headers  map[string]string     `json:"headers"`
+	Error    string                `json:"error,omitempty"`
+	IsMagnet bool                  `json:"isMagnet"`
+	Hash     string                `json:"hash,omitempty"`
+	Files    []*model.DownloadFile `json:"files,omitempty"`
 }
 
 type Provider interface {

@@ -173,9 +173,9 @@ func (p *PremiumizeProvider) Resolve(ctx context.Context, rawURL string, headers
 	}
 
 	return &provider.ResolveResult{
-		URL:      result.Location,
-		Filename: result.Filename,
-		Size:     result.Filesize,
+		URL:  result.Location,
+		Name: result.Filename,
+		Size: result.Filesize,
 	}, nil
 }
 

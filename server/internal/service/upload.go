@@ -146,8 +146,8 @@ func (s *UploadService) TriggerUpload(ctx context.Context, d *model.Download) er
 	s.repo.Update(ctx, d)
 
 	// Trigger in engine
-	// Use DownloadDir (absolute) if available, otherwise Filename (relative/fallback)
-	srcPath := d.DownloadDir
+	// Use Dir (absolute) if available, otherwise Filename (relative/fallback)
+	srcPath := d.Dir
 	if srcPath == "" {
 		srcPath = d.Filename
 	}
@@ -185,12 +185,14 @@ func (s *UploadService) handleProgress(downloadID string, p engine.UploadProgres
 	}
 
 	// Update DB with latest progress
+	d.UploadProgress = 0
 	if p.Size > 0 {
 		d.UploadProgress = int((p.Uploaded * 100) / p.Size)
 	}
 	d.UploadSpeed = p.Speed
-	s.repo.Update(ctx, d)
-
+	// Note: We don't save upload progress to DB every time to avoid overhead
+	// But we publish it to the bus
+	
 	s.bus.PublishProgress(event.ProgressEvent{
 		ID:       d.ID,
 		Type:     "upload",
@@ -231,8 +233,8 @@ func (s *UploadService) handleComplete(downloadID string) {
 		shouldDelete = *d.RemoveLocal
 	}
 
-	if shouldDelete && d.DownloadDir != "" {
-		filePath := filepath.Join(d.DownloadDir, d.Filename)
+	if shouldDelete && d.Dir != "" {
+		filePath := filepath.Join(d.Dir, d.Filename)
 		s.logger.Debug("deleting local copy after upload", zap.String("path", filePath))
 		if err := os.RemoveAll(filePath); err != nil {
 			s.logger.Error("failed to delete local file", zap.String("path", filePath), zap.Error(err))

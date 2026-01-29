@@ -170,7 +170,7 @@ func (h *ProviderHandler) Resolve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res, provider, err := h.service.Resolve(r.Context(), req.URL, req.Headers)
+	res, provider, err := h.service.Resolve(r.Context(), req.URL, req.Headers, req.TorrentBase64)
 	if err != nil {
 		sendError(w, err.Error(), http.StatusNotFound)
 		return

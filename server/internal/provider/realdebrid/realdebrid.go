@@ -17,10 +17,10 @@ import (
 const baseURL = "https://api.real-debrid.com/rest/1.0"
 
 type RealDebridProvider struct {
-	apiKey     string
-	proxyURL   string
-	client     *client.Client
-	regexes    []*regexp.Regexp
+	apiKey   string
+	proxyURL string
+	client   *client.Client
+	regexes  []*regexp.Regexp
 }
 
 func New() *RealDebridProvider {
@@ -157,9 +157,9 @@ func (p *RealDebridProvider) Resolve(ctx context.Context, rawURL string, headers
 	}
 
 	return &provider.ResolveResult{
-		URL:      result.Link,
-		Filename: result.Filename,
-		Size:     result.Filesize,
+		URL:  result.Link,
+		Name: result.Filename,
+		Size: result.Filesize,
 	}, nil
 }
 

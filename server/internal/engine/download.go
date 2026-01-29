@@ -2,39 +2,36 @@ package engine
 
 import (
 	"context"
-
 	"gravity/internal/model"
 )
 
 type Progress struct {
-	Downloaded       int64 `json:"downloaded"`
-	Size             int64 `json:"size"`
-	Speed            int64 `json:"speed"`
-	ETA              int   `json:"eta"`
-	Seeders          int   `json:"seeders"`
-	Peers            int   `json:"peers"`
-	IsSeeder         bool  `json:"isSeeder"`
-	MetadataFetching bool  `json:"metadataFetching"`
+	Downloaded int64 `json:"downloaded"`
+	Size       int64 `json:"size"`
+	Speed      int64 `json:"speed"`
+	ETA        int   `json:"eta"`
+	Seeders    int   `json:"seeders"`
+	Peers      int   `json:"peers"`
+	IsSeeder   bool  `json:"isSeeder"`
 }
 
 type DownloadStatus struct {
-	ID               string               `json:"id"`
-	Status           string               `json:"status"` // active, paused, complete, error
-	IsSeeder         bool                 `json:"isSeeder"`
-	URL              string               `json:"url"`
-	Filename         string               `json:"filename"`
-	Dir              string               `json:"dir"`
-	Size             int64                `json:"size"`
-	Downloaded       int64                `json:"downloaded"`
-	Speed            int64                `json:"speed"`
-	Connections      int                  `json:"connections"`
-	Seeders          int                  `json:"seeders"`
-	Peers            int                  `json:"peers"`
-	Eta              int                  `json:"eta"`
-	Error            string               `json:"error,omitempty"`
-	Files            []DownloadFileStatus `json:"files,omitempty"`
-	FollowedBy       []string             `json:"followedBy,omitempty"`
-	MetadataFetching bool                 `json:"metadataFetching,omitempty"`
+	ID          string               `json:"id"`
+	Status      string               `json:"status"` // active, paused, complete, error
+	IsSeeder    bool                 `json:"isSeeder"`
+	URL         string               `json:"url"`
+	Filename    string               `json:"filename"`
+	Dir         string               `json:"dir"`
+	Size        int64                `json:"size"`
+	Downloaded  int64                `json:"downloaded"`
+	Speed       int64                `json:"speed"`
+	Connections int                  `json:"connections"`
+	Seeders     int                  `json:"seeders"`
+	Peers       int                  `json:"peers"`
+	Eta         int                  `json:"eta"`
+	Error       string               `json:"error,omitempty"`
+	Files       []DownloadFileStatus `json:"files,omitempty"`
+	FollowedBy  []string             `json:"followedBy,omitempty"`
 }
 
 type DownloadFileStatus struct {
