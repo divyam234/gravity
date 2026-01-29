@@ -52,7 +52,7 @@ tasks:
 
   build:backend:
     dir: server
-    cmd: go build -o ../bin/gravity cmd/gravity/main.go
+    cmd: go build -ldflags="-s -w" -o ../bin/gravity cmd/gravity/main.go
 
   test:
     desc: Run tests

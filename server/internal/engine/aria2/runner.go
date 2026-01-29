@@ -8,14 +8,15 @@ import (
 	"syscall"
 	"time"
 
-	"gravity/internal/logger"
 	"go.uber.org/zap"
+	"gravity/internal/logger"
 )
 
 type Runner struct {
 	port        int
 	sessionFile string
 	downloadDir string
+	binaryPath  string
 	cmd         *exec.Cmd
 	Verbose     bool
 }
@@ -34,7 +35,12 @@ func NewRunner(port int, dataDir string) *Runner {
 		port:        port,
 		sessionFile: sessionFile,
 		downloadDir: downloadDir,
+		binaryPath:  "aria2c", // Default
 	}
+}
+
+func (r *Runner) SetBinaryPath(path string) {
+	r.binaryPath = path
 }
 
 func (r *Runner) Start() error {
@@ -54,7 +60,7 @@ func (r *Runner) Start() error {
 		"--disable-ipv6=true",
 	}
 
-	r.cmd = exec.Command("aria2c", args...)
+	r.cmd = exec.Command(r.binaryPath, args...)
 
 	if r.Verbose {
 		r.cmd.Stdout = os.Stdout

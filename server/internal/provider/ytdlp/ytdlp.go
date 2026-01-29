@@ -27,9 +27,9 @@ type YtDlpProvider struct {
 	client         *client.Client
 }
 
-func New() *YtDlpProvider {
+func New(binaryPath string) *YtDlpProvider {
 	return &YtDlpProvider{
-		binaryPath: "yt-dlp",
+		binaryPath: binaryPath,
 		extractors: make(map[string]bool),
 		client:     client.New(context.Background(), "", client.WithTimeout(15*time.Second)),
 	}

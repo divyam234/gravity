@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"gravity/internal/api"
+	"gravity/internal/binaries"
 	"gravity/internal/config"
 	"gravity/internal/engine"
 	"gravity/internal/engine/aria2"
@@ -40,6 +41,7 @@ type App struct {
 	store  *store.Store
 	bus    *event.Bus
 	logger *zap.Logger
+	binMgr *binaries.Manager
 
 	DownloadEngine engine.DownloadEngine
 	UploadEngine   engine.UploadEngine
@@ -83,6 +85,9 @@ func New(ctx context.Context, de engine.DownloadEngine, ue engine.UploadEngine) 
 
 	bus := event.NewBus()
 
+	// Initialize Binaries Manager
+	binMgr := binaries.NewManager(cfg.DataDir)
+
 	// Repos
 	dr := store.NewDownloadRepo(s.GetDB())
 	pr := store.NewProviderRepo(s.GetDB())
@@ -93,6 +98,7 @@ func New(ctx context.Context, de engine.DownloadEngine, ue engine.UploadEngine) 
 	// Engines (Initialize both for Hybrid support)
 	if de == nil {
 		de1 := aria2.NewEngine(cfg.Aria2RPCPort, cfg.DataDir, l)
+		de1.GetRunner().SetBinaryPath(binMgr.GetAria2Path())
 		de2 := native.NewNativeEngine(cfg.DataDir, l)
 		de = hybrid.NewHybridRouter(de1, de2, l)
 	}
@@ -103,7 +109,7 @@ func New(ctx context.Context, de engine.DownloadEngine, ue engine.UploadEngine) 
 	// Providers
 	registry := provider.NewRegistry()
 	registry.Register(direct.New())
-	registry.Register(ytdlp.New())
+	registry.Register(ytdlp.New(binMgr.GetYtDlpPath()))
 	ad := alldebrid.New()
 	registry.Register(ad)
 	registry.Register(realdebrid.New())
@@ -160,6 +166,7 @@ func New(ctx context.Context, de engine.DownloadEngine, ue engine.UploadEngine) 
 		store:           s,
 		bus:             bus,
 		logger:          l,
+		binMgr:          binMgr,
 		DownloadEngine:  de,
 		UploadEngine:    ue,
 		downloadService: ds,
@@ -196,6 +203,9 @@ func (a *App) Start(ctx context.Context) error {
 }
 
 func (a *App) StartEngines(ctx context.Context) error {
+	// Ensure binaries are present
+	a.binMgr.EnsureBinaries(ctx)
+
 	// Load settings from DB
 	setr := store.NewSettingsRepo(a.store.GetDB())
 	settings, _ := setr.Get(ctx)
