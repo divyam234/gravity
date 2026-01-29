@@ -46,7 +46,8 @@ type Engine struct {
 }
 
 func NewEngine(port int, dataDir string, l *zap.Logger) *Engine {
-	runner := NewRunner(port, dataDir)
+	logger := l.With(zap.String("engine", "aria2"))
+	runner := NewRunner(port, dataDir, logger)
 	// WebSocket URL for local aria2 instance
 	wsUrl := fmt.Sprintf("ws://localhost:%d/jsonrpc", port)
 	client := NewClient(wsUrl)
@@ -55,7 +56,7 @@ func NewEngine(port int, dataDir string, l *zap.Logger) *Engine {
 		dataDir:       dataDir,
 		runner:        runner,
 		client:        client,
-		logger:        l.With(zap.String("engine", "aria2")),
+		logger:        logger,
 		reportedGids:  make(map[string]bool),
 		activeGids:    make(map[string]bool),
 		pollingPaused: true,

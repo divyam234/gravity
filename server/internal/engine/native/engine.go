@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"gravity/internal/engine"
+	"gravity/internal/logger"
 	"gravity/internal/model"
 
 	"github.com/anacrolix/torrent"
@@ -98,11 +99,11 @@ func (t *task) getStatus() string {
 	return t.status
 }
 
-func NewNativeEngine(dataDir string, l *zap.Logger) *NativeEngine {
+func NewNativeEngine(dataDir string) *NativeEngine {
 	e := &NativeEngine{
 		dataDir: dataDir,
 		done:    make(chan struct{}),
-		logger:  l.With(zap.String("engine", "native")),
+		logger:  logger.Component("NATIVE"),
 	}
 	e.pollingCond = sync.NewCond(&e.mu)
 	return e

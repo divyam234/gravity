@@ -9,6 +9,7 @@ import (
 
 	"gravity/internal/engine"
 	"gravity/internal/event"
+	"gravity/internal/logger"
 	"gravity/internal/model"
 	"gravity/internal/store"
 
@@ -24,13 +25,13 @@ type UploadService struct {
 	logger       *zap.Logger
 }
 
-func NewUploadService(repo *store.DownloadRepo, settingsRepo *store.SettingsRepo, eng engine.UploadEngine, bus *event.Bus, l *zap.Logger) *UploadService {
+func NewUploadService(repo *store.DownloadRepo, settingsRepo *store.SettingsRepo, eng engine.UploadEngine, bus *event.Bus) *UploadService {
 	s := &UploadService{
 		repo:         repo,
 		settingsRepo: settingsRepo,
 		engine:       eng,
 		bus:          bus,
-		logger:       l.With(zap.String("service", "upload")),
+		logger:       logger.Component("UPLOAD"),
 	}
 
 	// Wire up engine events

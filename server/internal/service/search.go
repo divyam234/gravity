@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"gravity/internal/engine"
+	"gravity/internal/logger"
 	"gravity/internal/model"
 	"gravity/internal/store"
 
@@ -26,13 +27,13 @@ type SearchService struct {
 	logger        *zap.Logger
 }
 
-func NewSearchService(repo *store.SearchRepo, settingsRepo *store.SettingsRepo, storage engine.StorageEngine, l *zap.Logger) *SearchService {
+func NewSearchService(repo *store.SearchRepo, settingsRepo *store.SettingsRepo, storage engine.StorageEngine) *SearchService {
 	return &SearchService{
 		repo:          repo,
 		settingsRepo:  settingsRepo,
 		storageEngine: storage,
 		isIndexing:    make(map[string]bool),
-		logger:        l.With(zap.String("service", "search")),
+		logger:        logger.Component("SEARCH"),
 	}
 }
 
@@ -83,7 +84,7 @@ func (s *SearchService) checkAutoIndexing() {
 			s.mu.Lock()
 			indexing := s.isIndexing[c.Remote]
 			s.mu.Unlock()
-			
+
 			if !indexing {
 				go s.IndexRemote(ctx, c.Remote)
 			}

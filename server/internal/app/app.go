@@ -33,6 +33,7 @@ import (
 	"gravity/internal/store"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/rclone/rclone/fs"
 	"go.uber.org/zap"
 )
 
@@ -69,14 +70,23 @@ func (a *App) SetUploadEngine(ue engine.UploadEngine) {
 }
 
 func New(ctx context.Context, de engine.DownloadEngine, ue engine.UploadEngine) (*App, error) {
+	ci := fs.GetConfig(ctx)
+	ci.LogLevel = fs.LogLevelError
+
 	cfg := config.Load()
 
 	// Initialize logger
-	l := logger.New(cfg.LogLevel, cfg.LogLevel == "debug")
-	l.Info("starting gravity",
-		zap.Int("port", cfg.Port),
-		zap.String("data_dir", cfg.DataDir),
-		zap.String("log_level", cfg.LogLevel))
+	l := logger.New(cfg.LogLevel, cfg.LogLevel == "debug", cfg.LogFile, cfg.JSONLog)
+
+	// Print Banner
+	logger.PrintBanner(logger.StartupInfo{
+		Version:  "0.1.0",
+		Addr:     fmt.Sprintf(":%d", cfg.Port),
+		DataDir:  cfg.DataDir,
+		LogLevel: cfg.LogLevel,
+	})
+
+	l.Info("starting gravity")
 
 	s, err := store.New(cfg)
 	if err != nil {
@@ -99,11 +109,11 @@ func New(ctx context.Context, de engine.DownloadEngine, ue engine.UploadEngine) 
 	if de == nil {
 		de1 := aria2.NewEngine(cfg.Aria2RPCPort, cfg.DataDir, l)
 		de1.GetRunner().SetBinaryPath(binMgr.GetAria2Path())
-		de2 := native.NewNativeEngine(cfg.DataDir, l)
-		de = hybrid.NewHybridRouter(de1, de2, l)
+		de2 := native.NewNativeEngine(cfg.DataDir)
+		de = hybrid.NewHybridRouter(de1, de2)
 	}
 	if ue == nil {
-		ue = rclone.NewEngine(ctx, l, cfg.RcloneConfigPath)
+		ue = rclone.NewEngine(ctx, cfg.RcloneConfigPath)
 	}
 
 	// Providers
@@ -119,11 +129,11 @@ func New(ctx context.Context, de engine.DownloadEngine, ue engine.UploadEngine) 
 	registry.Register(megadebrid.New())
 
 	// Services
-	ps := service.NewProviderService(pr, registry, de, l)
-	ds := service.NewDownloadService(dr, setr, de, ue, bus, ps, l)
-	us := service.NewUploadService(dr, setr, ue, bus, l)
-	ss := service.NewStatsService(sr, setr, dr, de, ue, bus, l)
-	searchService := service.NewSearchService(searchRepo, setr, ue, l)
+	ps := service.NewProviderService(pr, registry, de)
+	ds := service.NewDownloadService(dr, setr, de, ue, bus, ps)
+	us := service.NewUploadService(dr, setr, ue, bus)
+	ss := service.NewStatsService(sr, setr, dr, de, ue, bus)
+	searchService := service.NewSearchService(searchRepo, setr, ue)
 
 	// API
 	router := api.NewRouter(cfg.APIKey)

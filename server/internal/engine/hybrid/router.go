@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"gravity/internal/engine"
+	"gravity/internal/logger"
 	"gravity/internal/model"
 
 	"go.uber.org/zap"
@@ -24,12 +25,12 @@ type HybridRouter struct {
 	taskMap map[string]string
 }
 
-func NewHybridRouter(aria2, native engine.DownloadEngine, l *zap.Logger) *HybridRouter {
+func NewHybridRouter(aria2, native engine.DownloadEngine) *HybridRouter {
 	return &HybridRouter{
 		aria2:   aria2,
 		native:  native,
 		taskMap: make(map[string]string),
-		logger:  l.With(zap.String("engine", "hybrid")),
+		logger:  logger.Component("HYBRID"),
 	}
 }
 

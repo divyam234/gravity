@@ -76,7 +76,9 @@ func New(cfg *config.Config) (*Store, error) {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	logger.L.Debug("DB: Connection established. Running AutoMigrate...")
+	l := logger.Component("DATABASE")
+
+	l.Debug("Connection established. Running AutoMigrate...")
 	// RUN AUTOMIGRATE
 	if err := db.AutoMigrate(
 		&model.Download{},
@@ -90,7 +92,7 @@ func New(cfg *config.Config) (*Store, error) {
 		return nil, fmt.Errorf("failed to auto-migrate: %w", err)
 	}
 
-	logger.L.Debug("DB: AutoMigrate complete. Configuring connection pool...")
+	l.Debug("AutoMigrate complete. Configuring connection pool...")
 	sqlDB, err := db.DB()
 	if err == nil {
 		if cfg.Database.Type == "sqlite" || cfg.Database.Type == "" {
@@ -106,21 +108,21 @@ func New(cfg *config.Config) (*Store, error) {
 
 	// Legacy SQL migrations: ONLY for SQLite FTS which AutoMigrate can't handle
 	if cfg.Database.Type == "sqlite" || cfg.Database.Type == "" {
-		logger.L.Debug("DB: Setting up SQLite FTS index...")
+		l.Debug("Setting up SQLite FTS index...")
 		if err := s.setupSQLiteFTS(); err != nil {
-			logger.L.Warn("SQLite FTS setup failed", zap.Error(err))
+			l.Warn("SQLite FTS setup failed", zap.Error(err))
 		}
 	}
 
 	// PostgreSQL-specific FTS index
 	if cfg.Database.Type == "postgres" {
-		logger.L.Debug("DB: Creating Postgres FTS index...")
+		l.Debug("Creating Postgres FTS index...")
 		if err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_indexed_files_fts ON indexed_files USING GIN (to_tsvector('english', filename || ' ' || path));`).Error; err != nil {
-			logger.L.Warn("Postgres FTS index creation failed", zap.Error(err))
+			l.Warn("Postgres FTS index creation failed", zap.Error(err))
 		}
 	}
 
-	logger.L.Info("DB: Initialization complete.")
+	l.Info("Initialization complete.")
 	return s, nil
 }
 

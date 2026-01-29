@@ -25,24 +25,28 @@ const (
 
 type Manager struct {
 	binDir string
+	logger *zap.Logger
 }
 
 func NewManager(dataDir string) *Manager {
 	dir := filepath.Join(dataDir, "bin")
 	_ = os.MkdirAll(dir, 0755)
-	return &Manager{binDir: dir}
+	return &Manager{
+		binDir: dir,
+		logger: logger.Component("BINARIES"),
+	}
 }
 
 // EnsureBinaries checks if required binaries are in PATH or binDir, and downloads if needed
 func (m *Manager) EnsureBinaries(ctx context.Context) error {
 	// 1. Aria2c
 	if err := m.ensureAria2(ctx); err != nil {
-		logger.L.Warn("failed to ensure aria2c", zap.Error(err))
+		m.logger.Warn("failed to ensure aria2c", zap.Error(err))
 	}
 
 	// 2. yt-dlp
 	if err := m.ensureYtDlp(ctx); err != nil {
-		logger.L.Warn("failed to ensure yt-dlp", zap.Error(err))
+		m.logger.Warn("failed to ensure yt-dlp", zap.Error(err))
 	}
 
 	return nil
@@ -90,7 +94,7 @@ func (m *Manager) ensureAria2(ctx context.Context) error {
 	}
 
 	// Need to download
-	logger.L.Info("downloading aria2c...", zap.String("version", Aria2RequiredVersion))
+	m.logger.Info("downloading aria2c...", zap.String("version", Aria2RequiredVersion))
 	return m.downloadAria2(ctx)
 }
 
@@ -109,7 +113,7 @@ func (m *Manager) ensureYtDlp(ctx context.Context) error {
 		}
 	}
 
-	logger.L.Info("downloading yt-dlp...", zap.String("version", YtDlpRequiredVersion))
+	m.logger.Info("downloading yt-dlp...", zap.String("version", YtDlpRequiredVersion))
 	return m.downloadYtDlp(ctx)
 }
 

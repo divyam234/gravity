@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"go.uber.org/zap"
-	"gravity/internal/logger"
 )
 
 type Runner struct {
@@ -19,9 +18,10 @@ type Runner struct {
 	binaryPath  string
 	cmd         *exec.Cmd
 	Verbose     bool
+	logger      *zap.Logger
 }
 
-func NewRunner(port int, dataDir string) *Runner {
+func NewRunner(port int, dataDir string, l *zap.Logger) *Runner {
 	os.MkdirAll(dataDir, 0755)
 	sessionFile := filepath.Join(dataDir, "aria2.session")
 	if _, err := os.Stat(sessionFile); os.IsNotExist(err) {
@@ -36,6 +36,7 @@ func NewRunner(port int, dataDir string) *Runner {
 		sessionFile: sessionFile,
 		downloadDir: downloadDir,
 		binaryPath:  "aria2c", // Default
+		logger:      l,
 	}
 }
 
@@ -74,7 +75,7 @@ func (r *Runner) Start() error {
 		return fmt.Errorf("failed to start aria2c: %w", err)
 	}
 
-	logger.L.Info("aria2 started", zap.Int("port", r.port), zap.Int("pid", r.cmd.Process.Pid))
+	r.logger.Info("aria2 started", zap.Int("port", r.port), zap.Int("pid", r.cmd.Process.Pid))
 	return nil
 }
 

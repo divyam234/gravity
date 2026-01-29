@@ -11,6 +11,7 @@ import (
 
 	"gravity/internal/engine"
 	"gravity/internal/event"
+	"gravity/internal/logger"
 	"gravity/internal/model"
 	"gravity/internal/store"
 
@@ -133,7 +134,7 @@ type StatsService struct {
 	trigger       chan struct{}
 }
 
-func NewStatsService(repo *store.StatsRepo, setr *store.SettingsRepo, dr *store.DownloadRepo, de engine.DownloadEngine, ue engine.UploadEngine, bus *event.Bus, l *zap.Logger) *StatsService {
+func NewStatsService(repo *store.StatsRepo, setr *store.SettingsRepo, dr *store.DownloadRepo, de engine.DownloadEngine, ue engine.UploadEngine, bus *event.Bus) *StatsService {
 	s := &StatsService{
 		repo:           repo,
 		settingsRepo:   setr,
@@ -141,7 +142,7 @@ func NewStatsService(repo *store.StatsRepo, setr *store.SettingsRepo, dr *store.
 		downloadEngine: de,
 		uploadEngine:   ue,
 		bus:            bus,
-		logger:         l.With(zap.String("service", "stats")),
+		logger:         logger.Component("STATS"),
 		pollingPaused:  true,
 		startTime:      time.Now(),
 		done:           make(chan struct{}),
@@ -149,6 +150,7 @@ func NewStatsService(repo *store.StatsRepo, setr *store.SettingsRepo, dr *store.
 		downloadSpeeds: NewSpeedTracker(),
 		uploadSpeeds:   NewSpeedTracker(),
 	}
+
 	s.pollingCond = sync.NewCond(&s.mu)
 	return s
 }

@@ -92,7 +92,7 @@ func decodeAndValidate(w http.ResponseWriter, r *http.Request, dst any) bool {
 			errMsg += fmt.Sprintf("[%s: %s] ", err.Field(), err.Tag())
 		}
 
-		logger.L.Warn("API validation failed",
+		logger.Component("API").Warn("API validation failed",
 			zap.String("method", r.Method),
 			zap.String("path", r.URL.Path),
 			zap.String("error", errMsg),

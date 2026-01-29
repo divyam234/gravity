@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"gravity/internal/engine"
+	"gravity/internal/logger"
 	"gravity/internal/model"
 	"gravity/internal/provider"
 	"gravity/internal/store"
@@ -22,13 +23,13 @@ type ProviderService struct {
 	logger   *zap.Logger
 }
 
-func NewProviderService(repo *store.ProviderRepo, registry *provider.Registry, engine engine.DownloadEngine, l *zap.Logger) *ProviderService {
+func NewProviderService(repo *store.ProviderRepo, registry *provider.Registry, engine engine.DownloadEngine) *ProviderService {
 	return &ProviderService{
 		repo:     repo,
 		registry: registry,
 		resolver: provider.NewResolver(registry),
 		engine:   engine,
-		logger:   l.With(zap.String("service", "provider")),
+		logger:   logger.Component("PROVIDER"),
 	}
 }
 

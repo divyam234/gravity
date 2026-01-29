@@ -23,6 +23,9 @@ type Config struct {
 	RcloneConfigPath string   `koanf:"rclone_config_path"`
 	APIKey           string   `koanf:"api_key"`
 	Database         DBConfig `koanf:"database"`
+
+	LogFile string `koanf:"log_file"`
+	JSONLog bool   `koanf:"json_log"`
 }
 
 type DBConfig struct {

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"gravity/internal/engine"
+	"gravity/internal/logger"
 	"gravity/internal/model"
 
 	"github.com/rclone/rclone/fs"
@@ -52,11 +53,11 @@ type job struct {
 	speed       int64
 }
 
-func NewEngine(ctx context.Context, l *zap.Logger, configPath string) *Engine {
+func NewEngine(ctx context.Context, configPath string) *Engine {
 	e := &Engine{
 		activeJobs: make(map[string]*job),
 		appCtx:     ctx,
-		logger:     l.With(zap.String("engine", "rclone")),
+		logger:     logger.Component("RCLONE"),
 		configPath: configPath,
 	}
 	e.pollingCond = stdSync.NewCond(&e.mu)
@@ -64,8 +65,12 @@ func NewEngine(ctx context.Context, l *zap.Logger, configPath string) *Engine {
 }
 
 func (e *Engine) Start(ctx context.Context) error {
-	e.logger.Info("starting rclone engine", zap.String("config_path", e.configPath))
-	if err := SyncGravityRoot(e.configPath); err != nil {
+	// Silencing rclone internal logs
+	ci := fs.GetConfig(ctx)
+	ci.LogLevel = fs.LogLevelError
+
+	e.logger.Info("starting rclone engine")
+	if err := SyncGravityRoot(e.configPath, false); err != nil {
 		return fmt.Errorf("failed to sync gravity root: %w", err)
 	}
 
@@ -512,7 +517,7 @@ func (e *Engine) CreateRemote(ctx context.Context, name, rtype string, config ma
 	rclConfig.Data().SetValue(name, "type", rtype)
 	err := rclConfig.Data().Save()
 	if err == nil {
-		SyncGravityRoot(e.configPath)
+		SyncGravityRoot(e.configPath, true)
 	}
 	return err
 }
@@ -521,7 +526,7 @@ func (e *Engine) DeleteRemote(ctx context.Context, name string) error {
 	rclConfig.Data().DeleteSection(name)
 	err := rclConfig.Data().Save()
 	if err == nil {
-		SyncGravityRoot(e.configPath)
+		SyncGravityRoot(e.configPath, true)
 	}
 	return err
 }
@@ -664,6 +669,11 @@ func (e *Engine) Restart(ctx context.Context) error {
 	if e.vfs != nil {
 		e.vfs.Shutdown()
 		e.vfs = nil
+	}
+
+	// Ensure GravityRoot exists before creating FS
+	if err := SyncGravityRoot(e.configPath, true); err != nil {
+		return fmt.Errorf("failed to sync gravity root during restart: %w", err)
 	}
 
 	// Re-initialize Root FS

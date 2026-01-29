@@ -22,8 +22,11 @@ tasks:
     desc: Run development server
     deps: [install]
     cmds:
-      - task: dev:frontend
-      - task: dev:backend
+      - task: dev:start
+
+  dev:start:
+    internal: true
+    deps: [dev:frontend, dev:backend]
 
   tidy:
     desc: Go Tidy

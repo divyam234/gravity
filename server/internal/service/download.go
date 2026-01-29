@@ -15,6 +15,7 @@ import (
 
 	"gravity/internal/engine"
 	"gravity/internal/event"
+	"gravity/internal/logger"
 	"gravity/internal/model"
 	"gravity/internal/store"
 	"gravity/internal/utils"
@@ -121,7 +122,7 @@ func (pb *progressBuffer) flushAll(ctx context.Context) {
 	}
 }
 
-func NewDownloadService(repo *store.DownloadRepo, settingsRepo *store.SettingsRepo, eng engine.DownloadEngine, ue engine.UploadEngine, bus *event.Bus, provider *ProviderService, l *zap.Logger) *DownloadService {
+func NewDownloadService(repo *store.DownloadRepo, settingsRepo *store.SettingsRepo, eng engine.DownloadEngine, ue engine.UploadEngine, bus *event.Bus, provider *ProviderService) *DownloadService {
 	s := &DownloadService{
 		repo:           repo,
 		settingsRepo:   settingsRepo,
@@ -129,7 +130,7 @@ func NewDownloadService(repo *store.DownloadRepo, settingsRepo *store.SettingsRe
 		uploadEngine:   ue,
 		bus:            bus,
 		provider:       provider,
-		logger:         l.With(zap.String("service", "download")),
+		logger:         logger.Component("DOWNLOAD"),
 		progressBuffer: newProgressBuffer(repo),
 		stop:           make(chan struct{}),
 		queueWake:      make(chan struct{}, 1),
