@@ -131,13 +131,9 @@ type Meta struct {
 }
 
 type ErrorResponse struct {
-	Error string `json:"error" example:"error message" binding:"required"`
-	Code  int    `json:"code" example:"500" binding:"required"`
-}
-
-type Proxy struct {
-	URL  string `json:"url"`
-	Type string `json:"type"`
+	Error     string `json:"error" example:"error message" binding:"required"`
+	Code      int    `json:"code" example:"500" binding:"required"`
+	ErrorCode string `json:"errorCode,omitempty" example:"DOWNLOAD_NOT_FOUND"`
 }
 
 // Downloads
@@ -149,15 +145,33 @@ type CreateDownloadRequest struct {
 	Provider    string            `json:"provider"`
 	Engine      string            `json:"engine" enums:"native,aria2"`
 	Split       *int              `json:"split"`
-	Proxies     []Proxy           `json:"proxies"`
+	Proxies     []model.Proxy     `json:"proxies"`
 	RemoveLocal *bool             `json:"removeLocal"`
 	Headers     map[string]string `json:"headers"`
+
+	// Optional Overrides
+	Priority         *int    `json:"priority" validate:"omitempty,min=1,max=10"`
+	MaxRetries       *int    `json:"maxRetries" validate:"omitempty,min=0"`
+	MaxDownloadSpeed *string `json:"maxDownloadSpeed"`
+	ConnectTimeout   *int    `json:"connectTimeout"`
 
 	//Fields For magnets
 	TorrentData   string               `json:"torrentData"`
 	Hash          string               `json:"hash"`
 	SelectedFiles []int                `json:"selectedFiles" example:"1,2"`
 	Files         []model.DownloadFile `json:"files"`
+}
+
+type BatchActionRequest struct {
+	IDs    []string `json:"ids" validate:"required,min=1"`
+	Action string   `json:"action" validate:"required,oneof=pause resume delete retry"`
+}
+
+type UpdateDownloadRequest struct {
+	Filename    *string `json:"filename"`
+	Destination *string `json:"destination"`
+	Priority    *int    `json:"priority" validate:"omitempty,min=1,max=10"`
+	MaxRetries  *int    `json:"maxRetries" validate:"omitempty,min=0"`
 }
 
 // Search

@@ -69,11 +69,11 @@ func (h *SystemHandler) Version(w http.ResponseWriter, r *http.Request) {
 // @Router /system/restart/aria2 [post]
 func (h *SystemHandler) RestartAria2(w http.ResponseWriter, r *http.Request) {
 	if err := h.downloadEngine.Stop(); err != nil {
-		sendError(w, err.Error(), http.StatusInternalServerError)
+		sendAppError(w, err)
 		return
 	}
 	if err := h.downloadEngine.Start(h.appCtx); err != nil {
-		sendError(w, err.Error(), http.StatusInternalServerError)
+		sendAppError(w, err)
 		return
 	}
 	w.WriteHeader(http.StatusOK)
@@ -88,11 +88,11 @@ func (h *SystemHandler) RestartAria2(w http.ResponseWriter, r *http.Request) {
 // @Router /system/restart/rclone [post]
 func (h *SystemHandler) RestartRclone(w http.ResponseWriter, r *http.Request) {
 	if err := h.uploadEngine.Stop(); err != nil {
-		sendError(w, err.Error(), http.StatusInternalServerError)
+		sendAppError(w, err)
 		return
 	}
 	if err := h.uploadEngine.Start(h.appCtx); err != nil {
-		sendError(w, err.Error(), http.StatusInternalServerError)
+		sendAppError(w, err)
 		return
 	}
 	w.WriteHeader(http.StatusOK)

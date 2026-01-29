@@ -144,6 +144,9 @@ func NewDownloadService(repo *store.DownloadRepo, settingsRepo *store.SettingsRe
 }
 
 func (s *DownloadService) Create(ctx context.Context, d *model.Download) (*model.Download, error) {
+	if err := d.Validate(); err != nil {
+		return nil, fmt.Errorf("validation failed: %w", err)
+	}
 
 	res, providerName, err := s.provider.Resolve(ctx, d.URL, d.Headers, d.TorrentData)
 	if err != nil {
@@ -505,6 +508,34 @@ func (s *DownloadService) Retry(ctx context.Context, id string) error {
 	return nil
 }
 
+func (s *DownloadService) Batch(ctx context.Context, ids []string, action string) error {
+	var errs []error
+	for _, id := range ids {
+		var err error
+		switch action {
+		case "pause":
+			err = s.Pause(ctx, id)
+		case "resume":
+			err = s.Resume(ctx, id)
+		case "delete":
+			err = s.Delete(ctx, id, false)
+		case "retry":
+			err = s.Retry(ctx, id)
+		default:
+			return fmt.Errorf("unknown action: %s", action)
+		}
+		if err != nil {
+			s.logger.Warn("batch operation failed for item", zap.String("id", id), zap.String("action", action), zap.Error(err))
+			errs = append(errs, fmt.Errorf("%s: %w", id, err))
+		}
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("batch operation failed for %d/%d items", len(errs), len(ids))
+	}
+	return nil
+}
+
 func (s *DownloadService) UpdatePriority(ctx context.Context, id string, priority int) error {
 	d, err := s.repo.Get(ctx, id)
 	if err != nil {
@@ -521,6 +552,41 @@ func (s *DownloadService) UpdatePriority(ctx context.Context, id string, priorit
 		zap.String("id", id),
 		zap.Int("priority", priority))
 
+	return nil
+}
+
+func (s *DownloadService) Update(ctx context.Context, id string, filename, destination *string, priority, maxRetries *int) error {
+	d, err := s.repo.Get(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	if (filename != nil || destination != nil) && d.Status == model.StatusActive {
+		return fmt.Errorf("cannot update filename or destination while download is active")
+	}
+
+	if filename != nil {
+		if !utils.IsSafeFilename(*filename) {
+			return fmt.Errorf("invalid filename")
+		}
+		d.Filename = *filename
+	}
+	if destination != nil {
+		d.Destination = *destination
+	}
+	if priority != nil {
+		d.Priority = *priority
+	}
+	if maxRetries != nil {
+		d.MaxRetries = *maxRetries
+	}
+
+	d.UpdatedAt = time.Now()
+	if err := s.repo.Update(ctx, d); err != nil {
+		return err
+	}
+
+	s.logger.Info("download updated", zap.String("id", id))
 	return nil
 }
 

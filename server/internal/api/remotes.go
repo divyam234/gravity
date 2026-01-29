@@ -36,7 +36,7 @@ func (h *RemoteHandler) Routes() chi.Router {
 func (h *RemoteHandler) List(w http.ResponseWriter, r *http.Request) {
 	remotes, err := h.engine.ListRemotes(r.Context())
 	if err != nil {
-		sendError(w, err.Error(), http.StatusInternalServerError)
+		sendAppError(w, err)
 		return
 	}
 	sendJSON(w, RemoteListResponse{Data: remotes})
@@ -59,7 +59,7 @@ func (h *RemoteHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.engine.CreateRemote(r.Context(), req.Name, req.Type, req.Config); err != nil {
-		sendError(w, err.Error(), http.StatusInternalServerError)
+		sendAppError(w, err)
 		return
 	}
 	w.WriteHeader(http.StatusCreated)
@@ -76,7 +76,7 @@ func (h *RemoteHandler) Create(w http.ResponseWriter, r *http.Request) {
 func (h *RemoteHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
 	if err := h.engine.DeleteRemote(r.Context(), name); err != nil {
-		sendError(w, err.Error(), http.StatusInternalServerError)
+		sendAppError(w, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -93,7 +93,7 @@ func (h *RemoteHandler) Delete(w http.ResponseWriter, r *http.Request) {
 func (h *RemoteHandler) Test(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
 	if err := h.engine.TestRemote(r.Context(), name); err != nil {
-		sendError(w, err.Error(), http.StatusInternalServerError)
+		sendAppError(w, err)
 		return
 	}
 	w.WriteHeader(http.StatusOK)

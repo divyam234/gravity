@@ -91,14 +91,8 @@ func (b *Builder) WithSettings(s *model.Settings) *Builder {
 
 	// Map Proxies
 	if len(s.Network.Proxies) > 0 {
-		var engineProxies []engine.Proxy
-		for _, p := range s.Network.Proxies {
-			engineProxies = append(engineProxies, engine.Proxy{
-				URL:  p.URL,
-				Type: p.Type,
-			})
-		}
-		b.opts.Proxies = engineProxies
+		b.opts.Proxies = make([]model.Proxy, len(s.Network.Proxies))
+		copy(b.opts.Proxies, s.Network.Proxies)
 	}
 
 	return b
@@ -155,14 +149,8 @@ func (b *Builder) WithModel(d *model.Download) *Builder {
 	}
 
 	if len(d.Proxies) > 0 {
-		var engineProxies []engine.Proxy
-		for _, p := range d.Proxies {
-			engineProxies = append(engineProxies, engine.Proxy{
-				URL:  p.URL,
-				Type: p.Type,
-			})
-		}
-		b.opts.Proxies = engineProxies
+		b.opts.Proxies = make([]model.Proxy, len(d.Proxies))
+		copy(b.opts.Proxies, d.Proxies)
 	}
 
 	return b

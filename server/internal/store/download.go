@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"gravity/internal/errors"
 	"gravity/internal/model"
 	"time"
 
@@ -108,10 +109,20 @@ func (r *DownloadRepo) List(ctx context.Context, status []string, limit, offset 
 
 func (r *DownloadRepo) Update(ctx context.Context, d *model.Download) error {
 	d.UpdatedAt = time.Now()
-	// Updates() with struct only updates non-zero fields.
-	// To update all fields, we can use Save() or a map.
-	// For Download manager, we usually want to persist everything.
-	return r.db.WithContext(ctx).Save(d).Error
+
+	// Optimistic Locking
+	currentVersion := d.Version
+	d.Version++
+
+	// Use Where to ensure we are updating the version we read
+	result := r.db.WithContext(ctx).Where("version = ?", currentVersion).Save(d)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return errors.New(errors.CodeInvalidOperation, fmt.Sprintf("concurrent modification of download %s (version mismatch)", d.ID))
+	}
+	return nil
 }
 
 func (r *DownloadRepo) Delete(ctx context.Context, id string) error {

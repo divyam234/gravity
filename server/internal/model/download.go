@@ -1,6 +1,7 @@
 package model
 
 import (
+	"gravity/internal/errors"
 	"time"
 )
 
@@ -21,6 +22,15 @@ const (
 	StatusResolving  DownloadStatus = "resolving"
 )
 
+type UploadStatus string
+
+const (
+	UploadStatusIdle     UploadStatus = "idle"
+	UploadStatusRunning  UploadStatus = "running"
+	UploadStatusComplete UploadStatus = "complete"
+	UploadStatusError    UploadStatus = "error"
+)
+
 type ExecutionMode string
 
 const (
@@ -35,29 +45,35 @@ type Proxy struct {
 }
 
 type Download struct {
-	ID            string            `json:"id" example:"d_a1b2c3d4" gorm:"primaryKey"  binding:"required"`
-	URL           string            `json:"url" example:"http://example.com/file.zip"  binding:"required"`
-	ResolvedURL   string            `json:"resolvedUrl,omitempty"`
-	Provider      string            `json:"provider,omitempty"`
-	Engine        string            `json:"engine,omitempty" enums:"aria2,native"`
-	ExecutionMode ExecutionMode     `json:"executionMode,omitempty"`
-	Status        DownloadStatus    `json:"status" example:"active" enums:"active,waiting,paused,uploading,complete,error"  binding:"required"`
-	Error         string            `json:"error,omitempty"`
-	Filename      string            `json:"filename" binding:"required"`
-	Dir           string            `json:"dir" binding:"required"`
-	Destination   string            `json:"destination,omitempty"`
-	UploadStatus  string            `json:"uploadStatus,omitempty" enums:"idle,running,complete,error"`
-	Size          int64             `json:"size" example:"10485760" binding:"required"`
-	Proxies       []Proxy           `json:"proxies" gorm:"serializer:json"`
-	RemoveLocal   *bool             `json:"removeLocal,omitempty"`
-	Downloaded    int64             `json:"downloaded" example:"5242880" binding:"required"`
-	EngineID      string            `json:"-" gorm:"column:engine_id;index"`
-	UploadJobID   string            `json:"-" gorm:"column:upload_job_id;index"`
-	Headers       map[string]string `json:"headers,omitempty" gorm:"serializer:json"`
-	CreatedAt     time.Time         `json:"createdAt"`
-	StartedAt     *time.Time        `json:"startedAt,omitempty"`
-	CompletedAt   *time.Time        `json:"completedAt,omitempty"`
-	UpdatedAt     time.Time         `json:"updatedAt"`
+	ID            string         `json:"id" example:"d_a1b2c3d4" gorm:"primaryKey"  binding:"required"`
+	URL           string         `json:"url" example:"http://example.com/file.zip"  binding:"required"`
+	ResolvedURL   string         `json:"resolvedUrl,omitempty"`
+	Provider      string         `json:"provider,omitempty"`
+	Engine        string         `json:"engine,omitempty" enums:"aria2,native"`
+	ExecutionMode ExecutionMode  `json:"executionMode,omitempty"`
+	Status        DownloadStatus `json:"status" example:"active" enums:"active,waiting,paused,uploading,complete,error"  binding:"required"`
+	Error         string         `json:"error,omitempty"`
+	Filename      string         `json:"filename" binding:"required"`
+	Dir           string         `json:"dir" binding:"required"`
+	Destination   string         `json:"destination,omitempty"`
+	UploadStatus  UploadStatus   `json:"uploadStatus,omitempty" enums:"idle,running,complete,error"`
+	Size          int64          `json:"size" example:"10485760" binding:"required"`
+	Proxies       []Proxy        `json:"proxies" gorm:"serializer:json"`
+
+	// Per-download overrides (nil = use global)
+	MaxDownloadSpeed *string `json:"maxDownloadSpeed,omitempty" gorm:"serializer:json"`
+	ConnectTimeout   *int    `json:"connectTimeout,omitempty"`
+	MaxTries         *int    `json:"maxTries,omitempty"`
+
+	RemoveLocal *bool             `json:"removeLocal,omitempty"`
+	Downloaded  int64             `json:"downloaded" example:"5242880" binding:"required"`
+	EngineID    string            `json:"-" gorm:"column:engine_id;index"`
+	UploadJobID string            `json:"-" gorm:"column:upload_job_id;index"`
+	Headers     map[string]string `json:"headers,omitempty" gorm:"serializer:json"`
+	CreatedAt   time.Time         `json:"createdAt"`
+	StartedAt   *time.Time        `json:"startedAt,omitempty"`
+	CompletedAt *time.Time        `json:"completedAt,omitempty"`
+	UpdatedAt   time.Time         `json:"updatedAt"`
 
 	IsMagnet      bool           `json:"isMagnet"`
 	MagnetHash    string         `json:"magnetHash,omitempty"`
@@ -71,6 +87,9 @@ type Download struct {
 	NextRetryAt *time.Time `json:"nextRetryAt,omitempty"`
 	MaxRetries  int        `json:"maxRetries" gorm:"default:3"`
 
+	// Optimistic Locking
+	Version int `json:"version" gorm:"default:1"`
+
 	//Not Saved in DB
 	Split          *int   `json:"split" gorm:"-"`
 	UploadProgress int    `json:"uploadProgress" example:"50" gorm:"-"`
@@ -80,6 +99,19 @@ type Download struct {
 	Seeders        int    `json:"seeders" gorm:"-"`
 	Peers          int    `json:"peers" gorm:"-"`
 	PeerDetails    []Peer `json:"peerDetails" gorm:"-"`
+}
+
+func (d *Download) Validate() error {
+	if d.URL == "" && d.TorrentData == "" && d.MagnetHash == "" {
+		return errors.New(errors.CodeValidationFailed, "URL, TorrentData, or MagnetHash is required")
+	}
+	if d.Priority < 0 || d.Priority > 10 { // Allow 0 as default/unset if needed, or strictly 1-10
+		return errors.New(errors.CodeValidationFailed, "priority must be between 1 and 10")
+	}
+	if d.MaxRetries < 0 {
+		return errors.New(errors.CodeValidationFailed, "maxRetries cannot be negative")
+	}
+	return nil
 }
 
 // TransitionTo updates the download status if the transition is valid

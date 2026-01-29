@@ -58,15 +58,10 @@ type DownloadOptions struct {
 	ConcurrentUploads *int  `json:"concurrentUploads,omitempty"` // Parallel uploads
 
 	// Proxies
-	Proxies []Proxy `json:"proxies,omitempty"`
+	Proxies []model.Proxy `json:"proxies,omitempty"`
 
 	// Engine selection
 	Engine string `json:"engine,omitempty"`
-}
-
-type Proxy struct {
-	URL  string `json:"url"`
-	Type string `json:"type"`
 }
 
 // EffectiveOptions holds the resolved/final values after merging with global settings
@@ -109,16 +104,16 @@ func FromModel(d *model.Download) DownloadOptions {
 		Engine:        d.Engine,
 		Split:         d.Split,
 		RemoveLocal:   d.RemoveLocal,
+
+		// Per-download overrides
+		MaxDownloadSpeed: d.MaxDownloadSpeed,
+		ConnectTimeout:   d.ConnectTimeout,
+		MaxTries:         d.MaxTries,
 	}
 
 	if len(d.Proxies) > 0 {
-		opts.Proxies = make([]Proxy, len(d.Proxies))
-		for i, p := range d.Proxies {
-			opts.Proxies[i] = Proxy{
-				URL:  p.URL,
-				Type: p.Type,
-			}
-		}
+		opts.Proxies = make([]model.Proxy, len(d.Proxies))
+		copy(opts.Proxies, d.Proxies)
 	}
 
 	return opts

@@ -39,7 +39,7 @@ func (h *ProviderHandler) Routes() chi.Router {
 func (h *ProviderHandler) List(w http.ResponseWriter, r *http.Request) {
 	list, err := h.service.List(r.Context())
 	if err != nil {
-		sendError(w, err.Error(), http.StatusInternalServerError)
+		sendAppError(w, err)
 		return
 	}
 	sendJSON(w, ProviderListResponse{Data: list})
@@ -56,7 +56,7 @@ func (h *ProviderHandler) List(w http.ResponseWriter, r *http.Request) {
 func (h *ProviderHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
 	if err := h.service.Delete(r.Context(), name); err != nil {
-		sendError(w, err.Error(), http.StatusInternalServerError)
+		sendAppError(w, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -75,7 +75,7 @@ func (h *ProviderHandler) GetStatus(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
 	status, err := h.service.GetStatus(r.Context(), name)
 	if err != nil {
-		sendError(w, err.Error(), http.StatusInternalServerError)
+		sendAppError(w, err)
 		return
 	}
 	sendJSON(w, AccountInfoResponse{Data: status})
@@ -94,7 +94,7 @@ func (h *ProviderHandler) GetHosts(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
 	hosts, err := h.service.GetHosts(r.Context(), name)
 	if err != nil {
-		sendError(w, err.Error(), http.StatusInternalServerError)
+		sendAppError(w, err)
 		return
 	}
 	sendJSON(w, ProviderHostsResponse{
@@ -115,7 +115,7 @@ func (h *ProviderHandler) Get(w http.ResponseWriter, r *http.Request) {
 	name := chi.URLParam(r, "name")
 	schema, err := h.service.GetConfigSchema(name)
 	if err != nil {
-		sendError(w, err.Error(), http.StatusNotFound)
+		sendAppError(w, err)
 		return
 	}
 
@@ -146,7 +146,7 @@ func (h *ProviderHandler) Configure(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.service.Configure(r.Context(), name, req.Config, req.Enabled); err != nil {
-		sendError(w, err.Error(), http.StatusInternalServerError)
+		sendAppError(w, err)
 		return
 	}
 
@@ -172,7 +172,7 @@ func (h *ProviderHandler) Resolve(w http.ResponseWriter, r *http.Request) {
 
 	res, provider, err := h.service.Resolve(r.Context(), req.URL, req.Headers, req.TorrentBase64)
 	if err != nil {
-		sendError(w, err.Error(), http.StatusNotFound)
+		sendAppError(w, err)
 		return
 	}
 

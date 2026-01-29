@@ -24,8 +24,10 @@ func (h *DownloadHandler) Routes() chi.Router {
 	r := chi.NewRouter()
 	r.Get("/", h.List)
 	r.Post("/", h.Create)
+	r.Post("/batch", h.Batch)
 	r.Get("/{id}", h.Get)
 	r.Delete("/{id}", h.Delete)
+	r.Patch("/{id}", h.Update)
 	r.Post("/{id}/pause", h.Pause)
 	r.Post("/{id}/resume", h.Resume)
 	r.Post("/{id}/retry", h.Retry)
@@ -45,7 +47,32 @@ func (h *DownloadHandler) UpdatePriority(w http.ResponseWriter, r *http.Request)
 	}
 
 	if err := h.service.UpdatePriority(r.Context(), id, req.Priority); err != nil {
-		sendError(w, err.Error(), http.StatusInternalServerError)
+		sendAppError(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
+// Batch godoc
+// @Summary Batch operations
+// @Description Perform batch operations (pause, resume, delete, retry) on multiple downloads
+// @Tags downloads
+// @Accept json
+// @Produce json
+// @Param request body BatchActionRequest true "Batch request"
+// @Success 200 "OK"
+// @Failure 400 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /downloads/batch [post]
+func (h *DownloadHandler) Batch(w http.ResponseWriter, r *http.Request) {
+	var req BatchActionRequest
+	if !decodeAndValidate(w, r, &req) {
+		return
+	}
+
+	if err := h.service.Batch(r.Context(), req.IDs, req.Action); err != nil {
+		sendAppError(w, err)
 		return
 	}
 
@@ -78,7 +105,7 @@ func (h *DownloadHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	downloads, total, err := h.service.List(r.Context(), status, limit, offset)
 	if err != nil {
-		sendError(w, err.Error(), http.StatusInternalServerError)
+		sendAppError(w, err)
 		return
 	}
 
@@ -92,7 +119,35 @@ func (h *DownloadHandler) List(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// Update godoc
+// @Summary Update download
+// @Description Update download properties
+// @Tags downloads
+// @Accept json
+// @Produce json
+// @Param id path string true "Download ID"
+// @Param request body UpdateDownloadRequest true "Update request"
+// @Success 200 "OK"
+// @Failure 400 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /downloads/{id} [patch]
+func (h *DownloadHandler) Update(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, ParamID)
+	var req UpdateDownloadRequest
+	if !decodeAndValidate(w, r, &req) {
+		return
+	}
+
+	if err := h.service.Update(r.Context(), id, req.Filename, req.Destination, req.Priority, req.MaxRetries); err != nil {
+		sendAppError(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
 // Create godoc
+
 // @Summary Create download
 // @Description Start a new download from a URL
 // @Tags downloads
@@ -122,6 +177,17 @@ func (h *DownloadHandler) Create(w http.ResponseWriter, r *http.Request) {
 		TorrentData:   req.TorrentData,
 		MagnetHash:    req.Hash,
 		SelectedFiles: req.SelectedFiles,
+
+		// Overrides
+		MaxDownloadSpeed: req.MaxDownloadSpeed,
+		ConnectTimeout:   req.ConnectTimeout,
+	}
+
+	if req.Priority != nil {
+		opts.Priority = *req.Priority
+	}
+	if req.MaxRetries != nil {
+		opts.MaxRetries = *req.MaxRetries
 	}
 
 	if req.Hash != "" || req.TorrentData != "" || strings.HasPrefix(req.URL, "magnet:") {
@@ -129,17 +195,12 @@ func (h *DownloadHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Map Proxies
-	for _, p := range req.Proxies {
-		opts.Proxies = append(opts.Proxies, model.Proxy{
-			URL:  p.URL,
-			Type: p.Type,
-		})
-	}
+	opts.Proxies = req.Proxies
 
 	// 2. Call service
 	d, err := h.service.Create(r.Context(), &opts)
 	if err != nil {
-		sendError(w, err.Error(), http.StatusInternalServerError)
+		sendAppError(w, err)
 		return
 	}
 
@@ -161,7 +222,7 @@ func (h *DownloadHandler) Get(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, ParamID)
 	d, err := h.service.Get(r.Context(), id)
 	if err != nil {
-		sendError(w, err.Error(), http.StatusNotFound)
+		sendAppError(w, err)
 		return
 	}
 	sendJSON(w, DownloadResponse{Data: d})
@@ -181,7 +242,7 @@ func (h *DownloadHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	deleteFiles := r.URL.Query().Get(ParamDeleteFiles) == "true"
 
 	if err := h.service.Delete(r.Context(), id, deleteFiles); err != nil {
-		sendError(w, err.Error(), http.StatusInternalServerError)
+		sendAppError(w, err)
 		return
 	}
 
@@ -199,7 +260,7 @@ func (h *DownloadHandler) Delete(w http.ResponseWriter, r *http.Request) {
 func (h *DownloadHandler) Pause(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, ParamID)
 	if err := h.service.Pause(r.Context(), id); err != nil {
-		sendError(w, err.Error(), http.StatusInternalServerError)
+		sendAppError(w, err)
 		return
 	}
 	w.WriteHeader(http.StatusOK)
@@ -216,7 +277,7 @@ func (h *DownloadHandler) Pause(w http.ResponseWriter, r *http.Request) {
 func (h *DownloadHandler) Resume(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, ParamID)
 	if err := h.service.Resume(r.Context(), id); err != nil {
-		sendError(w, err.Error(), http.StatusInternalServerError)
+		sendAppError(w, err)
 		return
 	}
 	w.WriteHeader(http.StatusOK)
@@ -233,7 +294,7 @@ func (h *DownloadHandler) Resume(w http.ResponseWriter, r *http.Request) {
 func (h *DownloadHandler) Retry(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, ParamID)
 	if err := h.service.Retry(r.Context(), id); err != nil {
-		sendError(w, err.Error(), http.StatusInternalServerError)
+		sendAppError(w, err)
 		return
 	}
 	w.WriteHeader(http.StatusOK)

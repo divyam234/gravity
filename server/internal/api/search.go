@@ -58,7 +58,7 @@ func (h *SearchHandler) BatchUpdateConfig(w http.ResponseWriter, r *http.Request
 	}
 
 	if err := h.service.BatchUpdateConfig(r.Context(), configs); err != nil {
-		sendError(w, err.Error(), http.StatusInternalServerError)
+		sendAppError(w, err)
 		return
 	}
 	w.WriteHeader(http.StatusOK)
@@ -98,7 +98,7 @@ func (h *SearchHandler) Search(w http.ResponseWriter, r *http.Request) {
 
 	results, total, err := h.service.Search(r.Context(), q, limit, offset)
 	if err != nil {
-		sendError(w, err.Error(), http.StatusInternalServerError)
+		sendAppError(w, err)
 		return
 	}
 
@@ -127,7 +127,7 @@ func (h *SearchHandler) Search(w http.ResponseWriter, r *http.Request) {
 func (h *SearchHandler) GetConfigs(w http.ResponseWriter, r *http.Request) {
 	configs, err := h.service.GetConfigs(r.Context())
 	if err != nil {
-		sendError(w, err.Error(), http.StatusInternalServerError)
+		sendAppError(w, err)
 		return
 	}
 	sendJSON(w, RemoteIndexConfigListResponse{Data: configs})
@@ -152,7 +152,7 @@ func (h *SearchHandler) UpdateConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.service.UpdateConfig(r.Context(), remote, req.Interval, req.ExcludedPatterns, req.IncludedExtensions, req.MinSizeBytes); err != nil {
-		sendError(w, err.Error(), http.StatusInternalServerError)
+		sendAppError(w, err)
 		return
 	}
 	w.WriteHeader(http.StatusOK)

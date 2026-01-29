@@ -1,8 +1,10 @@
 package model
 
 import (
+	"gravity/internal/errors"
 	"os"
 	"path/filepath"
+	"regexp"
 	"time"
 )
 
@@ -17,6 +19,13 @@ type Settings struct {
 	Automation AutomationSettings `gorm:"serializer:json" json:"automation"`
 	Search     SearchSettings     `gorm:"serializer:json" json:"search"`
 	UpdatedAt  time.Time          `json:"updatedAt"`
+}
+
+func (s *Settings) Validate() error {
+	if err := s.Download.Validate(); err != nil {
+		return err
+	}
+	return nil
 }
 
 type SearchSettings struct {
@@ -57,6 +66,29 @@ type DownloadSettings struct {
 	DiskCache        string `json:"diskCache" example:"32M"` // Reduce disk I/O overhead
 	MinSplitSize     string `json:"minSplitSize" example:"1M"`
 	LowestSpeedLimit string `json:"lowestSpeedLimit" example:"0"`
+}
+
+func (s *DownloadSettings) Validate() error {
+	if s.MaxConcurrentDownloads < 1 || s.MaxConcurrentDownloads > 20 {
+		return errors.New(errors.CodeValidationFailed, "maxConcurrentDownloads must be 1-20")
+	}
+	if s.MaxDownloadSpeed != "" && s.MaxDownloadSpeed != "0" {
+		if !isValidBandwidth(s.MaxDownloadSpeed) {
+			return errors.New(errors.CodeValidationFailed, "invalid maxDownloadSpeed format (e.g. 10M, 500K)")
+		}
+	}
+	if s.MaxUploadSpeed != "" && s.MaxUploadSpeed != "0" {
+		if !isValidBandwidth(s.MaxUploadSpeed) {
+			return errors.New(errors.CodeValidationFailed, "invalid maxUploadSpeed format")
+		}
+	}
+	return nil
+}
+
+var bandwidthRegex = regexp.MustCompile(`^\d+[kKmMgG]?$`)
+
+func isValidBandwidth(s string) bool {
+	return bandwidthRegex.MatchString(s)
 }
 
 type UploadSettings struct {

@@ -3,10 +3,12 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 
+	apperrors "gravity/internal/errors"
 	"gravity/internal/logger"
 
 	"github.com/go-playground/validator/v10"
@@ -21,9 +23,55 @@ func sendError(w http.ResponseWriter, message string, code int) {
 	json.NewEncoder(w).Encode(ErrorResponse{Error: message, Code: code})
 }
 
+func sendAppError(w http.ResponseWriter, err error) {
+	w.Header().Set("Content-Type", "application/json")
+
+	var msg string
+	var code int
+	var errCode string
+
+	var appErr *apperrors.AppError
+	var notFound *apperrors.NotFoundError
+
+	if errors.As(err, &appErr) {
+		msg = appErr.Message
+		errCode = string(appErr.Code)
+		// Map ErrorCode to HTTP Status
+		switch appErr.Code {
+		case apperrors.CodeNotFound:
+			code = http.StatusNotFound
+		case apperrors.CodeValidationFailed:
+			code = http.StatusBadRequest
+		case apperrors.CodeInvalidTransition, apperrors.CodeInvalidOperation:
+			code = http.StatusConflict
+		default:
+			code = http.StatusInternalServerError
+		}
+	} else if errors.As(err, &notFound) {
+		msg = notFound.Error()
+		code = http.StatusNotFound
+		errCode = string(apperrors.CodeNotFound)
+	} else {
+		msg = err.Error()
+		code = http.StatusInternalServerError
+		errCode = string(apperrors.CodeInternalError)
+	}
+
+	w.WriteHeader(code)
+	json.NewEncoder(w).Encode(ErrorResponse{
+		Error:     msg,
+		Code:      code,
+		ErrorCode: errCode,
+	})
+}
+
 func sendJSON(w http.ResponseWriter, data any) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(data)
+}
+
+type Validatable interface {
+	Validate() error
 }
 
 func decodeAndValidate(w http.ResponseWriter, r *http.Request, dst any) bool {
@@ -53,6 +101,14 @@ func decodeAndValidate(w http.ResponseWriter, r *http.Request, dst any) bool {
 
 		sendError(w, errMsg, http.StatusBadRequest)
 		return false
+	}
+
+	// Check for Validatable interface
+	if v, ok := dst.(Validatable); ok {
+		if err := v.Validate(); err != nil {
+			sendAppError(w, err)
+			return false
+		}
 	}
 
 	return true

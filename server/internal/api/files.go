@@ -42,7 +42,7 @@ func (h *FileHandler) Routes() chi.Router {
 // @Router /files/restart [post]
 func (h *FileHandler) Restart(w http.ResponseWriter, r *http.Request) {
 	if err := h.upload.Restart(r.Context()); err != nil {
-		sendError(w, err.Error(), http.StatusInternalServerError)
+		sendAppError(w, err)
 		return
 	}
 	w.WriteHeader(http.StatusOK)
@@ -72,13 +72,13 @@ func (h *FileHandler) Cat(w http.ResponseWriter, r *http.Request) {
 
 	info, err := h.storage.Stat(r.Context(), cleanPath)
 	if err != nil {
-		sendError(w, err.Error(), http.StatusNotFound)
+		sendAppError(w, err)
 		return
 	}
 
 	rc, err := h.storage.Open(r.Context(), cleanPath)
 	if err != nil {
-		sendError(w, err.Error(), http.StatusInternalServerError)
+		sendAppError(w, err)
 		return
 	}
 	defer rc.Close()
@@ -110,7 +110,7 @@ func (h *FileHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	files, err := h.storage.List(r.Context(), cleanPath)
 	if err != nil {
-		sendError(w, err.Error(), http.StatusInternalServerError)
+		sendAppError(w, err)
 		return
 	}
 	sendJSON(w, FileInfoListResponse{Data: files})
@@ -139,7 +139,7 @@ func (h *FileHandler) Mkdir(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.storage.Mkdir(r.Context(), cleanPath); err != nil {
-		sendError(w, err.Error(), http.StatusInternalServerError)
+		sendAppError(w, err)
 		return
 	}
 	w.WriteHeader(http.StatusCreated)
@@ -168,7 +168,7 @@ func (h *FileHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.storage.Delete(r.Context(), cleanPath); err != nil {
-		sendError(w, err.Error(), http.StatusInternalServerError)
+		sendAppError(w, err)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -205,7 +205,7 @@ func (h *FileHandler) Operate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err != nil {
-		sendError(w, err.Error(), http.StatusInternalServerError)
+		sendAppError(w, err)
 		return
 	}
 
