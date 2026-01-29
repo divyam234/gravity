@@ -109,17 +109,29 @@ func (s *ProviderService) Resolve(ctx context.Context, url string, headers map[s
 		if err != nil {
 			return nil, "", err
 		}
+
+		files := flattenMagnetFiles(info.Files)
+		mode := model.ExecutionModeMagnet
+		if info.Cached && hasDebridLinks(files) {
+			mode = model.ExecutionModeDebridFiles
+		}
+
 		return &provider.ResolveResult{
-			Name:     info.Name,
-			Size:     info.Size,
-			IsMagnet: true,
-			Hash:     info.Hash,
-			Files:    flattenMagnetFiles(info.Files),
+			Name:          info.Name,
+			Size:          info.Size,
+			IsMagnet:      true,
+			Hash:          info.Hash,
+			Files:         files,
+			ExecutionMode: mode,
 		}, info.Source, nil
 	}
 
 	// 2. Handle Regular URL
-	return s.resolver.Resolve(ctx, url, headers)
+	res, providerName, err := s.resolver.Resolve(ctx, url, headers)
+	if err == nil && res != nil {
+		res.ExecutionMode = model.ExecutionModeDirect
+	}
+	return res, providerName, err
 }
 
 // checkMetadata resolves magnet/torrent metadata from providers or engine
@@ -242,4 +254,13 @@ func flattenMagnetFiles(files []*model.MagnetFile) []*model.DownloadFile {
 
 	traverse(files)
 	return result
+}
+
+func hasDebridLinks(files []*model.DownloadFile) bool {
+	for _, f := range files {
+		if f.URL != "" {
+			return true
+		}
+	}
+	return false
 }

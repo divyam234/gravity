@@ -3,16 +3,20 @@ package provider
 import (
 	"sync"
 	"time"
+
+	"golang.org/x/time/rate"
 )
 
 const (
 	DefaultBreakerThreshold = 5
 	DefaultBreakerTimeout   = 30 * time.Second
+	DefaultRateLimit        = 5 // requests per second
 )
 
 type Registry struct {
 	providers sync.Map // map[string]Provider
 	breakers  sync.Map // map[string]*CircuitBreaker
+	limiters  sync.Map // map[string]*rate.Limiter
 }
 
 func NewRegistry() *Registry {
@@ -39,6 +43,11 @@ func (r *Registry) GetWithBreaker(name string) (Provider, *CircuitBreaker) {
 
 	cb, _ := r.breakers.LoadOrStore(name, NewCircuitBreaker(name, DefaultBreakerThreshold, DefaultBreakerTimeout))
 	return p, cb.(*CircuitBreaker)
+}
+
+func (r *Registry) GetLimiter(name string) *rate.Limiter {
+	limiter, _ := r.limiters.LoadOrStore(name, rate.NewLimiter(rate.Limit(DefaultRateLimit), 1))
+	return limiter.(*rate.Limiter)
 }
 
 func (r *Registry) List() []Provider {

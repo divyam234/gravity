@@ -174,6 +174,7 @@ func (s *DownloadService) Create(ctx context.Context, d *model.Download) (*model
 	d.Size = res.Size
 	d.MagnetHash = res.Hash
 	d.IsMagnet = res.IsMagnet
+	d.ExecutionMode = res.ExecutionMode
 
 	if res.IsMagnet {
 		if len(res.Files) > 0 {
@@ -213,7 +214,8 @@ func (s *DownloadService) Create(ctx context.Context, d *model.Download) (*model
 	s.logger.Info("download created",
 		zap.String("id", d.ID),
 		zap.String("filename", d.Filename),
-		zap.String("provider", d.Provider))
+		zap.String("provider", d.Provider),
+		zap.String("mode", string(res.ExecutionMode)))
 
 	s.bus.PublishLifecycle(event.LifecycleEvent{
 		Type:      event.DownloadCreated,
@@ -222,7 +224,8 @@ func (s *DownloadService) Create(ctx context.Context, d *model.Download) (*model
 		Timestamp: time.Now(),
 	})
 
-	if d.IsMagnet && d.Provider == "alldebrid" {
+	switch res.ExecutionMode {
+	case model.ExecutionModeDebridFiles:
 		if err := d.TransitionTo(model.StatusActive); err != nil {
 			s.logger.Error("failed to activate debrid download", zap.Error(err))
 		}
@@ -237,7 +240,7 @@ func (s *DownloadService) Create(ctx context.Context, d *model.Download) (*model
 			d.Error = "Service not ready"
 			s.repo.Update(ctx, d)
 		}
-	} else {
+	default: // Direct or Magnet (handled by engine)
 		// Signal queue to check for work (Standard Flow)
 		s.signalQueueCheck()
 	}
@@ -672,7 +675,7 @@ func (s *DownloadService) Start(ctx context.Context) {
 }
 
 func (s *DownloadService) watchSettings() {
-	ticker := time.NewTicker(30 * time.Second)
+	ticker := time.NewTicker(SettingsWatchInterval)
 	defer ticker.Stop()
 
 	var lastMaxConcurrent int
@@ -857,6 +860,20 @@ func (s *DownloadService) executeDownload(d *model.Download) {
 			s.logger.Info("download error during allocation, aborting execution", zap.String("id", d.ID))
 			return
 		}
+	}
+
+	// Route based on ExecutionMode
+	if d.ExecutionMode == model.ExecutionModeDebridFiles {
+		// Transition to Active before starting background task
+		if err := d.TransitionTo(model.StatusActive); err != nil {
+			s.logger.Error("failed to activate debrid download", zap.Error(err))
+			// Continue anyway? Or abort? If we can't transition to Active, something is wrong.
+			// But startDebridDownload will try to update files.
+		}
+		s.repo.Update(ctx, d)
+
+		go s.startDebridDownload(ctx, d)
+		return
 	}
 
 	// Submit to engine

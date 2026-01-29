@@ -30,6 +30,18 @@ func (r *Resolver) Resolve(ctx context.Context, url string, headers map[string]s
 				continue // Circuit open, skip this provider
 			}
 
+			// Rate Limit
+			limiter := r.registry.GetLimiter(p.Name())
+			if limiter != nil {
+				if err := limiter.Wait(ctx); err != nil {
+					// Context cancelled or timeout
+					if lastErr == nil {
+						lastErr = err
+					}
+					continue
+				}
+			}
+
 			res, err := p.Resolve(ctx, url, headers)
 			if err == nil && res != nil {
 				if cb != nil {

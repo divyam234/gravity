@@ -14,14 +14,15 @@ type ConfigField struct {
 }
 
 type ResolveResult struct {
-	URL      string                `json:"url"`
-	Name     string                `json:"name"`
-	Size     int64                 `json:"size"`
-	Headers  map[string]string     `json:"headers"`
-	Error    string                `json:"error,omitempty"`
-	IsMagnet bool                  `json:"isMagnet"`
-	Hash     string                `json:"hash,omitempty"`
-	Files    []*model.DownloadFile `json:"files,omitempty"`
+	URL           string                `json:"url"`
+	Name          string                `json:"name"`
+	Size          int64                 `json:"size"`
+	Headers       map[string]string     `json:"headers"`
+	Error         string                `json:"error,omitempty"`
+	IsMagnet      bool                  `json:"isMagnet"`
+	Hash          string                `json:"hash,omitempty"`
+	Files         []*model.DownloadFile `json:"files,omitempty"`
+	ExecutionMode model.ExecutionMode   `json:"executionMode"`
 }
 
 type Provider interface {

@@ -21,34 +21,43 @@ const (
 	StatusResolving  DownloadStatus = "resolving"
 )
 
+type ExecutionMode string
+
+const (
+	ExecutionModeDirect      ExecutionMode = "direct"       // Standard URL -> engine.Add()
+	ExecutionModeMagnet      ExecutionMode = "magnet"       // Magnet/torrent -> engine.AddMagnetWithSelection()
+	ExecutionModeDebridFiles ExecutionMode = "debrid-files" // Cached debrid -> parallel file downloads
+)
+
 type Proxy struct {
 	URL  string `json:"url"`
 	Type string `json:"type" enums:"all,downloads,uploads,magnets"`
 }
 
 type Download struct {
-	ID           string            `json:"id" example:"d_a1b2c3d4" gorm:"primaryKey"  binding:"required"`
-	URL          string            `json:"url" example:"http://example.com/file.zip"  binding:"required"`
-	ResolvedURL  string            `json:"resolvedUrl,omitempty"`
-	Provider     string            `json:"provider,omitempty"`
-	Engine       string            `json:"engine,omitempty" enums:"aria2,native"`
-	Status       DownloadStatus    `json:"status" example:"active" enums:"active,waiting,paused,uploading,complete,error"  binding:"required"`
-	Error        string            `json:"error,omitempty"`
-	Filename     string            `json:"filename" binding:"required"`
-	Dir          string            `json:"dir" binding:"required"`
-	Destination  string            `json:"destination,omitempty"`
-	UploadStatus string            `json:"uploadStatus,omitempty" enums:"idle,running,complete,error"`
-	Size         int64             `json:"size" example:"10485760" binding:"required"`
-	Proxies      []Proxy           `json:"proxies" gorm:"serializer:json"`
-	RemoveLocal  *bool             `json:"removeLocal,omitempty"`
-	Downloaded   int64             `json:"downloaded" example:"5242880" binding:"required"`
-	EngineID     string            `json:"-" gorm:"column:engine_id;index"`
-	UploadJobID  string            `json:"-" gorm:"column:upload_job_id;index"`
-	Headers      map[string]string `json:"headers,omitempty" gorm:"serializer:json"`
-	CreatedAt    time.Time         `json:"createdAt"`
-	StartedAt    *time.Time        `json:"startedAt,omitempty"`
-	CompletedAt  *time.Time        `json:"completedAt,omitempty"`
-	UpdatedAt    time.Time         `json:"updatedAt"`
+	ID            string            `json:"id" example:"d_a1b2c3d4" gorm:"primaryKey"  binding:"required"`
+	URL           string            `json:"url" example:"http://example.com/file.zip"  binding:"required"`
+	ResolvedURL   string            `json:"resolvedUrl,omitempty"`
+	Provider      string            `json:"provider,omitempty"`
+	Engine        string            `json:"engine,omitempty" enums:"aria2,native"`
+	ExecutionMode ExecutionMode     `json:"executionMode,omitempty"`
+	Status        DownloadStatus    `json:"status" example:"active" enums:"active,waiting,paused,uploading,complete,error"  binding:"required"`
+	Error         string            `json:"error,omitempty"`
+	Filename      string            `json:"filename" binding:"required"`
+	Dir           string            `json:"dir" binding:"required"`
+	Destination   string            `json:"destination,omitempty"`
+	UploadStatus  string            `json:"uploadStatus,omitempty" enums:"idle,running,complete,error"`
+	Size          int64             `json:"size" example:"10485760" binding:"required"`
+	Proxies       []Proxy           `json:"proxies" gorm:"serializer:json"`
+	RemoveLocal   *bool             `json:"removeLocal,omitempty"`
+	Downloaded    int64             `json:"downloaded" example:"5242880" binding:"required"`
+	EngineID      string            `json:"-" gorm:"column:engine_id;index"`
+	UploadJobID   string            `json:"-" gorm:"column:upload_job_id;index"`
+	Headers       map[string]string `json:"headers,omitempty" gorm:"serializer:json"`
+	CreatedAt     time.Time         `json:"createdAt"`
+	StartedAt     *time.Time        `json:"startedAt,omitempty"`
+	CompletedAt   *time.Time        `json:"completedAt,omitempty"`
+	UpdatedAt     time.Time         `json:"updatedAt"`
 
 	IsMagnet      bool           `json:"isMagnet"`
 	MagnetHash    string         `json:"magnetHash,omitempty"`
