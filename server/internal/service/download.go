@@ -134,7 +134,7 @@ func NewDownloadService(repo *store.DownloadRepo, settingsRepo *store.SettingsRe
 	return s
 }
 
-func (s *DownloadService) Create(ctx context.Context, url string, filename string, options model.TaskOptions) (*model.Download, error) {
+func (s *DownloadService) Create(ctx context.Context, url string, filename string, options model.Download) (*model.Download, error) {
 	// 1. Resolve URL through providers
 	res, providerName, err := s.provider.Resolve(ctx, url, options.Headers)
 	if err != nil {
@@ -182,16 +182,23 @@ func (s *DownloadService) Create(ctx context.Context, url string, filename strin
 		Status:      model.StatusWaiting,
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
-		Options:     options, // Store all task options in JSON
+		// Flattened options
+		Split:       options.Split,
+		MaxTries:    options.MaxTries,
+		UserAgent:   options.UserAgent,
+		ProxyURL:    options.ProxyURL,
+		RemoveLocal: options.RemoveLocal,
 	}
 
-	// Merge user provided headers
+	// Merge user provided headers - but don't overwrite resolved headers
 	if options.Headers != nil {
 		if d.Headers == nil {
 			d.Headers = make(map[string]string)
 		}
 		for k, v := range options.Headers {
-			d.Headers[k] = v
+			if _, exists := d.Headers[k]; !exists {
+				d.Headers[k] = v
+			}
 		}
 	}
 

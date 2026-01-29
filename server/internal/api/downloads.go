@@ -112,16 +112,16 @@ func (h *DownloadHandler) Create(w http.ResponseWriter, r *http.Request) {
 	// We trust the service layer to handle the logic and the underlying engine/OS to handle permission errors.
 	// This allows power users to download to external drives.
 
-	// Convert API TaskOptions to model TaskOptions
-	opts := model.TaskOptions{
-		DownloadDir: req.Options.DownloadDir,
-		Destination: req.Options.Destination,
-		Split:       req.Options.Split,
-		MaxTries:    req.Options.MaxTries,
-		UserAgent:   req.Options.UserAgent,
-		ProxyURL:    req.Options.ProxyURL,
-		RemoveLocal: req.Options.RemoveLocal,
-		Headers:     req.Options.Headers,
+	// Convert flattened request fields to model.Download carrier
+	opts := model.Download{
+		DownloadDir: req.DownloadDir,
+		Destination: req.Destination,
+		Split:       req.Split,
+		MaxTries:    req.MaxTries,
+		UserAgent:   req.UserAgent,
+		ProxyURL:    req.ProxyURL,
+		RemoveLocal: req.RemoveLocal,
+		Headers:     req.Headers,
 	}
 
 	d, err := h.service.Create(r.Context(), req.URL, cleanFilename, opts)

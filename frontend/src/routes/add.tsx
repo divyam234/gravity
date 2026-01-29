@@ -19,7 +19,6 @@ import { formatBytes } from "../lib/utils";
 import type { components } from "../gen/api";
 
 type MagnetFile = components["schemas"]["model.MagnetFile"];
-type TaskOptions = components["schemas"]["api.TaskOptions"];
 
 export const Route = createFileRoute("/add")({
   component: AddDownloadPage,
@@ -63,7 +62,7 @@ function AddDownloadPage() {
         });
       }
 
-      const options: TaskOptions = {
+      const flatOptions = {
         downloadDir: value.downloadDir || undefined,
         destination: value.destination || undefined,
         split: value.split,
@@ -87,8 +86,8 @@ function AddDownloadPage() {
                 name: magnetInfo.name,
                 selectedFiles: Array.from(selectedFiles),
                 files: (flattenFiles(magnetInfo.files || []) as unknown) as components["schemas"]["api.MagnetFileRequest"][],
-                options: options,
-            }
+                ...flatOptions,
+            } as any
           });
           toast.success(isTorrent ? "Torrent download started" : "Magnet download started");
           navigate(tasksLinkOptions("active"));
@@ -102,8 +101,8 @@ function AddDownloadPage() {
             body: {
                 url: currentUrlValue,
                 filename: value.filename || undefined,
-                options: options,
-            }
+                ...flatOptions,
+            } as any
           },
           {
             onSuccess: () => navigate(tasksLinkOptions("active")),

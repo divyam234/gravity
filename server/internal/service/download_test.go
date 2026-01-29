@@ -66,7 +66,7 @@ func (m *MockDownloadEngine) Add(ctx context.Context, url string, opts engine.Do
 		Status:     "active",
 		URL:        url,
 		Filename:   opts.Filename,
-		Dir:        opts.Dir,
+		Dir:        opts.DownloadDir,
 		Size:       1024 * 1024 * 10, // 10 MB mock size
 		Downloaded: 0,
 		Speed:      0,
@@ -337,7 +337,7 @@ func TestFullDownloadFlow(t *testing.T) {
 	// 6. Execute: Create Download
 	ctx := context.Background()
 	// Create(ctx, url, filename, downloadDir, destination, options)
-	dl, err := ds.Create(ctx, "http://example.com/video", "", "", "", model.TaskOptions{})
+	dl, err := ds.Create(ctx, "http://example.com/video", "", model.Download{})
 	if err != nil {
 		t.Fatalf("Failed to create download: %v", err)
 	}
@@ -408,7 +408,7 @@ DONE:
 
 	// 8. Test Pause/Resume
 	// Create another one for Pause/Resume test
-	dl2, _ := ds.Create(ctx, "http://example.com/file2", "", "", "", model.TaskOptions{})
+	dl2, _ := ds.Create(ctx, "http://example.com/file2", "", model.Download{})
 
 	// Wait for start
 	time.Sleep(200 * time.Millisecond) // Give time for queue to pick it up
@@ -471,7 +471,7 @@ func TestErrorScenarios(t *testing.T) {
 	t.Run("SubmissionError", func(t *testing.T) {
 		mockDownloader.SetAddError(fmt.Errorf("connection refused"))
 
-		dl, err := ds.Create(ctx, "http://fail.com", "", "", "", model.TaskOptions{})
+		dl, err := ds.Create(ctx, "http://fail.com", "", model.Download{})
 		if err != nil {
 			t.Fatalf("Create failed: %v", err)
 		}
@@ -490,7 +490,7 @@ func TestErrorScenarios(t *testing.T) {
 
 	// Scenario 2: Async Download Error (Aria2 reports error)
 	t.Run("AsyncDownloadError", func(t *testing.T) {
-		dl, _ := ds.Create(ctx, "http://error.com", "", "", "", model.TaskOptions{})
+		dl, _ := ds.Create(ctx, "http://error.com", "", model.Download{})
 
 		// Wait for start
 		var engineID string
@@ -654,7 +654,7 @@ func TestDeletion(t *testing.T) {
 	ctx := context.Background()
 
 	// Create and start a download
-	dl, _ := ds.Create(ctx, "http://delete.me", "", "", "", model.TaskOptions{})
+	dl, _ := ds.Create(ctx, "http://delete.me", "", model.Download{})
 
 	// Wait for active
 	time.Sleep(150 * time.Millisecond)

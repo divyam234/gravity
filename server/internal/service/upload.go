@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"gravity/internal/engine"
@@ -79,17 +80,11 @@ func (s *UploadService) Start(ctx context.Context) {
 					continue
 				}
 
-				// Logic:
-				// 1. If task has explicit destination -> use it.
-				// 2. If task has NO destination AND AutoUpload is ON -> use DefaultRemote.
-				target := d.Destination
-				if target == "" && settings.Upload.AutoUpload {
-					target = settings.Upload.DefaultRemote
+				if d.Destination == "" && settings.Upload.AutoUpload {
+					d.Destination = settings.Upload.DefaultRemote
 				}
 
-				if target != "" {
-					// Update the download object with the resolved destination so engine knows where to put it
-					d.Destination = target
+				if d.Destination != "" {
 					s.TriggerUpload(s.ctx, d)
 				}
 			}
@@ -212,7 +207,6 @@ func (s *UploadService) handleComplete(downloadID string) {
 	}
 	d, err := s.repo.Get(ctx, downloadID)
 	if err != nil {
-		// Download may have been deleted - this is expected, silently ignore
 		return
 	}
 
@@ -228,20 +222,23 @@ func (s *UploadService) handleComplete(downloadID string) {
 		Data:      d,
 	})
 
-	// Check if we should delete the local file
 	settings, err := s.settingsRepo.Get(ctx)
-	shouldDelete := true // Default to true
+	shouldDelete := true
 	if err == nil && settings != nil {
 		shouldDelete = settings.Upload.RemoveLocal
 	}
+	if d.RemoveLocal != nil {
+		shouldDelete = *d.RemoveLocal
+	}
 
 	if shouldDelete && d.DownloadDir != "" {
-		s.logger.Debug("deleting local copy after upload", zap.String("path", d.DownloadDir))
-		if err := os.RemoveAll(d.DownloadDir); err != nil {
-			s.logger.Error("failed to delete local file", zap.String("path", d.DownloadDir), zap.Error(err))
+		filePath := filepath.Join(d.DownloadDir, d.Filename)
+		s.logger.Debug("deleting local copy after upload", zap.String("path", filePath))
+		if err := os.RemoveAll(filePath); err != nil {
+			s.logger.Error("failed to delete local file", zap.String("path", filePath), zap.Error(err))
 		}
-		// Also try removing .aria2 control file just in case
-		os.Remove(d.DownloadDir + ".aria2")
+		os.Remove(filePath + ".aria2")
+		os.Remove(filePath + ".rclone")
 	}
 }
 

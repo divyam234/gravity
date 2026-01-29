@@ -140,22 +140,28 @@ type ErrorResponse struct {
 	Code  int    `json:"code" example:"500" binding:"required"`
 }
 
-type TaskOptions struct {
-	DownloadDir string            `json:"downloadDir" example:"/downloads"`    // Local save path
-	Destination string            `json:"destination" example:"gdrive:movies"` // Remote path
-	Split       int               `json:"split"`                               // File splitting count
-	MaxTries    int               `json:"maxTries"`                            // Retry attempts
-	UserAgent   string            `json:"userAgent"`                           // Custom user agent
-	ProxyURL    string            `json:"proxyUrl"`                            // Full proxy URL
-	RemoveLocal *bool             `json:"removeLocal"`                         // Remove local file after upload
-	Headers     map[string]string `json:"headers"`                             // Custom HTTP headers
+type Proxy struct {
+	URL  string `json:"url"`
+	Type string `json:"type"`
 }
 
 // Downloads
 type CreateDownloadRequest struct {
-	URL      string      `json:"url" validate:"required" binding:"required" example:"http://example.com/file.zip"`
-	Filename string      `json:"filename" example:"my_file.zip"`
-	Options  TaskOptions `json:"options"`
+	URL         string            `json:"url" validate:"required" binding:"required" example:"http://example.com/file.zip"`
+	Filename    string            `json:"filename" example:"my_file.zip"`
+	Dir         string            `json:"dir" example:"/downloads"`
+	Destination string            `json:"destination" example:"gdrive:movies"`
+	Provider    string            `json:"provider"`
+	Engine      string            `json:"engine" enums:"native,aria2"`
+	Split       *int              `json:"split"`
+	Proxies     []Proxy           `json:"proxies"`
+	RemoveLocal *bool             `json:"removeLocal"`
+	Headers     map[string]string `json:"headers"`
+
+	//Fields For magnets
+	TorrentBase64 string   `json:"torrentBase64"`
+	Hash          string   `json:"hash"`
+	SelectedFiles []string `json:"selectedFiles" example:"1,2"`
 }
 
 // Magnets
@@ -177,14 +183,21 @@ type MagnetFileRequest struct {
 }
 
 type DownloadMagnetRequest struct {
-	Magnet        string              `json:"magnet" example:"magnet:?xt=urn:btih:..."`
-	TorrentBase64 string              `json:"torrentBase64"`
-	Source        string              `json:"source" validate:"required" binding:"required" enums:"alldebrid,aria2"`
-	MagnetID      string              `json:"magnetId"`
-	Name          string              `json:"name" example:"My Movie"`
-	SelectedFiles []string            `json:"selectedFiles" example:"1,2"`
-	Files         []MagnetFileRequest `json:"files"`
-	Options       TaskOptions         `json:"options"`
+	Magnet        string   `json:"magnet" example:"magnet:?xt=urn:btih:..."`
+	TorrentBase64 string   `json:"torrentBase64"`
+	Source        string   `json:"source" validate:"required" binding:"required" enums:"alldebrid,aria2"`
+	MagnetID      string   `json:"magnetId"`
+	Name          string   `json:"name" example:"My Movie"`
+	SelectedFiles []string `json:"selectedFiles" example:"1,2"`
+
+	DownloadDir string            `json:"downloadDir" example:"/downloads"`    // Local save path
+	Destination string            `json:"destination" example:"gdrive:movies"` // Remote path
+	Split       *int              `json:"split"`                               // File splitting count
+	MaxTries    *int              `json:"maxTries"`                            // Retry attempts
+	UserAgent   *string           `json:"userAgent"`                           // Custom user agent
+	ProxyURL    *string           `json:"proxyUrl"`                            // Full proxy URL
+	RemoveLocal *bool             `json:"removeLocal"`                         // Remove local file after upload
+	Headers     map[string]string `json:"headers"`                             // Custom HTTP headers
 }
 
 // Search

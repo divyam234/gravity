@@ -27,6 +27,7 @@ import (
 	"gravity/internal/provider/premiumize"
 	"gravity/internal/provider/realdebrid"
 	"gravity/internal/provider/torbox"
+	"gravity/internal/provider/ytdlp"
 	"gravity/internal/service"
 	"gravity/internal/store"
 
@@ -103,6 +104,7 @@ func New(ctx context.Context, de engine.DownloadEngine, ue engine.UploadEngine) 
 	// Providers
 	registry := provider.NewRegistry()
 	registry.Register(direct.New())
+	registry.Register(ytdlp.New())
 	ad := alldebrid.New()
 	registry.Register(ad)
 	registry.Register(realdebrid.New())

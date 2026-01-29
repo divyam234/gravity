@@ -108,18 +108,6 @@ func (h *MagnetHandler) Download(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	// Convert API TaskOptions to model TaskOptions
-	opts := model.TaskOptions{
-		DownloadDir: req.Options.DownloadDir,
-		Destination: req.Options.Destination,
-		Split:       req.Options.Split,
-		MaxTries:    req.Options.MaxTries,
-		UserAgent:   req.Options.UserAgent,
-		ProxyURL:    req.Options.ProxyURL,
-		RemoveLocal: req.Options.RemoveLocal,
-		Headers:     req.Options.Headers,
-	}
-
 	download, err := h.magnetService.DownloadMagnet(r.Context(), service.MagnetDownloadRequest{
 		Magnet:        req.Magnet,
 		TorrentBase64: req.TorrentBase64,
@@ -128,7 +116,15 @@ func (h *MagnetHandler) Download(w http.ResponseWriter, r *http.Request) {
 		Name:          req.Name,
 		SelectedFiles: req.SelectedFiles,
 		AllFiles:      allFiles,
-		Options:       opts,
+		// Flattened options
+		DownloadDir: req.DownloadDir,
+		Destination: req.Destination,
+		Split:       req.Split,
+		MaxTries:    req.MaxTries,
+		UserAgent:   req.UserAgent,
+		ProxyURL:    req.ProxyURL,
+		RemoveLocal: req.RemoveLocal,
+		Headers:     req.Headers,
 	})
 
 	if err != nil {

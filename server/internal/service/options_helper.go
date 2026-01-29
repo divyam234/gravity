@@ -7,44 +7,34 @@ import (
 
 // TaskOptions helpers for converting between model and engine types
 
-// toEngineOptions converts model.TaskOptions to engine.DownloadOptions
-func toEngineOptions(opts model.TaskOptions) engine.DownloadOptions {
-	return engine.DownloadOptions{
-		DownloadDir: opts.DownloadDir,
-		Destination: opts.Destination,
-		Split:       intPtr(opts.Split),
-		MaxTries:    intPtr(opts.MaxTries),
-		UserAgent:   strPtr(opts.UserAgent),
-		ProxyURL:    strPtr(opts.ProxyURL),
-		RemoveLocal: opts.RemoveLocal,
-		Headers:     opts.Headers,
-	}
-}
-
 // toEngineOptionsFromDownload converts a Download's stored options to engine.DownloadOptions
 func toEngineOptionsFromDownload(d *model.Download) engine.DownloadOptions {
-	opts := toEngineOptions(d.Options)
-
-	// Use top-level fields if Options doesn't have them set
-	if opts.DownloadDir == "" {
-		opts.DownloadDir = d.DownloadDir
+	return engine.DownloadOptions{
+		DownloadDir: d.DownloadDir,
+		Destination: d.Destination,
+		Split:       d.Split,
+		MaxTries:    d.MaxTries,
+		UserAgent:   d.UserAgent,
+		ProxyURL:    d.ProxyURL,
+		RemoveLocal: d.RemoveLocal,
+		Headers:     d.Headers,
 	}
-	if opts.Destination == "" {
-		opts.Destination = d.Destination
-	}
-
-	return opts
 }
 
-// fromEngineOptions converts engine.DownloadOptions back to model.TaskOptions
-func fromEngineOptions(opts engine.DownloadOptions) model.TaskOptions {
-	return model.TaskOptions{
+// fromEngineOptions converts engine.DownloadOptions back to model.Download carrier
+// Note: This now returns a partial model.Download-like struct since TaskOptions is gone.
+// We only use this for reconstructing options, so we can return the individual fields or a struct.
+// For now, let's just return what we need or remove it if unused.
+// Checking usages... it was used in tests mainly.
+// Let's keep a helper that returns model.Download with options set.
+func fromEngineOptions(opts engine.DownloadOptions) model.Download {
+	return model.Download{
 		DownloadDir: opts.DownloadDir,
 		Destination: opts.Destination,
-		Split:       derefInt(opts.Split),
-		MaxTries:    derefInt(opts.MaxTries),
-		UserAgent:   derefString(opts.UserAgent),
-		ProxyURL:    derefString(opts.ProxyURL),
+		Split:       opts.Split,
+		MaxTries:    opts.MaxTries,
+		UserAgent:   opts.UserAgent,
+		ProxyURL:    opts.ProxyURL,
 		RemoveLocal: opts.RemoveLocal,
 		Headers:     opts.Headers,
 	}
@@ -52,30 +42,3 @@ func fromEngineOptions(opts engine.DownloadOptions) model.TaskOptions {
 
 // Helper functions
 
-func intPtr(i int) *int {
-	if i == 0 {
-		return nil
-	}
-	return &i
-}
-
-func strPtr(s string) *string {
-	if s == "" {
-		return nil
-	}
-	return &s
-}
-
-func derefInt(i *int) int {
-	if i == nil {
-		return 0
-	}
-	return *i
-}
-
-func derefString(s *string) string {
-	if s == nil {
-		return ""
-	}
-	return *s
-}
