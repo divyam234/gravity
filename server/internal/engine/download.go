@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+
 	"gravity/internal/model"
 )
 
@@ -41,23 +42,6 @@ type DownloadFileStatus struct {
 	Path     string `json:"path"`
 	Size     int64  `json:"size"`
 	Selected bool   `json:"selected"`
-}
-
-type DownloadOptions struct {
-	ID            string
-	Filename      string
-	Size          int64
-	Dir           string
-	Headers       map[string]string
-	TorrentData   string // Base64 encoded .torrent
-	SelectedFiles []int  // 1-indexed file numbers
-
-	// Task-specific overrides
-	Split       int
-	MaxTries    int
-	UserAgent   string
-	ProxyURL    string
-	RemoveLocal bool
 }
 
 type DownloadEngine interface {

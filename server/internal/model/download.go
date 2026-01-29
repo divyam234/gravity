@@ -50,12 +50,9 @@ type Download struct {
 	CompletedAt      *time.Time        `json:"completedAt,omitempty"`
 	UpdatedAt        time.Time         `json:"updatedAt" validate:"required" binding:"required"`
 
-	// Task Options (flattened from TaskOptions)
-	Split       int    `json:"split"`       // File splitting count
-	MaxTries    int    `json:"maxTries"`    // Retry attempts
-	UserAgent   string `json:"userAgent"`   // Custom user agent
-	ProxyURL    string `json:"proxyUrl"`    // Full proxy URL
-	RemoveLocal *bool  `json:"removeLocal"` // Remove local file after upload
+	// Task Options - stored as JSON for flexibility
+	// All download settings are stored here and can be overridden per-download
+	Options TaskOptions `json:"options" gorm:"serializer:json"`
 
 	// Multi-file support for magnets/torrents
 	IsMagnet      bool           `json:"isMagnet"`

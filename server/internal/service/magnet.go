@@ -158,12 +158,7 @@ func (s *MagnetService) DownloadMagnet(ctx context.Context, req MagnetDownloadRe
 		TorrentData:  req.TorrentBase64,
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
-		// Flattened task options
-		Split:       req.Options.Split,
-		MaxTries:    req.Options.MaxTries,
-		UserAgent:   req.Options.UserAgent,
-		ProxyURL:    req.Options.ProxyURL,
-		RemoveLocal: req.Options.RemoveLocal,
+		Options:      req.Options, // Store all task options in JSON
 	}
 
 	// Build file list and calculate total size
@@ -246,10 +241,10 @@ func (s *MagnetService) startAllDebridDownload(ctx context.Context, d *model.Dow
 		}
 
 		// Add to aria2
-		gid, err := s.downloadEngine.Add(ctx, resolved.URL, engine.DownloadOptions{
-			Dir:      d.DownloadDir, // Base directory
-			Filename: file.Path,     // Preserve path structure
-		})
+		opts := toEngineOptionsFromDownload(d)
+		opts.DownloadDir = d.DownloadDir // Base directory
+		opts.Filename = file.Path        // Preserve path structure
+		gid, err := s.downloadEngine.Add(ctx, resolved.URL, opts)
 
 		if err != nil {
 			file.Status = model.StatusError
@@ -275,9 +270,9 @@ func (s *MagnetService) startAria2Download(ctx context.Context, d *model.Downloa
 	}
 
 	// Add magnet with file selection
-	gid, err := s.downloadEngine.AddMagnetWithSelection(ctx, magnet, indexes, engine.DownloadOptions{
-		Dir: d.DownloadDir,
-	})
+	opts := toEngineOptionsFromDownload(d)
+	opts.DownloadDir = d.DownloadDir
+	gid, err := s.downloadEngine.AddMagnetWithSelection(ctx, magnet, indexes, opts)
 
 	if err != nil {
 		d.Status = model.StatusError
@@ -300,11 +295,11 @@ func (s *MagnetService) startTorrentDownload(ctx context.Context, d *model.Downl
 		}
 	}
 
-	gid, err := s.downloadEngine.Add(ctx, "", engine.DownloadOptions{
-		Dir:           d.DownloadDir,
-		TorrentData:   torrentBase64,
-		SelectedFiles: indexes,
-	})
+	opts := toEngineOptionsFromDownload(d)
+	opts.DownloadDir = d.DownloadDir
+	opts.TorrentData = torrentBase64
+	opts.SelectedFiles = indexes
+	gid, err := s.downloadEngine.Add(ctx, "", opts)
 
 	if err != nil {
 		d.Status = model.StatusError

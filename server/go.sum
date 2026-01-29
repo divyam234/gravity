@@ -883,8 +883,8 @@ github.com/swaggo/swag/v2 v2.0.0-rc5/go.mod h1:kCL8Fu4Zl8d5tB2Bgj96b8wRowwrwk175
 github.com/t3rm1n4l/go-mega v0.0.0-20251031123324-a804aaa87491 h1:rrGZv6xYk37hx0tW2sYfgbO0PqStbHqz6Bq6oc9Hurg=
 github.com/t3rm1n4l/go-mega v0.0.0-20251031123324-a804aaa87491/go.mod h1:ykucQyiE9Q2qx1wLlEtZkkNn1IURib/2O+Mvd25i1Fo=
 github.com/tailscale/depaware v0.0.0-20210622194025-720c4b409502/go.mod h1:p9lPsd+cx33L3H9nNoecRRxPssFKUwwI50I3pZ0yT+8=
-github.com/tgdrive/rclone v1.72.2-0.20260128160932-d16d2713bdb5 h1:jIjJ/QBk439CzVcMGWDDlbpHU7laXMuFIuCG6OVfqB0=
-github.com/tgdrive/rclone v1.72.2-0.20260128160932-d16d2713bdb5/go.mod h1:/Ukxp/vg6D0mJ52I8m2M9dc4mhDNky2mhiyQj/ONY04=
+github.com/tgdrive/rclone v1.72.2 h1:cW8KKk4/8YbNjBz3aoKmgCKbZ8POmPTaoxSb17Bssqs=
+github.com/tgdrive/rclone v1.72.2/go.mod h1:/Ukxp/vg6D0mJ52I8m2M9dc4mhDNky2mhiyQj/ONY04=
 github.com/tidwall/btree v1.6.0 h1:LDZfKfQIBHGHWSwckhXI0RPSXzlo+KYdjK7FWSqOzzg=
 github.com/tidwall/btree v1.6.0/go.mod h1:twD9XRA5jj9VUQGELzDO4HPQTNJsoWWfYEL+EUQ2cKY=
 github.com/tinylib/msgp v1.0.2/go.mod h1:+d+yLhGm8mzTaHzB+wgMYrodPfmZrzkirds8fDWklFE=

@@ -2,6 +2,7 @@ package hybrid
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"sync"
 
@@ -34,14 +35,30 @@ func NewHybridRouter(aria2, native engine.DownloadEngine, l *zap.Logger) *Hybrid
 
 func (h *HybridRouter) Start(ctx context.Context) error {
 	if err := h.aria2.Start(ctx); err != nil {
-		return err
+		return fmt.Errorf("failed to start aria2: %w", err)
 	}
-	return h.native.Start(ctx)
+	if err := h.native.Start(ctx); err != nil {
+		// Stop aria2 if native fails to start
+		if stopErr := h.aria2.Stop(); stopErr != nil {
+			h.logger.Error("failed to stop aria2 after native start failed", zap.Error(stopErr))
+		}
+		return fmt.Errorf("failed to start native: %w", err)
+	}
+	return nil
 }
 
 func (h *HybridRouter) Stop() error {
-	h.aria2.Stop()
-	return h.native.Stop()
+	var errs []error
+	if err := h.aria2.Stop(); err != nil {
+		errs = append(errs, fmt.Errorf("failed to stop aria2: %w", err))
+	}
+	if err := h.native.Stop(); err != nil {
+		errs = append(errs, fmt.Errorf("failed to stop native: %w", err))
+	}
+	if len(errs) > 0 {
+		return errs[0]
+	}
+	return nil
 }
 
 func (h *HybridRouter) Add(ctx context.Context, url string, opts engine.DownloadOptions) (string, error) {

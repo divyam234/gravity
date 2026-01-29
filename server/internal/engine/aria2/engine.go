@@ -160,8 +160,8 @@ func (e *Engine) Add(ctx context.Context, url string, opts engine.DownloadOption
 	if opts.Filename != "" {
 		ariaOpts["out"] = opts.Filename
 	}
-	if opts.Dir != "" {
-		ariaOpts["dir"] = opts.Dir
+	if opts.DownloadDir != "" {
+		ariaOpts["dir"] = opts.DownloadDir
 	}
 	if len(opts.Headers) > 0 {
 		var headers []string
@@ -170,19 +170,19 @@ func (e *Engine) Add(ctx context.Context, url string, opts engine.DownloadOption
 		}
 		ariaOpts["header"] = headers
 	}
-	if opts.Split > 0 {
-		ariaOpts["split"] = strconv.Itoa(opts.Split)
+	if opts.Split != nil && *opts.Split > 0 {
+		ariaOpts["split"] = strconv.Itoa(*opts.Split)
 	}
-	if opts.MaxTries > 0 {
-		ariaOpts["max-tries"] = strconv.Itoa(opts.MaxTries)
+	if opts.MaxTries != nil && *opts.MaxTries > 0 {
+		ariaOpts["max-tries"] = strconv.Itoa(*opts.MaxTries)
 	}
-	if opts.UserAgent != "" {
-		ariaOpts["user-agent"] = opts.UserAgent
+	if opts.UserAgent != nil && *opts.UserAgent != "" {
+		ariaOpts["user-agent"] = *opts.UserAgent
 	}
 
 	// Proxy
-	if opts.ProxyURL != "" {
-		ariaOpts["all-proxy"] = opts.ProxyURL
+	if opts.ProxyURL != nil && *opts.ProxyURL != "" {
+		ariaOpts["all-proxy"] = *opts.ProxyURL
 	} else {
 		// Auto-configure proxy based on settings
 		e.mu.RLock()

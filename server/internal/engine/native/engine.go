@@ -158,8 +158,12 @@ func (e *NativeEngine) Start(ctx context.Context) error {
 }
 
 func (e *NativeEngine) Stop() error {
+	var errs []error
+
 	if e.storage != nil {
-		e.storage.Close()
+		if err := e.storage.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("failed to close storage: %w", err))
+		}
 	}
 	if e.done != nil {
 		select {
@@ -174,6 +178,10 @@ func (e *NativeEngine) Stop() error {
 	if e.torrentClient != nil {
 		e.torrentClient.Close()
 	}
+
+	if len(errs) > 0 {
+		return errs[0]
+	}
 	return nil
 }
 
@@ -182,28 +190,32 @@ func (e *NativeEngine) Add(ctx context.Context, url string, opts engine.Download
 	t := &task{
 		id:       id,
 		url:      url,
-		dir:      opts.Dir,
+		dir:      opts.DownloadDir,
 		filename: opts.Filename,
 		size:     opts.Size,
 		headers:  opts.Headers,
 		done:     make(chan struct{}),
-		split:    opts.Split,
+		split:    0,
+	}
+
+	if opts.Split != nil {
+		t.split = *opts.Split
 	}
 
 	if strings.HasPrefix(url, "magnet:") || strings.HasSuffix(url, ".torrent") || opts.TorrentData != "" {
 		t.taskType = taskTypeTorrent
 
 		// Register custom storage path
-		if opts.Dir != "" {
+		if opts.DownloadDir != "" {
 			if opts.TorrentData != "" {
 				mi, _ := metainfo.Load(strings.NewReader(opts.TorrentData))
 				if mi != nil {
-					e.storage.Register(mi.HashInfoBytes().HexString(), opts.Dir)
+					e.storage.Register(mi.HashInfoBytes().HexString(), opts.DownloadDir)
 				}
 			} else if strings.HasPrefix(url, "magnet:") {
 				m, err := metainfo.ParseMagnetUri(url)
 				if err == nil {
-					e.storage.Register(m.InfoHash.HexString(), opts.Dir)
+					e.storage.Register(m.InfoHash.HexString(), opts.DownloadDir)
 				}
 			}
 		}
@@ -230,6 +242,7 @@ func (e *NativeEngine) Add(ctx context.Context, url string, opts engine.Download
 				timeout = time.Duration(e.settings.Download.ConnectTimeout) * time.Second
 			}
 			onError := e.onError
+			ctx := e.ctx // Capture context while holding lock
 			e.mu.RUnlock()
 
 			select {
@@ -239,7 +252,9 @@ func (e *NativeEngine) Add(ctx context.Context, url string, opts engine.Download
 				if onError != nil {
 					onError(taskId, fmt.Errorf("metadata resolution timeout"))
 				}
-				e.Remove(e.ctx, taskId)
+				if ctx != nil {
+					e.Remove(ctx, taskId)
+				}
 			}
 		}(dl, id)
 
@@ -588,11 +603,25 @@ func (e *NativeEngine) OnError(h func(string, error)) {
 }
 
 func (e *NativeEngine) GetMagnetFiles(ctx context.Context, magnet string) (*model.MagnetInfo, error) {
+	if e.torrentClient == nil {
+		return nil, fmt.Errorf("torrent client not initialized")
+	}
+
 	t, err := e.torrentClient.AddMagnet(magnet)
 	if err != nil {
 		return nil, err
 	}
-	<-t.GotInfo()
+	defer t.Drop()
+
+	select {
+	case <-t.GotInfo():
+		// Got info, continue
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-time.After(60 * time.Second):
+		return nil, fmt.Errorf("timeout waiting for magnet metadata")
+	}
+
 	info := &model.MagnetInfo{
 		Source: "native",
 		Name:   t.Name(),
@@ -608,7 +637,6 @@ func (e *NativeEngine) GetMagnetFiles(ctx context.Context, magnet string) (*mode
 			Index: i,
 		})
 	}
-	t.Drop()
 	return info, nil
 }
 

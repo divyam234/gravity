@@ -24,7 +24,10 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
 }) => {
   const { pause, unpause, remove } = useEngineActions();
 
-  const progress = (task.size || 0) > 0 ? ((task.downloaded || 0) / (task.size || 1)) * 100 : 0;
+  const progress =
+    (task.size || 0) > 0
+      ? ((task.downloaded || 0) / (task.size || 1)) * 100
+      : 0;
 
   const isPaused = task.status === "paused";
   const isActive = task.status === "active";
@@ -33,16 +36,19 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
   const isUploading = task.status === "uploading";
 
   // Calculate uploaded bytes from progress percentage
-  const uploadedBytes = (task.size || 0) > 0 ? Math.floor(((task.uploadProgress || 0) / 100) * (task.size || 0)) : 0;
+  const uploadedBytes =
+    (task.size || 0) > 0
+      ? Math.floor(((task.uploadProgress || 0) / 100) * (task.size || 0))
+      : 0;
 
   // Effective display values
-  const effectiveProgress = isUploading ? (task.uploadProgress || 0) : progress;
-  const effectiveSpeed = isUploading ? (task.uploadSpeed || 0) : (task.speed || 0);
+  const effectiveProgress = isUploading ? task.uploadProgress || 0 : progress;
+  const effectiveSpeed = isUploading ? task.uploadSpeed || 0 : task.speed || 0;
   const isActionable = isActive || isPaused;
 
   const handleRemove = () => {
     if (task.id) {
-        remove.mutate({ params: { path: { id: task.id } } });
+      remove.mutate({ params: { path: { id: task.id } } });
     }
   };
 
@@ -114,17 +120,20 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
           </div>
 
           <div className="w-32 shrink-0 hidden md:flex flex-col items-end gap-0.5">
-            <span
-              className={cn(
-                "text-xs font-black",
-                isUploading ? "text-cyan-500" : "text-success/80",
-              )}
-            >
-              {isUploading ? "↑" : "↓"} {formatBytes(effectiveSpeed)}/s
-            </span>
+            {(isActive || isUploading) && (
+              <span
+                className={cn(
+                  "text-xs font-black",
+                  isUploading ? "text-cyan-500" : "text-success/80",
+                )}
+              >
+                {isUploading ? "↑" : "↓"} {formatBytes(effectiveSpeed)}/s
+              </span>
+            )}
             {isActive && task.isMagnet && task.magnetSource === "aria2" && (
               <span className="text-[9px] font-black uppercase tracking-tighter text-muted">
-                S: <span className="text-success">{task.seeders || 0}</span> P: <span className="text-foreground">{task.peers || 0}</span>
+                S: <span className="text-success">{task.seeders || 0}</span> P:{" "}
+                <span className="text-foreground">{task.peers || 0}</span>
               </span>
             )}
             {!isUploading && isActive && (
@@ -141,7 +150,9 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
               isIconOnly
               size="sm"
               variant="ghost"
-              onPress={() => pause.mutate({ params: { path: { id: task.id! } } })}
+              onPress={() =>
+                pause.mutate({ params: { path: { id: task.id! } } })
+              }
               className="h-8 w-8 min-w-0"
             >
               <IconPause className="w-4 h-4 text-warning" />
@@ -152,7 +163,9 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
               isIconOnly
               size="sm"
               variant="ghost"
-              onPress={() => unpause.mutate({ params: { path: { id: task.id! } } })}
+              onPress={() =>
+                unpause.mutate({ params: { path: { id: task.id! } } })
+              }
               className="h-8 w-8 min-w-0"
             >
               <IconPlay className="w-4 h-4 text-success" />
@@ -239,7 +252,9 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
                     size="sm"
                     variant="ghost"
                     onPress={() =>
-                      isActive ? pause.mutate({ params: { path: { id: task.id! } } }) : unpause.mutate({ params: { path: { id: task.id! } } })
+                      isActive
+                        ? pause.mutate({ params: { path: { id: task.id! } } })
+                        : unpause.mutate({ params: { path: { id: task.id! } } })
                     }
                   >
                     {isActive ? (
@@ -283,23 +298,25 @@ export const DownloadCard: React.FC<DownloadCardProps> = ({
 
         <div className="flex justify-between items-center text-sm text-muted bg-muted-background/50 p-2 rounded-xl border border-border/50">
           <div className="flex gap-4">
-            <span
-              className={cn(
-                "flex items-center gap-1.5 font-bold",
-                isUploading ? "text-cyan-500" : "text-success/80",
-              )}
-            >
-              <div
+            {(isActive || isUploading) && (
+              <span
                 className={cn(
-                  "w-1.5 h-1.5 rounded-full",
-                  isUploading ? "bg-cyan-500" : "bg-success",
+                  "flex items-center gap-1.5 font-bold",
+                  isUploading ? "text-cyan-500" : "text-success/80",
                 )}
-              />
-              {isUploading ? "↑" : "↓"} {formatBytes(effectiveSpeed)}/s
-            </span>
+              >
+                <div
+                  className={cn(
+                    "w-1.5 h-1.5 rounded-full",
+                    isUploading ? "bg-cyan-500" : "bg-success",
+                  )}
+                />
+                {isUploading ? "↑" : "↓"} {formatBytes(effectiveSpeed)}/s
+              </span>
+            )}
             {isActive && task.isMagnet && task.magnetSource === "aria2" && (
               <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-tighter text-muted">
-                S: <span className="text-success">{task.seeders || 0}</span> 
+                S: <span className="text-success">{task.seeders || 0}</span>
                 P: <span className="text-foreground">{task.peers || 0}</span>
               </span>
             )}

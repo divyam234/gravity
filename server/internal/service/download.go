@@ -182,12 +182,7 @@ func (s *DownloadService) Create(ctx context.Context, url string, filename strin
 		Status:      model.StatusWaiting,
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
-		// Flattened task options
-		Split:       options.Split,
-		MaxTries:    options.MaxTries,
-		UserAgent:   options.UserAgent,
-		ProxyURL:    options.ProxyURL,
-		RemoveLocal: options.RemoveLocal,
+		Options:     options, // Store all task options in JSON
 	}
 
 	// Merge user provided headers
@@ -320,6 +315,12 @@ func (s *DownloadService) Pause(ctx context.Context, id string) error {
 
 	// Remove from engine if active
 	if d.EngineID != "" {
+		// Capture latest stats before stopping
+		if status, err := s.engine.Status(ctx, d.EngineID); err == nil {
+			d.Downloaded = status.Downloaded
+			d.Size = status.Size
+		}
+
 		s.engine.Cancel(ctx, d.EngineID)
 		s.engine.Remove(ctx, d.EngineID)
 	}
@@ -381,10 +382,9 @@ func (s *DownloadService) Retry(ctx context.Context, id string) error {
 	}
 
 	// Re-add to engine
-	engineID, err := s.engine.Add(ctx, d.ResolvedURL, engine.DownloadOptions{
-		Filename: d.Filename,
-		Dir:      d.DownloadDir,
-	})
+	engineOpts := toEngineOptionsFromDownload(d)
+	engineOpts.Filename = d.Filename
+	engineID, err := s.engine.Add(ctx, d.ResolvedURL, engineOpts)
 	if err != nil {
 		return err
 	}
@@ -677,19 +677,12 @@ func (s *DownloadService) executeDownload(d *model.Download) {
 	// Submit to engine
 	gid := fmt.Sprintf("%016s", d.ID[2:])
 
-	opts := engine.DownloadOptions{
-		Filename:    d.Filename,
-		Size:        d.Size,
-		Dir:         d.DownloadDir,
-		Headers:     d.Headers,
-		TorrentData: d.TorrentData,
-		ID:          gid,
-		Split:       d.Split,
-		MaxTries:    d.MaxTries,
-		UserAgent:   d.UserAgent,
-		ProxyURL:    d.ProxyURL,
-		RemoveLocal: d.RemoveLocal != nil && *d.RemoveLocal,
-	}
+	opts := toEngineOptionsFromDownload(d)
+	opts.Filename = d.Filename
+	opts.Size = d.Size
+	opts.Headers = d.Headers
+	opts.TorrentData = d.TorrentData
+	opts.ID = gid
 
 	engineID, err := s.engine.Add(ctx, d.ResolvedURL, opts)
 
@@ -872,6 +865,15 @@ func (s *DownloadService) updateAggregateProgress(ctx context.Context, d *model.
 	d.Size = totalSize
 	d.FilesComplete = filesComplete
 	d.ETA = event.CalculateETA(totalSize-totalDownloaded, d.Speed)
+
+	// Override with accurate engine stats if available
+	if d.Status == model.StatusActive && d.EngineID != "" {
+		if status, err := s.engine.Status(ctx, d.EngineID); err == nil {
+			d.Downloaded = status.Downloaded
+			d.Speed = status.Speed
+			d.ETA = status.Eta
+		}
+	}
 
 	if filesComplete == len(files) && len(files) > 0 && d.Status != model.StatusComplete && d.Status != model.StatusUploading {
 		if d.Destination != "" {

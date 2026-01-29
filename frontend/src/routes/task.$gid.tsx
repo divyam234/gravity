@@ -1,10 +1,4 @@
-import {
-  Button,
-  Card,
-  Chip,
-  ScrollShadow,
-  Alert,
-} from "@heroui/react";
+import { Button, Card, Chip, ScrollShadow, Alert } from "@heroui/react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import IconChevronLeft from "~icons/gravity-ui/chevron-left";
 import IconCheck from "~icons/gravity-ui/check";
@@ -13,14 +7,13 @@ import IconClock from "~icons/gravity-ui/clock";
 import IconMagnet from "~icons/gravity-ui/magnet";
 import IconArrowDown from "~icons/gravity-ui/arrow-down";
 import IconArrowUp from "~icons/gravity-ui/arrow-up";
-import {
-  useTaskStatus,
-} from "../hooks/useEngine";
+
+import { useTaskStatus } from "../hooks/useEngine";
 import { formatBytes, formatDate } from "../lib/utils";
 import { tasksLinkOptions } from "./tasks";
 import { ProgressBar } from "../components/ui/ProgressBar";
-import { StatusChip } from "../components/ui/StatusChip";
 import type { components } from "../gen/api";
+import { cn } from "../lib/utils";
 
 export const Route = createFileRoute("/task/$gid")({
   component: TaskDetailsPage,
@@ -33,18 +26,35 @@ function TaskDetailsPage() {
 
   if (!task) return <div>Loading...</div>;
 
-  const isError = task.status === 'error';
+  const isError = task.status === "error";
   const files = task.files || [];
   const peers = task.peerDetails || [];
 
-  const isUploading = task.status === 'uploading';
-  const progressValue = isUploading 
-    ? (task.uploadProgress || 0)
-    : ((task.size || 0) > 0 ? ((task.downloaded || 0) / (task.size || 1)) * 100 : 0);
-  
-  const currentSpeed = isUploading ? (task.uploadSpeed || 0) : (task.speed || 0);
+  const isActive = task.status === "active";
+  const isUploading = task.status === "uploading";
+  const progressValue = isUploading
+    ? task.uploadProgress || 0
+    : (task.size || 0) > 0
+      ? ((task.downloaded || 0) / (task.size || 1)) * 100
+      : 0;
+
+  const currentSpeed = isUploading ? task.uploadSpeed || 0 : task.speed || 0;
   const speedLabel = isUploading ? "Upload Speed" : "Download Speed";
   const speedColor = isUploading ? "text-cyan-500" : "text-success";
+
+  const statusConfig = {
+    active: { label: "Downloading", color: "text-success" },
+    waiting: { label: "Queued", color: "text-warning" },
+    paused: { label: "Paused", color: "text-warning" },
+    error: { label: "Error", color: "text-danger" },
+    complete: { label: "Finished", color: "text-accent" },
+    uploading: { label: "Uploading", color: "text-cyan-500" },
+  };
+
+  const config = statusConfig[task.status as keyof typeof statusConfig] || {
+    label: task.status,
+    color: "text-muted",
+  };
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-20 mt-6 px-4 md:px-0">
@@ -58,7 +68,9 @@ function TaskDetailsPage() {
           <IconChevronLeft className="w-5 h-5" />
         </Button>
         <div>
-          <h2 className="text-2xl font-black uppercase tracking-tight leading-none">Task Details</h2>
+          <h2 className="text-2xl font-black uppercase tracking-tight leading-none">
+            Task Details
+          </h2>
           <p className="text-[10px] text-muted font-black uppercase tracking-widest mt-1">
             Download GID: <span className="text-foreground/60">{gid}</span>
           </p>
@@ -69,303 +81,416 @@ function TaskDetailsPage() {
         {/* Content Area */}
         <div className="lg:col-span-8 space-y-8">
           <Card className="overflow-hidden flex flex-col bg-background shadow-sm border border-border rounded-[40px]">
-              <Card.Content className="p-8 space-y-10 text-foreground">
-                  <section>
-                    <h3 className="text-[10px] font-black uppercase tracking-widest text-muted mb-6 flex items-center gap-3">
-                      <div className="w-2 h-2 rounded-full bg-accent" />
-                      Metadata
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-default/5 p-8 rounded-[32px] border border-border/50 shadow-sm">
-                      <div className="space-y-1.5">
-                        <p className="text-[10px] text-muted uppercase font-black tracking-widest">
-                          Filename
+            <Card.Content className="p-8 space-y-10 text-foreground">
+              <section>
+                <h3 className="text-[10px] font-black uppercase tracking-widest text-muted mb-6 flex items-center gap-3">
+                  <div className="w-2 h-2 rounded-full bg-accent" />
+                  Metadata
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-default/5 p-8 rounded-[32px] border border-border/50 shadow-sm">
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] text-muted uppercase font-black tracking-widest">
+                      Filename
+                    </p>
+                    <p className="text-lg font-bold break-all tracking-tight leading-tight">
+                      {task.filename || gid}
+                    </p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] text-muted uppercase font-black tracking-widest">
+                      Source URL
+                    </p>
+                    <p className="text-xs font-mono break-all text-muted-foreground line-clamp-2">
+                      {task.url}
+                    </p>
+                  </div>
+                  {task.resolvedUrl && task.resolvedUrl !== task.url && (
+                    <div className="space-y-1.5 md:col-span-2">
+                      <p className="text-[10px] text-muted uppercase font-black tracking-widest">
+                        Resolved URL
+                      </p>
+                      <p className="text-xs font-mono break-all text-muted-foreground line-clamp-2">
+                        {task.resolvedUrl}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </section>
+
+              {isError && task.error && (
+                <section>
+                  <Alert status="danger" className="rounded-[32px]">
+                    <Alert.Indicator />
+                    <Alert.Content>
+                      <Alert.Title className="text-xs font-black uppercase tracking-widest">
+                        Download Error
+                      </Alert.Title>
+                      <Alert.Description className="text-sm font-medium">
+                        {task.error}
+                      </Alert.Description>
+                    </Alert.Content>
+                  </Alert>
+                </section>
+              )}
+
+              {task.uploadStatus && task.uploadStatus !== "idle" && (
+                <section>
+                  <h3 className="text-[10px] font-black uppercase tracking-widest text-muted mb-6 flex items-center gap-3">
+                    <div className="w-2 h-2 rounded-full bg-cyan-500" />
+                    Cloud Upload
+                  </h3>
+                  <div className="bg-cyan-500/5 p-6 rounded-[32px] border border-cyan-500/20">
+                    <div className="flex justify-between items-center mb-4">
+                      <div>
+                        <p className="text-xs font-bold text-cyan-600 uppercase tracking-widest">
+                          {task.uploadStatus === "running"
+                            ? "Uploading..."
+                            : task.uploadStatus === "complete"
+                              ? "Upload Complete"
+                              : task.uploadStatus === "error"
+                                ? "Upload Failed"
+                                : task.uploadStatus}
                         </p>
-                        <p className="text-lg font-bold break-all tracking-tight leading-tight">
-                          {task.filename || gid}
+                        <p className="text-sm font-bold mt-1">
+                          {task.uploadProgress}%
                         </p>
                       </div>
-                      <div className="space-y-1.5">
-                        <p className="text-[10px] text-muted uppercase font-black tracking-widest">
-                          Source URL
+                      {task.uploadStatus === "running" && (
+                        <p className="text-xs font-bold text-cyan-500">
+                          {formatBytes(task.uploadSpeed || 0)}/s
                         </p>
-                        <p className="text-xs font-mono break-all text-muted-foreground line-clamp-2">
-                          {task.url}
-                        </p>
-                      </div>
-                      {task.resolvedUrl && task.resolvedUrl !== task.url && (
-                        <div className="space-y-1.5 md:col-span-2">
-                          <p className="text-[10px] text-muted uppercase font-black tracking-widest">
-                            Resolved URL
-                          </p>
-                          <p className="text-xs font-mono break-all text-muted-foreground line-clamp-2">
-                            {task.resolvedUrl}
-                          </p>
-                        </div>
                       )}
                     </div>
-                  </section>
+                    <ProgressBar
+                      value={task.uploadProgress || 0}
+                      color="cyan"
+                      className="h-2"
+                    />
+                  </div>
+                </section>
+              )}
 
-                  {isError && task.error && (
-                    <section>
-                      <Alert status="danger" className="rounded-[32px]">
-                        <Alert.Indicator />
-                        <Alert.Content>
-                          <Alert.Title className="text-xs font-black uppercase tracking-widest">
-                            Download Error
-                          </Alert.Title>
-                          <Alert.Description className="text-sm font-medium">
-                            {task.error}
-                          </Alert.Description>
-                        </Alert.Content>
-                      </Alert>
-                    </section>
-                  )}
-
-                  {task.uploadStatus && task.uploadStatus !== 'idle' && (
-                    <section>
-                      <h3 className="text-[10px] font-black uppercase tracking-widest text-muted mb-6 flex items-center gap-3">
-                        <div className="w-2 h-2 rounded-full bg-cyan-500" />
-                        Cloud Upload
-                      </h3>
-                      <div className="bg-cyan-500/5 p-6 rounded-[32px] border border-cyan-500/20">
-                        <div className="flex justify-between items-center mb-4">
-                          <div>
-                            <p className="text-xs font-bold text-cyan-600 uppercase tracking-widest">
-                              {task.uploadStatus === 'running' ? 'Uploading...' : 
-                               task.uploadStatus === 'complete' ? 'Upload Complete' : 
-                               task.uploadStatus === 'error' ? 'Upload Failed' : task.uploadStatus}
-                            </p>
-                            <p className="text-sm font-bold mt-1">{task.uploadProgress}%</p>
-                          </div>
-                          <p className="text-xs font-bold text-cyan-500">{formatBytes(task.uploadSpeed || 0)}/s</p>
-                        </div>
-                        <ProgressBar 
-                          value={task.uploadProgress || 0} 
-                          color="cyan"
-                          className="h-2"
-                        />
-                      </div>
-                    </section>
-                  )}
-
-                    {task.isMagnet && files.length > 0 && (
-                    <section>
-                      <h3 className="text-[10px] font-black uppercase tracking-widest text-muted mb-6 flex items-center gap-3">
-                        <div className="w-2 h-2 rounded-full bg-accent" />
-                        Files ({files.length})
-                      </h3>
-                      <div className="space-y-3 bg-default/5 p-6 rounded-[32px] border border-border/50 shadow-sm max-h-[600px] overflow-y-auto custom-scrollbar">
-                        {files.map((file: components["schemas"]["model.DownloadFile"]) => (
-                          <div key={file.id} className="bg-background/80 p-4 rounded-2xl border border-border/50 flex flex-col gap-3">
-                            <div className="flex items-center justify-between gap-4">
-                              <div className="flex items-center gap-3 min-w-0">
-                                <div className="w-8 h-8 bg-default/10 rounded-xl flex items-center justify-center shrink-0">
-                                  {file.status === 'complete' ? <IconCheck className="w-4 h-4 text-success" /> : 
-                                   file.status === 'error' ? <IconCircleXmark className="w-4 h-4 text-danger" /> :
-                                   file.status === 'active' ? <div className="w-2 h-2 rounded-full bg-accent animate-pulse" /> :
-                                   <IconClock className="w-4 h-4 text-muted" />}
-                                </div>
-                                <div className="min-w-0">
-                                  <p className="text-sm font-bold truncate leading-tight">{file.name}</p>
-                                  <p className="text-[10px] text-muted font-black uppercase tracking-widest mt-0.5">
-                                    {formatBytes(file.downloaded || 0)} / {formatBytes(file.size || 0)}
-                                  </p>
-                                </div>
+              {task.isMagnet && files.length > 0 && (
+                <section>
+                  <h3 className="text-[10px] font-black uppercase tracking-widest text-muted mb-6 flex items-center gap-3">
+                    <div className="w-2 h-2 rounded-full bg-accent" />
+                    Files ({files.length})
+                  </h3>
+                  <div className="space-y-3 bg-default/5 p-6 rounded-[32px] border border-border/50 shadow-sm max-h-[600px] overflow-y-auto custom-scrollbar">
+                    {files.map(
+                      (file: components["schemas"]["model.DownloadFile"]) => (
+                        <div
+                          key={file.id}
+                          className="bg-background/80 p-4 rounded-2xl border border-border/50 flex flex-col gap-3"
+                        >
+                          <div className="flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="w-8 h-8 bg-default/10 rounded-xl flex items-center justify-center shrink-0">
+                                {file.status === "complete" ? (
+                                  <IconCheck className="w-4 h-4 text-success" />
+                                ) : file.status === "error" ? (
+                                  <IconCircleXmark className="w-4 h-4 text-danger" />
+                                ) : file.status === "active" ? (
+                                  <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
+                                ) : (
+                                  <IconClock className="w-4 h-4 text-muted" />
+                                )}
                               </div>
-                              <Chip 
-                                size="sm" 
-                                variant="soft" 
-                                color={file.status === 'complete' ? 'success' : file.status === 'error' ? 'danger' : 'default'}
-                                className="font-black uppercase tracking-widest text-[9px]"
-                              >
-                                {file.status}
-                              </Chip>
+                              <div className="min-w-0">
+                                <p className="text-sm font-bold truncate leading-tight">
+                                  {file.name}
+                                </p>
+                                <p className="text-[10px] text-muted font-black uppercase tracking-widest mt-0.5">
+                                  {formatBytes(file.downloaded || 0)} /{" "}
+                                  {formatBytes(file.size || 0)}
+                                </p>
+                              </div>
                             </div>
-                            <ProgressBar 
-                              value={file.progress || 0} 
-                              size="sm" 
-                              color={file.status === 'complete' ? 'success' : 'accent'} 
-                              className="h-1"
-                            />
+                            <Chip
+                              size="sm"
+                              variant="soft"
+                              color={
+                                file.status === "complete"
+                                  ? "success"
+                                  : file.status === "error"
+                                    ? "danger"
+                                    : "default"
+                              }
+                              className="font-black uppercase tracking-widest text-[9px]"
+                            >
+                              {file.status}
+                            </Chip>
                           </div>
-                        ))}
-                      </div>
-                    </section>
-                  )}
+                          <ProgressBar
+                            value={file.progress || 0}
+                            size="sm"
+                            color={
+                              file.status === "complete" ? "success" : "accent"
+                            }
+                            className="h-1"
+                          />
+                        </div>
+                      ),
+                    )}
+                  </div>
+                </section>
+              )}
 
-                  {peers.length > 0 && task.magnetSource === "aria2" && (
-                    <section>
-                      <h3 className="text-[10px] font-black uppercase tracking-widest text-muted mb-6 flex items-center gap-3">
-                        <div className="w-2 h-2 rounded-full bg-accent" />
-                        Connected Peers ({peers.length})
-                      </h3>
-                      <div className="bg-default/5 p-6 rounded-[32px] border border-border/50 shadow-sm overflow-hidden">
-                        <ScrollShadow className="max-h-[400px]" hideScrollBar>
-                          <div className="space-y-3">
-                            {peers.map((peer: components["schemas"]["model.Peer"]) => (
-                              <div key={`${peer.ip}-${peer.port}`} className="bg-background/80 p-4 rounded-2xl border border-border/50 flex items-center justify-between gap-4">
-                                <div className="flex items-center gap-4">
-                                  <div className="flex flex-col">
-                                    <span className="text-xs font-mono font-bold tracking-tight">{peer.ip}:{peer.port}</span>
-                                    <div className="mt-1">
-                                      <Chip size="sm" variant="soft" color={peer.isSeeder ? "success" : "default"} className="text-[8px] font-black uppercase tracking-widest h-4 px-1.5 min-w-0">
-                                        {peer.isSeeder ? "Seeder" : "Leecher"}
-                                      </Chip>
-                                    </div>
-                                  </div>
-                                </div>
-                                
-                                <div className="flex items-center gap-6">
-                                  <div className="flex flex-col items-end">
-                                    <p className="text-[8px] text-muted uppercase font-black tracking-widest leading-none mb-1">Download</p>
-                                    <div className="flex items-center gap-1 text-success/80 font-bold text-xs">
-                                      <IconArrowDown className="w-3 h-3" />
-                                      {formatBytes(peer.downloadSpeed || 0)}/s
-                                    </div>
-                                  </div>
-                                  <div className="flex flex-col items-end">
-                                    <p className="text-[8px] text-muted uppercase font-black tracking-widest leading-none mb-1">Upload</p>
-                                    <div className="flex items-center gap-1 text-accent font-bold text-xs">
-                                      <IconArrowUp className="w-3 h-3" />
-                                      {formatBytes(peer.uploadSpeed || 0)}/s
-                                    </div>
+              {peers.length > 0 && task.magnetSource === "aria2" && (
+                <section>
+                  <h3 className="text-[10px] font-black uppercase tracking-widest text-muted mb-6 flex items-center gap-3">
+                    <div className="w-2 h-2 rounded-full bg-accent" />
+                    Connected Peers ({peers.length})
+                  </h3>
+                  <div className="bg-default/5 p-6 rounded-[32px] border border-border/50 shadow-sm overflow-hidden">
+                    <ScrollShadow className="max-h-[400px]" hideScrollBar>
+                      <div className="space-y-3">
+                        {peers.map(
+                          (peer: components["schemas"]["model.Peer"]) => (
+                            <div
+                              key={`${peer.ip}-${peer.port}`}
+                              className="bg-background/80 p-4 rounded-2xl border border-border/50 flex items-center justify-between gap-4"
+                            >
+                              <div className="flex items-center gap-4">
+                                <div className="flex flex-col">
+                                  <span className="text-xs font-mono font-bold tracking-tight">
+                                    {peer.ip}:{peer.port}
+                                  </span>
+                                  <div className="mt-1">
+                                    <Chip
+                                      size="sm"
+                                      variant="soft"
+                                      color={
+                                        peer.isSeeder ? "success" : "default"
+                                      }
+                                      className="text-[8px] font-black uppercase tracking-widest h-4 px-1.5 min-w-0"
+                                    >
+                                      {peer.isSeeder ? "Seeder" : "Leecher"}
+                                    </Chip>
                                   </div>
                                 </div>
                               </div>
-                            ))}
-                          </div>
-                        </ScrollShadow>
-                      </div>
-                    </section>
-                  )}
 
-                  {/* Technical Details */}
-                  <section>
-                    <h3 className="text-[10px] font-black uppercase tracking-widest text-muted mb-6 flex items-center gap-3">
-                      <div className="w-2 h-2 rounded-full bg-accent" />
-                      Technical Details
-                    </h3>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 bg-default/5 p-6 rounded-[32px] border border-border/50">
-                      {task.engine && (
-                        <div className="space-y-1">
-                          <p className="text-[10px] text-muted uppercase font-black tracking-widest">Engine</p>
-                          <p className="text-sm font-bold">{task.engine}</p>
-                        </div>
-                      )}
-                      {task.provider && (
-                        <div className="space-y-1">
-                          <p className="text-[10px] text-muted uppercase font-black tracking-widest">Provider</p>
-                          <p className="text-sm font-bold">{task.provider}</p>
-                        </div>
-                      )}
-                      {task.category && (
-                        <div className="space-y-1">
-                          <p className="text-[10px] text-muted uppercase font-black tracking-widest">Category</p>
-                          <p className="text-sm font-bold">{task.category}</p>
-                        </div>
-                      )}
-                      <div className="space-y-1">
-                        <p className="text-[10px] text-muted uppercase font-black tracking-widest">Created</p>
-                        <p className="text-sm font-bold">{formatDate(task.createdAt)}</p>
+                              <div className="flex items-center gap-6">
+                                <div className="flex flex-col items-end">
+                                  <p className="text-[8px] text-muted uppercase font-black tracking-widest leading-none mb-1">
+                                    Download
+                                  </p>
+                                  <div className="flex items-center gap-1 text-success/80 font-bold text-xs">
+                                    <IconArrowDown className="w-3 h-3" />
+                                    {formatBytes(peer.downloadSpeed || 0)}/s
+                                  </div>
+                                </div>
+                                <div className="flex flex-col items-end">
+                                  <p className="text-[8px] text-muted uppercase font-black tracking-widest leading-none mb-1">
+                                    Upload
+                                  </p>
+                                  <div className="flex items-center gap-1 text-accent font-bold text-xs">
+                                    <IconArrowUp className="w-3 h-3" />
+                                    {formatBytes(peer.uploadSpeed || 0)}/s
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ),
+                        )}
                       </div>
-                      {task.startedAt && (
-                        <div className="space-y-1">
-                          <p className="text-[10px] text-muted uppercase font-black tracking-widest">Started</p>
-                          <p className="text-sm font-bold">{formatDate(task.startedAt)}</p>
-                        </div>
-                      )}
-                      {task.completedAt && (
-                        <div className="space-y-1">
-                          <p className="text-[10px] text-muted uppercase font-black tracking-widest">Completed</p>
-                          <p className="text-sm font-bold">{formatDate(task.completedAt)}</p>
-                        </div>
-                      )}
+                    </ScrollShadow>
+                  </div>
+                </section>
+              )}
+
+              {/* Technical Details */}
+              <section>
+                <h3 className="text-[10px] font-black uppercase tracking-widest text-muted mb-6 flex items-center gap-3">
+                  <div className="w-2 h-2 rounded-full bg-accent" />
+                  Technical Details
+                </h3>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 bg-default/5 p-6 rounded-[32px] border border-border/50">
+                  {task.engine && (
+                    <div className="space-y-1">
+                      <p className="text-[10px] text-muted uppercase font-black tracking-widest">
+                        Engine
+                      </p>
+                      <p className="text-sm font-bold">{task.engine}</p>
                     </div>
-                    {task.tags && task.tags.length > 0 && (
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        {task.tags.map((tag) => (
-                          <Chip key={tag} size="sm" variant="soft" className="text-xs">
-                            {tag}
-                          </Chip>
-                        ))}
-                      </div>
-                    )}
-                  </section>
-              </Card.Content>
+                  )}
+                  {task.provider && (
+                    <div className="space-y-1">
+                      <p className="text-[10px] text-muted uppercase font-black tracking-widest">
+                        Provider
+                      </p>
+                      <p className="text-sm font-bold">{task.provider}</p>
+                    </div>
+                  )}
+                  {task.category && (
+                    <div className="space-y-1">
+                      <p className="text-[10px] text-muted uppercase font-black tracking-widest">
+                        Category
+                      </p>
+                      <p className="text-sm font-bold">{task.category}</p>
+                    </div>
+                  )}
+                  <div className="space-y-1">
+                    <p className="text-[10px] text-muted uppercase font-black tracking-widest">
+                      Created
+                    </p>
+                    <p className="text-sm font-bold">
+                      {formatDate(task.createdAt)}
+                    </p>
+                  </div>
+                  {task.startedAt && (
+                    <div className="space-y-1">
+                      <p className="text-[10px] text-muted uppercase font-black tracking-widest">
+                        Started
+                      </p>
+                      <p className="text-sm font-bold">
+                        {formatDate(task.startedAt)}
+                      </p>
+                    </div>
+                  )}
+                  {task.completedAt && (
+                    <div className="space-y-1">
+                      <p className="text-[10px] text-muted uppercase font-black tracking-widest">
+                        Completed
+                      </p>
+                      <p className="text-sm font-bold">
+                        {formatDate(task.completedAt)}
+                      </p>
+                    </div>
+                  )}
+                </div>
+                {task.tags && task.tags.length > 0 && (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {task.tags.map((tag) => (
+                      <Chip
+                        key={tag}
+                        size="sm"
+                        variant="soft"
+                        className="text-xs"
+                      >
+                        {tag}
+                      </Chip>
+                    ))}
+                  </div>
+                )}
+              </section>
+            </Card.Content>
           </Card>
         </div>
 
         {/* Sidebar / Stats */}
         <div className="lg:col-span-4 space-y-6">
-            <Card className="bg-background border border-border rounded-[40px] shadow-sm">
-                <Card.Content className="p-8">
-                  <h3 className="text-[10px] font-black uppercase tracking-widest text-muted mb-8 flex items-center gap-3">
-                    <div className="w-2 h-2 rounded-full bg-accent" />
-                    Status Overview
-                  </h3>
-                  
-                  <div className="space-y-6">
-                      <div className="flex flex-col gap-2">
-                          <p className="text-[10px] text-muted uppercase font-black tracking-widest px-1">
-                            {isUploading ? "Upload Progress" : "Download Progress"}
-                          </p>
-                          <div className="bg-default/5 p-6 rounded-3xl border border-border/50">
-                               <div className="flex justify-between items-end mb-4">
-                                   <p className="text-3xl font-black tracking-tighter leading-none">
-                                       {Math.floor(progressValue || 0)}%
-                                   </p>
-                                   <StatusChip status={task.status} />
-                               </div>
-                              <ProgressBar 
-                                  value={progressValue || 0} 
-                                  color={task.status === 'complete' ? 'success' : isUploading ? 'cyan' : 'accent'}
-                                  className="h-2"
-                              />
-                          </div>
-                      </div>
+          <Card className="bg-background border border-border rounded-[40px] shadow-sm">
+            <Card.Content className="p-8">
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-muted mb-8 flex items-center gap-3">
+                <div className="w-2 h-2 rounded-full bg-accent" />
+                Status Overview
+              </h3>
 
-                      <div className="grid grid-cols-2 gap-4">
-                          <div className="bg-default/5 p-4 rounded-3xl border border-border/50">
-                              <p className="text-[10px] text-muted uppercase font-black tracking-widest mb-1">{speedLabel}</p>
-                              <p className={`text-sm font-bold ${speedColor}`}>{formatBytes(currentSpeed || 0)}/s</p>
-                          </div>
-                          <div className="bg-default/5 p-4 rounded-3xl border border-border/50">
-                              <p className="text-[10px] text-muted uppercase font-black tracking-widest mb-1">Total Size</p>
-                              <p className="text-sm font-bold">{formatBytes(task.size || 0)}</p>
-                          </div>
+              <div className="space-y-6">
+                <div className="flex flex-col gap-2">
+                  <p className="text-[10px] text-muted uppercase font-black tracking-widest px-1">
+                    {isUploading ? "Upload Progress" : "Download Progress"}
+                  </p>
+                  <div className="bg-default/5 p-6 rounded-3xl border border-border/50">
+                    <div className="flex justify-between items-center mb-4">
+                      <p className="text-3xl font-black tracking-tighter leading-none">
+                        {Math.floor(progressValue || 0)}%
+                      </p>
+                      <div
+                        className={`px-2 py-0.5 rounded-md ${config.color} bg-current/10`}
+                      >
+                        <span className="text-[10px] font-black uppercase tracking-widest">
+                          {config.label}
+                        </span>
                       </div>
-
-                      {task.isMagnet && (
-                          <div className="bg-accent/5 p-6 rounded-3xl border border-accent/20">
-                              <p className="text-[10px] text-accent uppercase font-black tracking-widest mb-3 flex items-center gap-2">
-                                  <IconMagnet className="w-3 h-3" />
-                                  Magnet Stats
-                              </p>
-                              <div className="space-y-3">
-                                  <div className="flex justify-between items-center">
-                                      <span className="text-xs font-medium text-muted-foreground">Files</span>
-                                      <span className="text-xs font-black">{task.filesComplete || 0} / {task.totalFiles || 0}</span>
-                                  </div>
-                                  {task.magnetSource === "aria2" && (
-                                    <div className="flex justify-between items-center">
-                                      <span className="text-xs font-medium text-muted-foreground">Seeders / Peers</span>
-                                      <span className="text-xs font-black">
-                                          <span className="text-success">{task.seeders || 0}</span>
-                                          <span className="text-muted mx-1">/</span>
-                                          <span className="text-foreground">{task.peers || 0}</span>
-                                      </span>
-                                    </div>
-                                  )}
-                                  <div className="flex justify-between items-center">
-                                      <span className="text-xs font-medium text-muted-foreground">Source</span>
-                                      <span className="text-xs font-black uppercase tracking-widest">{task.magnetSource}</span>
-                                  </div>
-                              </div>
-                          </div>
-                      )}
+                    </div>
+                    <ProgressBar
+                      value={progressValue || 0}
+                      color={
+                        task.status === "complete"
+                          ? "success"
+                          : isUploading
+                            ? "cyan"
+                            : "accent"
+                      }
+                      className="h-2"
+                    />
                   </div>
-                </Card.Content>
-            </Card>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  {(isActive || isUploading) && (
+                    <div className="bg-default/5 p-4 rounded-3xl border border-border/50">
+                      <p className="text-[10px] text-muted uppercase font-black tracking-widest mb-1">
+                        {speedLabel}
+                      </p>
+                      <p className={`text-sm font-bold ${speedColor}`}>
+                        {formatBytes(currentSpeed || 0)}/s
+                      </p>
+                    </div>
+                  )}
+                  <div
+                    className={cn(
+                      "bg-default/5 p-4 rounded-3xl border border-border/50",
+                      !(isActive || isUploading) && "col-span-2",
+                    )}
+                  >
+                    <p className="text-[10px] text-muted uppercase font-black tracking-widest mb-1">
+                      Total Size
+                    </p>
+                    <p className="text-sm font-bold">
+                      {formatBytes(task.size || 0)}
+                    </p>
+                  </div>
+                </div>
+
+                {task.isMagnet && (
+                  <div className="bg-accent/5 p-6 rounded-3xl border border-accent/20">
+                    <p className="text-[10px] text-accent uppercase font-black tracking-widest mb-3 flex items-center gap-2">
+                      <IconMagnet className="w-3 h-3" />
+                      Magnet Stats
+                    </p>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs font-medium text-muted-foreground">
+                          Files
+                        </span>
+                        <span className="text-xs font-black">
+                          {task.filesComplete || 0} / {task.totalFiles || 0}
+                        </span>
+                      </div>
+                      {task.magnetSource === "aria2" && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs font-medium text-muted-foreground">
+                            Seeders / Peers
+                          </span>
+                          <span className="text-xs font-black">
+                            <span className="text-success">
+                              {task.seeders || 0}
+                            </span>
+                            <span className="text-muted mx-1">/</span>
+                            <span className="text-foreground">
+                              {task.peers || 0}
+                            </span>
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs font-medium text-muted-foreground">
+                          Source
+                        </span>
+                        <span className="text-xs font-black uppercase tracking-widest">
+                          {task.magnetSource}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </Card.Content>
+          </Card>
         </div>
       </div>
     </div>

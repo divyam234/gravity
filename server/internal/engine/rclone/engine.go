@@ -16,9 +16,8 @@ import (
 	"github.com/rclone/rclone/fs"
 	"github.com/rclone/rclone/fs/accounting"
 	rclConfig "github.com/rclone/rclone/fs/config"
-	_ "github.com/rclone/rclone/fs/operations"
-	"github.com/rclone/rclone/fs/rc"
-	_ "github.com/rclone/rclone/fs/sync"
+	"github.com/rclone/rclone/fs/operations"
+	"github.com/rclone/rclone/fs/sync"
 	"github.com/rclone/rclone/vfs"
 	"github.com/rclone/rclone/vfs/vfscommon"
 	"go.uber.org/zap"
@@ -36,16 +35,21 @@ type Engine struct {
 	mu          stdSync.RWMutex
 	pollingCond *stdSync.Cond
 	appCtx      context.Context
+	cancel      context.CancelFunc
 	logger      *zap.Logger
 	configPath  string
 }
 
 type job struct {
-	id      string
-	trackID string
-	size    int64
-	done    chan struct{}
-	cancel  context.CancelFunc
+	id          string
+	trackID     string
+	size        int64
+	done        chan struct{}
+	cancel      context.CancelFunc
+	stats       *accounting.StatsInfo
+	lastRead    int64
+	lastChecked time.Time
+	speed       int64
 }
 
 func NewEngine(ctx context.Context, l *zap.Logger, configPath string) *Engine {
@@ -72,12 +76,19 @@ func (e *Engine) Start(ctx context.Context) error {
 
 	e.vfs = vfs.New(f, &vfscommon.Opt)
 
+	e.appCtx, e.cancel = context.WithCancel(ctx)
 	go e.pollAccounting()
 
 	return nil
 }
 
 func (e *Engine) Stop() error {
+	if e.cancel != nil {
+		e.cancel()
+	}
+	if e.vfs != nil {
+		e.vfs.Shutdown()
+	}
 	return nil
 }
 
@@ -179,6 +190,93 @@ func (e *Engine) Rename(ctx context.Context, virtualPath, newName string) error 
 	return e.vfs.Rename(virtualPath, newPath)
 }
 
+// transferJob represents a file transfer operation
+type transferJob struct {
+	jobID     string
+	trackID   string
+	srcPath   string
+	dstPath   string
+	size      int64
+	operation func(ctx context.Context, srcFs, dstFs fs.Fs, srcRemote, dstRemote string) error
+}
+
+// runTransfer executes a transfer job with common setup/cleanup
+func (e *Engine) runTransfer(j *transferJob) (string, error) {
+	jobCtx, cancel := context.WithCancel(e.appCtx)
+	job := &job{
+		id:      j.jobID,
+		trackID: j.trackID,
+		size:    j.size,
+		done:    make(chan struct{}),
+		cancel:  cancel,
+	}
+
+	e.mu.Lock()
+	e.activeJobs[j.jobID] = job
+	onError := e.onError
+	onComplete := e.onComplete
+	e.pollingCond.Broadcast()
+	e.mu.Unlock()
+
+	go func() {
+		defer close(job.done)
+		defer e.removeJob(j.jobID)
+
+		// Ensure stats are tracked for this group
+		jobCtx = accounting.WithStatsGroup(jobCtx, j.jobID)
+		job.stats = accounting.StatsGroup(jobCtx, j.jobID)
+
+		// Parse paths
+		srcClean := strings.TrimPrefix(j.srcPath, "/")
+		srcParts := strings.SplitN(srcClean, "/", 2)
+		srcRemoteName := strings.TrimSuffix(srcParts[0], ":")
+		srcRPath := ""
+		if len(srcParts) > 1 {
+			srcRPath = srcParts[1]
+		}
+
+		dstClean := strings.TrimPrefix(j.dstPath, "/")
+		dstParts := strings.SplitN(dstClean, "/", 2)
+		dstRemoteName := strings.TrimSuffix(dstParts[0], ":")
+		dstRPath := ""
+		if len(dstParts) > 1 {
+			dstRPath = dstParts[1]
+		}
+
+		// Create source and destination filesystems
+		srcFs, err := fs.NewFs(jobCtx, srcRemoteName+":")
+		if err != nil {
+			if onError != nil {
+				onError(j.trackID, fmt.Errorf("failed to create source fs: %w", err))
+			}
+			return
+		}
+
+		dstFs, err := fs.NewFs(jobCtx, dstRemoteName+":")
+		if err != nil {
+			if onError != nil {
+				onError(j.trackID, fmt.Errorf("failed to create destination fs: %w", err))
+			}
+			return
+		}
+
+		// Execute the operation
+		err = j.operation(jobCtx, srcFs, dstFs, srcRPath, dstRPath)
+
+		if err != nil {
+			if onError != nil {
+				onError(j.trackID, err)
+			}
+		} else {
+			if onComplete != nil {
+				onComplete(j.trackID)
+			}
+		}
+	}()
+
+	return j.jobID, nil
+}
+
 func (e *Engine) Upload(ctx context.Context, src, dst string, opts engine.UploadOptions) (string, error) {
 	dstTrim := strings.TrimPrefix(dst, "/")
 	parts := strings.SplitN(dstTrim, "/", 2)
@@ -211,6 +309,9 @@ func (e *Engine) Upload(ctx context.Context, src, dst string, opts engine.Upload
 		size = info.Size()
 	}
 
+	// For upload, src is a local path, dst is remote:path
+	// We need to handle this specially since src isn't in remote:path format
+	// Merge caller's context with app context - if either is cancelled, the upload stops
 	jobCtx, cancel := context.WithCancel(e.appCtx)
 	j := &job{
 		id:      jobID,
@@ -231,24 +332,37 @@ func (e *Engine) Upload(ctx context.Context, src, dst string, opts engine.Upload
 		defer close(j.done)
 		defer e.removeJob(jobID)
 
-		// Ensure stats are tracked for this group
+		// Listen for caller context cancellation
+		go func() {
+			select {
+			case <-ctx.Done():
+				cancel() // Cancel jobCtx if caller cancels
+			case <-jobCtx.Done():
+				// Already done
+			}
+		}()
+
 		jobCtx = accounting.WithStatsGroup(jobCtx, jobID)
+		j.stats = accounting.StatsGroup(jobCtx, jobID)
 
 		var err error
-		params := rc.Params{
-			"_group": jobID,
-		}
-
-		if isDir {
-			params["srcFs"] = src
-			params["dstFs"] = remoteName + ":" + remotePath
-			_, err = e.Call(jobCtx, "sync/copy", params)
+		srcFs, fsErr := fs.NewFs(jobCtx, src)
+		if fsErr != nil {
+			err = fmt.Errorf("failed to create source fs: %w", fsErr)
 		} else {
-			params["srcFs"] = filepath.Dir(src)
-			params["srcRemote"] = filepath.Base(src)
-			params["dstFs"] = remoteName + ":" + remotePath
-			params["dstRemote"] = filepath.Base(src)
-			_, err = e.Call(jobCtx, "operations/copyfile", params)
+			dstFs, fsErr := fs.NewFs(jobCtx, remoteName+":"+remotePath)
+			if fsErr != nil {
+				err = fmt.Errorf("failed to create destination fs: %w", fsErr)
+			} else if isDir {
+				err = sync.CopyDir(jobCtx, dstFs, srcFs, true)
+			} else {
+				srcObj, objErr := srcFs.NewObject(jobCtx, "")
+				if objErr != nil {
+					err = fmt.Errorf("failed to get source object: %w", objErr)
+				} else {
+					_, err = operations.Copy(jobCtx, dstFs, nil, srcObj.Remote(), srcObj)
+				}
+			}
 		}
 
 		if err != nil {
@@ -272,7 +386,7 @@ func (e *Engine) removeJob(id string) {
 }
 
 func (e *Engine) pollAccounting() {
-	ticker := time.NewTicker(1 * time.Second)
+	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 
 	for {
@@ -309,41 +423,32 @@ func (e *Engine) pollAccounting() {
 		onProgress := e.onProgress
 		e.mu.RUnlock()
 
-		// Get core/stats function
-		call := rc.Calls.Get("core/stats")
-		if call == nil {
-			e.logger.Error("core/stats RC command not found")
-			continue
-		}
-
+		// Use accounting.StatsGroup directly like native engine
+		now := time.Now()
 		for _, j := range jobs {
-			params := rc.Params{"group": j.id}
-			res, err := call.Fn(e.appCtx, params)
-			if err != nil {
-				// Job might have finished or group not found
+			if j.stats == nil {
 				continue
 			}
 
-			// Helper to get number from params
-			getNumber := func(key string) int64 {
-				if v, ok := res[key]; ok {
-					switch val := v.(type) {
-					case int64:
-						return val
-					case float64:
-						return int64(val)
-					case int:
-						return int64(val)
-					}
+			current := j.stats.GetBytes()
+
+			// Calculate speed like native engine does
+			if !j.lastChecked.IsZero() {
+				diff := now.Sub(j.lastChecked).Seconds()
+				if diff > 0 {
+					j.speed = int64(float64(current-j.lastRead) / diff)
+					j.lastRead = current
 				}
-				return 0
+			} else {
+				j.lastRead = current
 			}
+			j.lastChecked = now
 
 			if onProgress != nil {
 				onProgress(j.trackID, engine.UploadProgress{
-					Uploaded: getNumber("bytes"),
+					Uploaded: current,
 					Size:     j.size,
-					Speed:    getNumber("speed"),
+					Speed:    j.speed,
 				})
 			}
 		}
@@ -374,46 +479,15 @@ func (e *Engine) Status(ctx context.Context, jobID string) (*engine.UploadStatus
 }
 
 func (e *Engine) GetGlobalStats(ctx context.Context) (*engine.GlobalStats, error) {
-	call := rc.Calls.Get("core/stats")
-	if call == nil {
-		return nil, fmt.Errorf("core/stats command not found")
-	}
-
-	res, err := call.Fn(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	getNumber := func(key string) int64 {
-		if v, ok := res[key]; ok {
-			switch val := v.(type) {
-			case int64:
-				return val
-			case float64:
-				return int64(val)
-			case int:
-				return int64(val)
-			}
-		}
-		return 0
-	}
-
+	stats := accounting.GlobalStats()
 	return &engine.GlobalStats{
-		Speed:           getNumber("speed"),
-		ActiveTransfers: int(getNumber("transfers")),
+		Speed:           stats.GetBytes(),
+		ActiveTransfers: int(stats.GetTransfers()),
 	}, nil
 }
 
 func (e *Engine) Version(ctx context.Context) (string, error) {
 	return fs.Version, nil
-}
-
-func (e *Engine) Call(ctx context.Context, method string, params rc.Params) (rc.Params, error) {
-	call := rc.Calls.Get(method)
-	if call == nil {
-		return nil, fmt.Errorf("method %q not found", method)
-	}
-	return call.Fn(ctx, params)
 }
 
 func (e *Engine) ListRemotes(ctx context.Context) ([]engine.Remote, error) {
@@ -459,133 +533,42 @@ func (e *Engine) TestRemote(ctx context.Context, name string) error {
 
 func (e *Engine) Copy(ctx context.Context, srcPath, dstPath string) (string, error) {
 	jobID := "copy-" + strings.ReplaceAll(srcPath, "/", "-") + "-" + fmt.Sprint(time.Now().Unix())
-	jobCtx, cancel := context.WithCancel(e.appCtx)
-	j := &job{
-		id:      jobID,
+
+	return e.runTransfer(&transferJob{
+		jobID:   jobID,
 		trackID: jobID,
-		done:    make(chan struct{}),
-		cancel:  cancel,
-	}
-
-	e.mu.Lock()
-	e.activeJobs[jobID] = j
-	onError := e.onError
-	onComplete := e.onComplete
-	e.pollingCond.Broadcast()
-	e.mu.Unlock()
-
-	go func() {
-		defer close(j.done)
-		defer e.removeJob(jobID)
-
-		// Ensure stats are tracked for this group
-		jobCtx = accounting.WithStatsGroup(jobCtx, jobID)
-
-		// Parse paths
-		// srcPath: /remote/path/to/file -> remote, path/to/file
-		srcClean := strings.TrimPrefix(srcPath, "/")
-		srcParts := strings.SplitN(srcClean, "/", 2)
-		srcRemote := strings.TrimSuffix(srcParts[0], ":")
-		srcRPath := ""
-		if len(srcParts) > 1 {
-			srcRPath = srcParts[1]
-		}
-
-		dstClean := strings.TrimPrefix(dstPath, "/")
-		dstParts := strings.SplitN(dstClean, "/", 2)
-		dstRemote := strings.TrimSuffix(dstParts[0], ":")
-		dstRPath := ""
-		if len(dstParts) > 1 {
-			dstRPath = dstParts[1]
-		}
-
-		params := rc.Params{
-			"srcFs":     srcRemote + ":",
-			"srcRemote": srcRPath,
-			"dstFs":     dstRemote + ":",
-			"dstRemote": dstRPath,
-			"_group":    jobID,
-		}
-
-		_, err := e.Call(jobCtx, "operations/copyfile", params)
-
-		if err != nil {
-			if onError != nil {
-				onError(j.trackID, err)
+		srcPath: srcPath,
+		dstPath: dstPath,
+		size:    0, // Will be determined from source object
+		operation: func(ctx context.Context, srcFs, dstFs fs.Fs, srcRemote, dstRemote string) error {
+			srcObj, err := srcFs.NewObject(ctx, srcRemote)
+			if err != nil {
+				return fmt.Errorf("failed to get source object: %w", err)
 			}
-		} else {
-			if onComplete != nil {
-				onComplete(j.trackID)
-			}
-		}
-	}()
-
-	return jobID, nil
+			_, err = operations.Copy(ctx, dstFs, nil, dstRemote, srcObj)
+			return err
+		},
+	})
 }
 
 func (e *Engine) Move(ctx context.Context, srcPath, dstPath string) (string, error) {
 	jobID := "move-" + strings.ReplaceAll(srcPath, "/", "-") + "-" + fmt.Sprint(time.Now().Unix())
-	jobCtx, cancel := context.WithCancel(e.appCtx)
-	j := &job{
-		id:      jobID,
+
+	return e.runTransfer(&transferJob{
+		jobID:   jobID,
 		trackID: jobID,
-		done:    make(chan struct{}),
-		cancel:  cancel,
-	}
-
-	e.mu.Lock()
-	e.activeJobs[jobID] = j
-	onError := e.onError
-	onComplete := e.onComplete
-	e.pollingCond.Broadcast()
-	e.mu.Unlock()
-
-	go func() {
-		defer close(j.done)
-		defer e.removeJob(jobID)
-
-		// Ensure stats are tracked for this group
-		jobCtx = accounting.WithStatsGroup(jobCtx, jobID)
-
-		// Parse paths
-		srcClean := strings.TrimPrefix(srcPath, "/")
-		srcParts := strings.SplitN(srcClean, "/", 2)
-		srcRemote := strings.TrimSuffix(srcParts[0], ":")
-		srcRPath := ""
-		if len(srcParts) > 1 {
-			srcRPath = srcParts[1]
-		}
-
-		dstClean := strings.TrimPrefix(dstPath, "/")
-		dstParts := strings.SplitN(dstClean, "/", 2)
-		dstRemote := strings.TrimSuffix(dstParts[0], ":")
-		dstRPath := ""
-		if len(dstParts) > 1 {
-			dstRPath = dstParts[1]
-		}
-
-		params := rc.Params{
-			"srcFs":     srcRemote + ":",
-			"srcRemote": srcRPath,
-			"dstFs":     dstRemote + ":",
-			"dstRemote": dstRPath,
-			"_group":    jobID,
-		}
-
-		_, err := e.Call(jobCtx, "operations/movefile", params)
-
-		if err != nil {
-			if onError != nil {
-				onError(j.trackID, err)
+		srcPath: srcPath,
+		dstPath: dstPath,
+		size:    0, // Will be determined from source object
+		operation: func(ctx context.Context, srcFs, dstFs fs.Fs, srcRemote, dstRemote string) error {
+			srcObj, err := srcFs.NewObject(ctx, srcRemote)
+			if err != nil {
+				return fmt.Errorf("failed to get source object: %w", err)
 			}
-		} else {
-			if onComplete != nil {
-				onComplete(j.trackID)
-			}
-		}
-	}()
-
-	return jobID, nil
+			_, err = operations.Move(ctx, dstFs, nil, dstRemote, srcObj)
+			return err
+		},
+	})
 }
 
 func (e *Engine) Cancel(ctx context.Context, jobID string) error {
