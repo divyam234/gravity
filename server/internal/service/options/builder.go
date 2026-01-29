@@ -6,6 +6,8 @@ import (
 )
 
 // Builder provides a fluent interface for constructing download options
+// Deprecated: Use engine.NewOptionResolver instead.
+// This file is kept for backward compatibility during migration.
 type Builder struct {
 	opts *engine.DownloadOptions
 }

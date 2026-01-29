@@ -56,6 +56,12 @@ type Download struct {
 	SelectedFiles []int          `json:"-" gorm:"serializer:json"`
 	Files         []DownloadFile `json:"files" gorm:"serializer:json"`
 
+	// Priority and Retry
+	Priority    int        `json:"priority" gorm:"default:5"` // 1 (highest) to 10 (lowest)
+	RetryCount  int        `json:"retryCount" gorm:"default:0"`
+	NextRetryAt *time.Time `json:"nextRetryAt,omitempty"`
+	MaxRetries  int        `json:"maxRetries" gorm:"default:3"`
+
 	//Not Saved in DB
 	Split          *int   `json:"split" gorm:"-"`
 	UploadProgress int    `json:"uploadProgress" example:"50" gorm:"-"`
@@ -65,6 +71,16 @@ type Download struct {
 	Seeders        int    `json:"seeders" gorm:"-"`
 	Peers          int    `json:"peers" gorm:"-"`
 	PeerDetails    []Peer `json:"peerDetails" gorm:"-"`
+}
+
+// TransitionTo updates the download status if the transition is valid
+func (d *Download) TransitionTo(status DownloadStatus) error {
+	if err := ValidateTransition(d.Status, status); err != nil {
+		return err
+	}
+	d.Status = status
+	d.UpdatedAt = time.Now()
+	return nil
 }
 
 // Peer represents a network peer in a BitTorrent swarm
@@ -90,4 +106,14 @@ type DownloadFile struct {
 	Index      int            `json:"-" gorm:"column:file_index"` // 1-indexed file number for aria2c --select-file
 	CreatedAt  time.Time      `json:"createdAt"`
 	UpdatedAt  time.Time      `json:"updatedAt"`
+}
+
+// TransitionTo updates the file status if the transition is valid
+func (f *DownloadFile) TransitionTo(status DownloadStatus) error {
+	if err := ValidateTransition(f.Status, status); err != nil {
+		return err
+	}
+	f.Status = status
+	f.UpdatedAt = time.Now()
+	return nil
 }

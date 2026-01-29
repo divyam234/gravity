@@ -3,8 +3,10 @@ package service
 import (
 	"context"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -14,12 +16,17 @@ import (
 	"gravity/internal/engine"
 	"gravity/internal/event"
 	"gravity/internal/model"
-	"gravity/internal/service/options"
 	"gravity/internal/store"
 	"gravity/internal/utils"
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+)
+
+const (
+	SettingsWatchInterval = 30 * time.Second
+	RetryBackoffBase      = 30 * time.Second
+	RetryBackoffCap       = 30 * time.Minute
 )
 
 type DownloadService struct {
@@ -143,29 +150,18 @@ func (s *DownloadService) Create(ctx context.Context, d *model.Download) (*model
 		s.logger.Warn("failed to resolve URL", zap.String("url", d.URL), zap.Error(err))
 		return nil, fmt.Errorf("failed to resolve URL: %w", err)
 	}
-	settings, err := s.settingsRepo.Get(ctx)
-	if err != nil {
-		return nil, err
-	}
 
-	// Finalize options using builder
-	finalOpts := options.NewBuilder().
-		WithSettings(settings).
-		WithModel(d).
-		Build()
-
-	// Apply final options back to model
+	// Apply identity and basic fields
 	d.ID = "d_" + uuid.New().String()[:8]
 	d.Provider = providerName
-	d.Dir = finalOpts.DownloadDir
-	d.Destination = finalOpts.Destination
-	d.Status = model.StatusWaiting
+	if err := d.TransitionTo(model.StatusWaiting); err != nil {
+		return nil, err
+	}
 	d.CreatedAt = time.Now()
 	d.UpdatedAt = time.Now()
-	d.Split = finalOpts.Split
-	d.Proxies = d.Proxies // Keep proxies from model
-	d.RemoveLocal = finalOpts.RemoveLocal
-	d.Engine = finalOpts.Engine
+
+	// Do NOT merge global settings here. d.Dir, d.Split, etc., should remain
+	// as provided in the request (zero/nil if using defaults).
 
 	if d.Filename == "" {
 		d.Filename = res.Name
@@ -185,14 +181,9 @@ func (s *DownloadService) Create(ctx context.Context, d *model.Download) (*model
 			var selectedIndexes []int
 			for _, f := range res.Files {
 				if len(d.SelectedFiles) > 0 {
-					found := false
-					for _, idx := range d.SelectedFiles {
-						if idx == f.Index {
-							found = true
-							break
-						}
-					}
-					if !found && f.Index > 0 {
+					found := slices.Contains(d.SelectedFiles, f.Index)
+					// Allow index 0
+					if !found {
 						continue
 					}
 				}
@@ -206,9 +197,8 @@ func (s *DownloadService) Create(ctx context.Context, d *model.Download) (*model
 					Index:  f.Index,
 				})
 				totalSize += f.Size
-				if f.Index > 0 {
-					selectedIndexes = append(selectedIndexes, f.Index)
-				}
+
+				selectedIndexes = append(selectedIndexes, f.Index)
 			}
 			d.Size = totalSize
 			d.SelectedFiles = selectedIndexes
@@ -233,15 +223,20 @@ func (s *DownloadService) Create(ctx context.Context, d *model.Download) (*model
 	})
 
 	if d.IsMagnet && d.Provider == "alldebrid" {
-		d.Status = model.StatusActive
+		if err := d.TransitionTo(model.StatusActive); err != nil {
+			s.logger.Error("failed to activate debrid download", zap.Error(err))
+		}
 		s.repo.Update(ctx, d)
 
 		// Use service lifecycle context for background task
-		bgCtx := s.ctx
-		if bgCtx == nil {
-			bgCtx = context.Background()
+		if s.ctx != nil {
+			go s.startDebridDownload(s.ctx, d)
+		} else {
+			s.logger.Warn("service context not initialized, skipping debrid download")
+			_ = d.TransitionTo(model.StatusError)
+			d.Error = "Service not ready"
+			s.repo.Update(ctx, d)
 		}
-		go s.startDebridDownload(bgCtx, d)
 	} else {
 		// Signal queue to check for work (Standard Flow)
 		s.signalQueueCheck()
@@ -252,6 +247,11 @@ func (s *DownloadService) Create(ctx context.Context, d *model.Download) (*model
 
 // startDebridDownload downloads files via Provider direct links
 func (s *DownloadService) startDebridDownload(ctx context.Context, d *model.Download) {
+	// Resolve options to get the effective directory
+	settings, _ := s.settingsRepo.Get(ctx)
+	resolver := engine.NewOptionResolver(settings)
+	effectiveOpts := resolver.Resolve(engine.FromModel(d))
+
 	// Download each file in parallel via aria2
 	for i := range d.Files {
 		file := &d.Files[i]
@@ -263,23 +263,26 @@ func (s *DownloadService) startDebridDownload(ctx context.Context, d *model.Down
 		// We use provider service to resolve/unlock
 		resolved, _, err := s.provider.Resolve(ctx, file.URL, nil, "")
 		if err != nil {
-			d.Files[i].Status = model.StatusError
+			_ = d.Files[i].TransitionTo(model.StatusError)
 			d.Files[i].Error = "Link unlock failed: " + err.Error()
 			s.repo.UpdateFile(ctx, d.ID, &d.Files[i])
 			continue
 		}
 
 		// Add to aria2
-		opts := *options.NewBuilder().WithModel(d).Build()
-		opts.DownloadDir = d.Dir  // Base directory
-		opts.Filename = file.Path // Preserve path structure
+		// Prepare execution options
+		execOpts := effectiveOpts.DownloadOptions
+		execOpts.DownloadDir = effectiveOpts.LocalPath // Enforce resolved path
+		execOpts.Filename = file.Path                  // Preserve structure
+
 		// Use gid:index format so handleProgress can attribute progress to the correct file
 		parentGID := fmt.Sprintf("%016s", d.ID[2:])
-		opts.ID = fmt.Sprintf("%s:%d", parentGID, file.Index)
-		_, err = s.engine.Add(ctx, resolved.URL, opts)
+		execOpts.ID = fmt.Sprintf("%s:%d", parentGID, file.Index)
+
+		_, err = s.engine.Add(ctx, resolved.URL, execOpts)
 
 		if err != nil {
-			d.Files[i].Status = model.StatusError
+			_ = d.Files[i].TransitionTo(model.StatusError)
 			d.Files[i].Error = err.Error()
 			s.repo.UpdateFile(ctx, d.ID, &d.Files[i])
 			continue
@@ -310,7 +313,9 @@ func (s *DownloadService) Get(ctx context.Context, id string) (*model.Download, 
 			d.Peers = status.Peers
 
 			if status.Status == "resolving" {
-				d.Status = model.StatusResolving
+				if err := d.TransitionTo(model.StatusResolving); err != nil {
+					// log warning
+				}
 			}
 
 			// Also fetch detailed peers for active aria2 downloads
@@ -366,7 +371,7 @@ func (s *DownloadService) List(ctx context.Context, status []string, limit, offs
 					d.Peers = live.Peers
 
 					if live.Status == "resolving" {
-						d.Status = model.StatusResolving
+						_ = d.TransitionTo(model.StatusResolving)
 					}
 				}
 			}
@@ -394,7 +399,9 @@ func (s *DownloadService) Pause(ctx context.Context, id string) error {
 		s.engine.Remove(ctx, d.EngineID)
 	}
 
-	d.Status = model.StatusPaused
+	if err := d.TransitionTo(model.StatusPaused); err != nil {
+		return err
+	}
 	d.EngineID = "" // Clear GID as it's no longer in engine
 	if err := s.repo.Update(ctx, d); err != nil {
 		return err
@@ -421,7 +428,9 @@ func (s *DownloadService) Resume(ctx context.Context, id string) error {
 		return err
 	}
 
-	d.Status = model.StatusWaiting
+	if err := d.TransitionTo(model.StatusWaiting); err != nil {
+		return err
+	}
 	if err := s.repo.Update(ctx, d); err != nil {
 		return err
 	}
@@ -450,19 +459,34 @@ func (s *DownloadService) Retry(ctx context.Context, id string) error {
 		return fmt.Errorf("cannot retry download in status %s", d.Status)
 	}
 
-	// Re-add to engine
-	engineOpts := *options.NewBuilder().WithModel(d).Build()
-	engineOpts.Filename = d.Filename
-	engineID, err := s.engine.Add(ctx, d.ResolvedURL, engineOpts)
+	// Re-add to engine using resolved options
+	settings, _ := s.settingsRepo.Get(ctx)
+	resolver := engine.NewOptionResolver(settings)
+	effectiveOpts := resolver.Resolve(engine.FromModel(d))
+
+	execOpts := effectiveOpts.DownloadOptions
+	execOpts.DownloadDir = effectiveOpts.LocalPath
+	execOpts.Filename = d.Filename
+
+	engineID, err := s.engine.Add(ctx, d.ResolvedURL, execOpts)
 	if err != nil {
 		return err
 	}
 
 	d.EngineID = engineID
-	d.Status = model.StatusActive
+	if err := d.TransitionTo(model.StatusActive); err != nil {
+		return err
+	}
 	d.Error = ""
 	d.Downloaded = 0
 	d.UpdatedAt = time.Now()
+
+	// Reset file statuses
+	for i := range d.Files {
+		_ = d.Files[i].TransitionTo(model.StatusWaiting)
+		d.Files[i].Error = ""
+		d.Files[i].Downloaded = 0
+	}
 
 	if err := s.repo.Update(ctx, d); err != nil {
 		return err
@@ -478,7 +502,28 @@ func (s *DownloadService) Retry(ctx context.Context, id string) error {
 	return nil
 }
 
+func (s *DownloadService) UpdatePriority(ctx context.Context, id string, priority int) error {
+	d, err := s.repo.Get(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	d.Priority = priority
+	d.UpdatedAt = time.Now()
+	if err := s.repo.Update(ctx, d); err != nil {
+		return err
+	}
+
+	s.logger.Info("download priority updated",
+		zap.String("id", id),
+		zap.Int("priority", priority))
+
+	return nil
+}
+
 func (s *DownloadService) Delete(ctx context.Context, id string, deleteFiles bool) error {
+	s.progressBuffer.remove(id)
+
 	d, err := s.repo.Get(ctx, id)
 	if err != nil {
 		return err
@@ -487,8 +532,14 @@ func (s *DownloadService) Delete(ctx context.Context, id string, deleteFiles boo
 	// 1. Resolve paths for deletion before stopping engine
 	var pathsToDelete []string
 	if deleteFiles {
-		// If we have a stored Dir, that's the primary target
-		if d.Dir != "" {
+		// We must resolve the effective directory if it was default
+		// in order to delete the correct path.
+		if d.Dir == "" {
+			settings, _ := s.settingsRepo.Get(ctx)
+			resolver := engine.NewOptionResolver(settings)
+			eff := resolver.Resolve(engine.FromModel(d))
+			pathsToDelete = append(pathsToDelete, eff.LocalPath)
+		} else {
 			pathsToDelete = append(pathsToDelete, d.Dir)
 		}
 
@@ -502,13 +553,7 @@ func (s *DownloadService) Delete(ctx context.Context, id string, deleteFiles boo
 				}
 
 				// Add to deletion list if not already there
-				duplicate := false
-				for _, p := range pathsToDelete {
-					if p == actualPath {
-						duplicate = true
-						break
-					}
-				}
+				duplicate := slices.Contains(pathsToDelete, actualPath)
 				if !duplicate && actualPath != "" {
 					pathsToDelete = append(pathsToDelete, actualPath)
 				}
@@ -621,6 +666,61 @@ func (s *DownloadService) Start(ctx context.Context) {
 
 	// 5. Initial queue processing
 	s.signalQueueCheck()
+
+	// 6. Settings watcher
+	go s.watchSettings()
+}
+
+func (s *DownloadService) watchSettings() {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	var lastMaxConcurrent int
+
+	for {
+		select {
+		case <-s.ctx.Done():
+			return
+		case <-ticker.C:
+			settings, err := s.settingsRepo.Get(s.ctx)
+			if err != nil || settings == nil {
+				continue
+			}
+
+			newMax := settings.Download.MaxConcurrentDownloads
+			if newMax != lastMaxConcurrent && newMax > 0 {
+				s.resizeSemaphore(newMax)
+				lastMaxConcurrent = newMax
+			}
+		}
+	}
+}
+
+func (s *DownloadService) resizeSemaphore(newSize int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Create new semaphore
+	newSem := make(chan struct{}, newSize)
+
+	// Transfer existing slots (non-blocking)
+	for {
+		select {
+		case <-s.slotSem:
+			select {
+			case newSem <- struct{}{}:
+			default:
+				// New semaphore full, put back
+				s.slotSem <- struct{}{}
+				goto done
+			}
+		default:
+			goto done
+		}
+	}
+done:
+	s.slotSem = newSem
+	s.logger.Info("queue size updated", zap.Int("max_concurrent", newSize))
 }
 
 func (s *DownloadService) signalQueueCheck() {
@@ -688,7 +788,10 @@ func (s *DownloadService) claimNextWaiting() *model.Download {
 	}
 
 	d := waiting[0]
-	d.Status = model.StatusAllocating
+	if err := d.TransitionTo(model.StatusAllocating); err != nil {
+		s.logger.Error("failed to transition to allocating", zap.Error(err))
+		return nil
+	}
 	s.repo.Update(ctx, d)
 	return d
 }
@@ -710,18 +813,28 @@ func (s *DownloadService) executeDownload(d *model.Download) {
 		d.Size = totalSize
 	}
 
+	// Prepare options using runtime resolution
+	settings, _ := s.settingsRepo.Get(ctx)
+	resolver := engine.NewOptionResolver(settings)
+	effectiveOpts := resolver.Resolve(engine.FromModel(d))
+
+	execOpts := effectiveOpts.DownloadOptions
+	execOpts.DownloadDir = effectiveOpts.LocalPath // Enforce resolved path
+
 	// Check disk space before submission
 	if d.Size > 0 {
-		free, err := s.checkDiskSpace(d.Dir)
+		free, err := s.checkDiskSpace(execOpts.DownloadDir)
 		if err == nil && free < uint64(d.Size) {
 			s.logger.Warn("insufficient disk space",
 				zap.String("id", d.ID),
 				zap.Int64("required", d.Size),
 				zap.Uint64("available", free),
-				zap.String("dir", d.Dir))
+				zap.String("dir", execOpts.DownloadDir))
 
-			d.Status = model.StatusError
-			d.Error = fmt.Sprintf("Insufficient disk space in %s (required: %d, available: %d)", d.Dir, d.Size, free)
+			if err := d.TransitionTo(model.StatusError); err != nil {
+				s.logger.Error("failed to transition to error", zap.Error(err))
+			}
+			d.Error = fmt.Sprintf("Insufficient disk space in %s (required: %d, available: %d)", execOpts.DownloadDir, d.Size, free)
 			s.repo.Update(ctx, d)
 
 			s.bus.PublishLifecycle(event.LifecycleEvent{
@@ -734,24 +847,31 @@ func (s *DownloadService) executeDownload(d *model.Download) {
 		}
 	}
 
-	// Submit to engine
-	gid := fmt.Sprintf("%016s", d.ID[2:])
-
-	opts := *options.NewBuilder().WithModel(d).Build()
-	opts.Filename = d.Filename
-	opts.Size = d.Size
-	opts.Headers = d.Headers
-	opts.TorrentData = d.TorrentData
-	opts.ID = gid
-
-	if len(d.SelectedFiles) > 0 {
-		opts.SelectedFiles = d.SelectedFiles
+	// Double-check status before submission to handle race conditions (e.g. user paused during allocation)
+	if fresh, err := s.repo.Get(ctx, d.ID); err == nil {
+		if fresh.Status == model.StatusPaused {
+			s.logger.Info("download paused during allocation, aborting execution", zap.String("id", d.ID))
+			return
+		}
+		if fresh.Status == model.StatusError {
+			s.logger.Info("download error during allocation, aborting execution", zap.String("id", d.ID))
+			return
+		}
 	}
 
-	engineID, err := s.engine.Add(ctx, d.ResolvedURL, opts)
+	// Submit to engine
+	gid := "00000000" + d.ID[2:]
+
+	execOpts.Filename = d.Filename
+	execOpts.Size = d.Size
+	execOpts.ID = gid
+
+	engineID, err := s.engine.Add(ctx, d.ResolvedURL, execOpts)
 
 	if err != nil {
-		d.Status = model.StatusError
+		if err := d.TransitionTo(model.StatusError); err != nil {
+			s.logger.Error("failed to transition to error", zap.Error(err))
+		}
 		d.Error = "Queue submission failed: " + err.Error()
 		s.repo.Update(ctx, d)
 		s.logger.Error("failed to submit download to engine", zap.String("id", d.ID), zap.Error(err))
@@ -766,7 +886,9 @@ func (s *DownloadService) executeDownload(d *model.Download) {
 	}
 
 	d.EngineID = engineID
-	d.Status = model.StatusActive
+	if err := d.TransitionTo(model.StatusActive); err != nil {
+		s.logger.Error("failed to transition to active", zap.Error(err))
+	}
 	s.repo.Update(ctx, d)
 
 	s.logger.Debug("download submitted to engine",
@@ -794,7 +916,13 @@ func (s *DownloadService) Sync(ctx context.Context) error {
 
 	for _, d := range dbActive {
 		s.logger.Info("resetting active/allocating download to waiting on startup", zap.String("id", d.ID))
-		d.Status = model.StatusWaiting
+		if err := d.TransitionTo(model.StatusWaiting); err != nil {
+			s.logger.Warn("failed to transition download state", zap.String("id", d.ID), zap.Error(err))
+			// Force update if transition fails? Or just continue?
+			// Since this is startup recovery, we might want to force it or handle the error.
+			// For now, let's log it. Ideally we should force it if the state machine is out of sync.
+			d.Status = model.StatusWaiting
+		}
 		d.EngineID = ""
 		s.repo.Update(ctx, d)
 	}
@@ -830,9 +958,13 @@ func (s *DownloadService) handleProgress(engineID string, p engine.Progress) {
 						}
 
 						if file.Progress == 100 {
-							file.Status = model.StatusComplete
+							if file.Status != model.StatusComplete {
+								_ = file.TransitionTo(model.StatusComplete)
+							}
 						} else {
-							file.Status = model.StatusActive
+							if file.Status != model.StatusActive {
+								_ = file.TransitionTo(model.StatusActive)
+							}
 						}
 						found = true
 						break
@@ -911,9 +1043,9 @@ func (s *DownloadService) updateAggregateProgress(ctx context.Context, d *model.
 
 	if filesComplete == len(d.Files) && len(d.Files) > 0 && d.Status != model.StatusComplete && d.Status != model.StatusUploading {
 		if d.Destination != "" {
-			d.Status = model.StatusUploading
+			d.TransitionTo(model.StatusUploading)
 		} else {
-			d.Status = model.StatusComplete
+			d.TransitionTo(model.StatusComplete)
 			d.Downloaded = d.Size
 		}
 		now := time.Now()
@@ -968,7 +1100,9 @@ func (s *DownloadService) handleComplete(engineID string, filePath string) {
 			if len(status.FollowedBy) > 0 {
 				newGID := status.FollowedBy[0]
 				d.EngineID = newGID
-				d.Status = model.StatusActive
+				if err := d.TransitionTo(model.StatusActive); err != nil {
+					s.logger.Warn("transition failed", zap.Error(err))
+				}
 				d.Downloaded = 0
 				d.UpdatedAt = time.Now()
 				s.repo.Update(ctx, d)
@@ -998,9 +1132,9 @@ func (s *DownloadService) handleComplete(engineID string, filePath string) {
 		}
 
 		if d.Destination != "" {
-			d.Status = model.StatusUploading
+			d.TransitionTo(model.StatusUploading)
 		} else {
-			d.Status = model.StatusComplete
+			d.TransitionTo(model.StatusComplete)
 			// Ensure downloaded amount matches size when complete
 			d.Downloaded = d.Size
 		}
@@ -1008,7 +1142,9 @@ func (s *DownloadService) handleComplete(engineID string, filePath string) {
 		now := time.Now()
 		d.CompletedAt = &now
 		for i := range d.Files {
-			d.Files[i].Status = model.StatusComplete
+			if d.Files[i].Status != model.StatusComplete {
+				_ = d.Files[i].TransitionTo(model.StatusComplete)
+			}
 			d.Files[i].Downloaded = d.Files[i].Size
 			d.Files[i].Progress = 100
 		}
@@ -1039,6 +1175,12 @@ func (s *DownloadService) GetFiles(ctx context.Context, id string) ([]model.Down
 
 func (s *DownloadService) checkDiskSpace(path string) (uint64, error) {
 	dir := path
+	if dir == "" {
+		// If path is empty (not yet resolved or root), check current working dir or similar
+		// But in executeDownload it should be resolved.
+		// If we are checking before resolution, default to "."
+		dir = "."
+	}
 	for {
 		if _, err := os.Stat(dir); err == nil {
 			break
@@ -1067,7 +1209,15 @@ func (s *DownloadService) handleError(engineID string, err error) {
 
 	d, repoErr := s.repo.GetByEngineID(ctx, engineID)
 	if repoErr == nil {
-		d.Status = model.StatusError
+		if isRetryableError(err) && d.RetryCount < d.MaxRetries {
+			s.scheduleRetry(ctx, d)
+			s.engine.Remove(ctx, engineID)
+			return
+		}
+
+		if err := d.TransitionTo(model.StatusError); err != nil {
+			s.logger.Warn("transition failed", zap.Error(err))
+		}
 		d.Error = err.Error()
 		s.repo.Update(ctx, d)
 		s.progressBuffer.remove(d.ID)
@@ -1091,11 +1241,11 @@ func (s *DownloadService) handleError(engineID string, err error) {
 			parentGID := parts[0]
 			fileIndex, _ := strconv.Atoi(parts[1])
 
-			parent, err := s.repo.GetByEngineID(ctx, parentGID)
-			if err == nil {
+			parent, parentErr := s.repo.GetByEngineID(ctx, parentGID)
+			if parentErr == nil {
 				for i := range parent.Files {
 					if parent.Files[i].Index == fileIndex {
-						parent.Files[i].Status = model.StatusError
+						_ = parent.Files[i].TransitionTo(model.StatusError)
 						parent.Files[i].Error = err.Error()
 						break
 					}
@@ -1106,6 +1256,68 @@ func (s *DownloadService) handleError(engineID string, err error) {
 			}
 		}
 	}
+}
+
+func calculateBackoff(retryCount int) time.Duration {
+	backoff := time.Duration(float64(RetryBackoffBase) * math.Pow(2, float64(retryCount)))
+	if backoff > RetryBackoffCap {
+		backoff = RetryBackoffCap
+	}
+	return backoff
+}
+
+func (s *DownloadService) scheduleRetry(ctx context.Context, d *model.Download) {
+	if d.RetryCount >= d.MaxRetries {
+		s.logger.Info("max retries reached", zap.String("id", d.ID))
+		return
+	}
+
+	// Exponential backoff: 30s, 1m, 2m, 4m, 8m...
+	backoff := calculateBackoff(d.RetryCount)
+
+	nextRetry := time.Now().Add(backoff)
+	d.RetryCount++
+	d.NextRetryAt = &nextRetry
+	if err := d.TransitionTo(model.StatusWaiting); err != nil {
+		s.logger.Error("failed to transition to waiting for retry", zap.String("id", d.ID), zap.Error(err))
+		// If transition fails, we probably shouldn't proceed with retry update,
+		// but since we want to recover, maybe force it?
+		d.Status = model.StatusWaiting
+	}
+	// Reset file statuses so they can be picked up again
+	for i := range d.Files {
+		_ = d.Files[i].TransitionTo(model.StatusWaiting)
+		d.Files[i].Error = ""
+	}
+	s.repo.Update(ctx, d)
+
+	s.logger.Info("scheduled retry",
+		zap.String("id", d.ID),
+		zap.Int("attempt", d.RetryCount),
+		zap.Time("next_retry", nextRetry))
+
+	// Schedule wake-up
+	go func() {
+		select {
+		case <-time.After(backoff):
+			s.signalQueueCheck()
+		case <-s.ctx.Done():
+		}
+	}()
+}
+
+func isRetryableError(err error) bool {
+	errStr := err.Error()
+	retryablePatterns := []string{
+		"timeout", "timed out", "connection refused", "connection reset", "temporary failure",
+		"503", "502", "429", "rate limit",
+	}
+	for _, pattern := range retryablePatterns {
+		if strings.Contains(strings.ToLower(errStr), pattern) {
+			return true
+		}
+	}
+	return false
 }
 
 // StopGracefully signals background routines to stop

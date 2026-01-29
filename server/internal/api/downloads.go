@@ -29,7 +29,27 @@ func (h *DownloadHandler) Routes() chi.Router {
 	r.Post("/{id}/pause", h.Pause)
 	r.Post("/{id}/resume", h.Resume)
 	r.Post("/{id}/retry", h.Retry)
+	r.Patch("/{id}/priority", h.UpdatePriority)
 	return r
+}
+
+type UpdatePriorityRequest struct {
+	Priority int `json:"priority" validate:"min=1,max=10"`
+}
+
+func (h *DownloadHandler) UpdatePriority(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, ParamID)
+	var req UpdatePriorityRequest
+	if !decodeAndValidate(w, r, &req) {
+		return
+	}
+
+	if err := h.service.UpdatePriority(r.Context(), id, req.Priority); err != nil {
+		sendError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }
 
 // List godoc

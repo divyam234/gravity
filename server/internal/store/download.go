@@ -97,9 +97,9 @@ func (r *DownloadRepo) List(ctx context.Context, status []string, limit, offset 
 		return nil, 0, err
 	}
 
-	order := "created_at DESC"
+	order := "priority ASC, created_at DESC"
 	if sortAsc {
-		order = "created_at ASC"
+		order = "priority ASC, created_at ASC"
 	}
 
 	err := query.Order(order).Limit(limit).Offset(offset).Find(&downloads).Error

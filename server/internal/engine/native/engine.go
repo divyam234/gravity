@@ -81,6 +81,21 @@ type task struct {
 
 	cancel context.CancelFunc
 	done   chan struct{}
+
+	status   string // "active", "paused", "complete", "error"
+	statusMu sync.RWMutex
+}
+
+func (t *task) setStatus(s string) {
+	t.statusMu.Lock()
+	t.status = s
+	t.statusMu.Unlock()
+}
+
+func (t *task) getStatus() string {
+	t.statusMu.RLock()
+	defer t.statusMu.RUnlock()
+	return t.status
 }
 
 func NewNativeEngine(dataDir string, l *zap.Logger) *NativeEngine {
@@ -539,8 +554,44 @@ func (e *NativeEngine) List(ctx context.Context) ([]*engine.DownloadStatus, erro
 	return list, nil
 }
 
-func (e *NativeEngine) Pause(ctx context.Context, id string) error  { return nil }
-func (e *NativeEngine) Resume(ctx context.Context, id string) error { return nil }
+func (e *NativeEngine) Pause(ctx context.Context, id string) error {
+	val, ok := e.activeTasks.Load(id)
+	if !ok {
+		return fmt.Errorf("task not found")
+	}
+	t := val.(*task)
+
+	if t.taskType == taskTypeTorrent && t.tDownload != nil {
+		// Pause by setting download priority to 0
+		for _, f := range t.tDownload.Files() {
+			f.SetPriority(torrent.PiecePriorityNone)
+		}
+		t.setStatus("paused")
+	} else if t.cancel != nil {
+		// For rclone tasks, cancel is the only option as they can't be paused
+		t.cancel()
+		t.setStatus("paused")
+	}
+	return nil
+}
+
+func (e *NativeEngine) Resume(ctx context.Context, id string) error {
+	val, ok := e.activeTasks.Load(id)
+	if !ok {
+		return fmt.Errorf("task not found")
+	}
+	t := val.(*task)
+
+	if t.taskType == taskTypeTorrent && t.tDownload != nil {
+		// Resume by setting download priority back to normal
+		for _, f := range t.tDownload.Files() {
+			f.SetPriority(torrent.PiecePriorityNormal)
+		}
+		t.setStatus("active")
+	}
+	// Rclone tasks cannot be resumed, need to restart
+	return nil
+}
 func (e *NativeEngine) Cancel(ctx context.Context, id string) error {
 	if val, ok := e.activeTasks.Load(id); ok {
 		t := val.(*task)

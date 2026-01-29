@@ -2,10 +2,17 @@ package provider
 
 import (
 	"sync"
+	"time"
+)
+
+const (
+	DefaultBreakerThreshold = 5
+	DefaultBreakerTimeout   = 30 * time.Second
 )
 
 type Registry struct {
 	providers sync.Map // map[string]Provider
+	breakers  sync.Map // map[string]*CircuitBreaker
 }
 
 func NewRegistry() *Registry {
@@ -18,8 +25,20 @@ func (r *Registry) Register(p Provider) {
 
 func (r *Registry) Get(name string) Provider {
 	val, ok := r.providers.Load(name)
-	if !ok { return nil }
+	if !ok {
+		return nil
+	}
 	return val.(Provider)
+}
+
+func (r *Registry) GetWithBreaker(name string) (Provider, *CircuitBreaker) {
+	p := r.Get(name)
+	if p == nil {
+		return nil, nil
+	}
+
+	cb, _ := r.breakers.LoadOrStore(name, NewCircuitBreaker(name, DefaultBreakerThreshold, DefaultBreakerTimeout))
+	return p, cb.(*CircuitBreaker)
 }
 
 func (r *Registry) List() []Provider {

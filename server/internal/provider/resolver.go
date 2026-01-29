@@ -22,13 +22,31 @@ func (r *Resolver) Resolve(ctx context.Context, url string, headers map[string]s
 		return providers[i].Priority() > providers[j].Priority()
 	})
 
+	var lastErr error
 	for _, p := range providers {
 		if p.IsConfigured() && p.Supports(url) {
+			_, cb := r.registry.GetWithBreaker(p.Name())
+			if cb != nil && !cb.Allow() {
+				continue // Circuit open, skip this provider
+			}
+
 			res, err := p.Resolve(ctx, url, headers)
 			if err == nil && res != nil {
+				if cb != nil {
+					cb.RecordSuccess()
+				}
 				return res, p.Name(), nil
 			}
+
+			if cb != nil {
+				cb.RecordFailure()
+			}
+			lastErr = err
 		}
+	}
+
+	if lastErr != nil {
+		return nil, "", lastErr
 	}
 
 	return nil, "", fmt.Errorf("no provider could resolve the URL")

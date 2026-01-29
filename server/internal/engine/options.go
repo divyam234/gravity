@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"gravity/internal/model"
 	"strings"
+	"time"
 )
 
 // DownloadOptions represents all possible download configuration options
@@ -73,8 +74,10 @@ type EffectiveOptions struct {
 	DownloadOptions
 
 	// Non-overrideable computed fields
-	LocalPath  string // Fully resolved local download path
-	RemotePath string // Normalized remote path
+	LocalPath    string    // Fully resolved local download path
+	RemotePath   string    // Normalized remote path
+	ResolvedAt   time.Time // Track when options were resolved
+	SettingsHash string    // Detect if settings changed
 }
 
 // OptionResolver handles merging per-download options with global settings
@@ -87,6 +90,38 @@ func NewOptionResolver(settings *model.Settings) *OptionResolver {
 	return &OptionResolver{
 		settings: settings,
 	}
+}
+
+// FromModel creates DownloadOptions from a stored Download model
+// This maps only what is present in the DB, without applying defaults.
+func FromModel(d *model.Download) DownloadOptions {
+	opts := DownloadOptions{
+		ID:            d.ID,
+		Filename:      d.Filename,
+		URL:           d.URL,
+		DownloadDir:   d.Dir,
+		Destination:   d.Destination,
+		Headers:       d.Headers,
+		TorrentData:   d.TorrentData,
+		MagnetHash:    d.MagnetHash,
+		SelectedFiles: d.SelectedFiles,
+		Size:          d.Size,
+		Engine:        d.Engine,
+		Split:         d.Split,
+		RemoveLocal:   d.RemoveLocal,
+	}
+
+	if len(d.Proxies) > 0 {
+		opts.Proxies = make([]Proxy, len(d.Proxies))
+		for i, p := range d.Proxies {
+			opts.Proxies[i] = Proxy{
+				URL:  p.URL,
+				Type: p.Type,
+			}
+		}
+	}
+
+	return opts
 }
 
 // Resolve merges per-download options with global settings
@@ -163,23 +198,27 @@ func (r *OptionResolver) Resolve(opts DownloadOptions) EffectiveOptions {
 
 // Validate checks if the resolved options are valid
 func (r *OptionResolver) Validate(opts EffectiveOptions) error {
-	if opts.URL == "" && opts.TorrentData == "" && opts.MagnetHash == "" {
+	return opts.Validate()
+}
+
+func (e *EffectiveOptions) Validate() error {
+	if e.URL == "" && e.TorrentData == "" && e.MagnetHash == "" {
 		return fmt.Errorf("URL, TorrentData, or MagnetHash is required")
 	}
 
-	if opts.LocalPath == "" {
+	if e.LocalPath == "" {
 		return fmt.Errorf("download directory is required")
 	}
 
-	if opts.Split != nil && (*opts.Split < 1 || *opts.Split > 32) {
+	if e.Split != nil && (*e.Split < 1 || *e.Split > 32) {
 		return fmt.Errorf("split must be between 1 and 32")
 	}
 
-	if opts.ConnectTimeout != nil && *opts.ConnectTimeout < 1 {
+	if e.ConnectTimeout != nil && *e.ConnectTimeout < 1 {
 		return fmt.Errorf("connect timeout must be at least 1 second")
 	}
 
-	if opts.MaxTries != nil && *opts.MaxTries < 0 {
+	if e.MaxTries != nil && *e.MaxTries < 0 {
 		return fmt.Errorf("max tries cannot be negative")
 	}
 

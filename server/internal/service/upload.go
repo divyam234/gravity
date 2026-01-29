@@ -107,7 +107,7 @@ func (s *UploadService) Sync(ctx context.Context) error {
 
 	for _, d := range uploads {
 		s.logger.Info("resetting stale upload", zap.String("id", d.ID))
-		d.Status = model.StatusComplete
+		_ = d.TransitionTo(model.StatusComplete)
 		d.UploadStatus = ""
 		d.UploadJobID = ""
 
@@ -140,7 +140,11 @@ func (s *UploadService) TriggerUpload(ctx context.Context, d *model.Download) er
 	jobID := time.Now().UnixNano()
 	jobIDStr := fmt.Sprintf("%d", jobID)
 
-	d.Status = model.StatusUploading
+	if err := d.TransitionTo(model.StatusUploading); err != nil {
+		s.logger.Error("failed to transition to uploading", zap.Error(err))
+		// Should we return error? Yes.
+		return err
+	}
 	d.UploadStatus = "running"
 	d.UploadJobID = jobIDStr // Save job ID BEFORE starting upload
 	s.repo.Update(ctx, d)
@@ -156,7 +160,7 @@ func (s *UploadService) TriggerUpload(ctx context.Context, d *model.Download) er
 		JobID:      jobID, // Pass the pre-generated job ID
 	})
 	if err != nil {
-		d.Status = model.StatusError
+		_ = d.TransitionTo(model.StatusError)
 		d.Error = "Upload failed: " + err.Error()
 		d.UploadJobID = "" // Clear job ID on failure
 		s.repo.Update(ctx, d)
@@ -192,7 +196,7 @@ func (s *UploadService) handleProgress(downloadID string, p engine.UploadProgres
 	d.UploadSpeed = p.Speed
 	// Note: We don't save upload progress to DB every time to avoid overhead
 	// But we publish it to the bus
-	
+
 	s.bus.PublishProgress(event.ProgressEvent{
 		ID:       d.ID,
 		Type:     "upload",
@@ -212,7 +216,7 @@ func (s *UploadService) handleComplete(downloadID string) {
 		return
 	}
 
-	d.Status = model.StatusComplete
+	_ = d.TransitionTo(model.StatusComplete)
 	d.UploadStatus = "complete"
 	d.UploadProgress = 100
 	s.repo.Update(ctx, d)
@@ -255,7 +259,7 @@ func (s *UploadService) handleError(downloadID string, err error) {
 		return
 	}
 
-	d.Status = model.StatusError
+	_ = d.TransitionTo(model.StatusError)
 	d.Error = "Upload error: " + err.Error()
 	d.UploadStatus = "error"
 	s.repo.Update(ctx, d)

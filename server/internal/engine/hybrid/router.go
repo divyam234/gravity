@@ -90,7 +90,7 @@ func (h *HybridRouter) Add(ctx context.Context, url string, opts engine.Download
 		h.mu.Unlock()
 	}
 
-	return gid, nil
+	return gid, err
 }
 
 func (h *HybridRouter) getEngine(id string) engine.DownloadEngine {
@@ -227,7 +227,7 @@ func (h *HybridRouter) AddMagnetWithSelection(ctx context.Context, magnet string
 		h.taskMap[gid] = pref
 		h.mu.Unlock()
 	}
-	return gid, nil
+	return gid, err
 }
 
 func (h *HybridRouter) GetPeers(ctx context.Context, id string) ([]engine.DownloadPeer, error) {
