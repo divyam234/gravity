@@ -2,6 +2,8 @@ package provider
 
 import (
 	"context"
+	"time"
+
 	"gravity/internal/model"
 )
 
@@ -17,6 +19,7 @@ type ResolveResult struct {
 	URL           string                `json:"url"`
 	Name          string                `json:"name"`
 	Size          int64                 `json:"size"`
+	ModTime       time.Time             `json:"modTime,omitempty"`
 	Headers       map[string]string     `json:"headers"`
 	Error         string                `json:"error,omitempty"`
 	IsMagnet      bool                  `json:"isMagnet"`

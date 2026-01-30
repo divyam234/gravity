@@ -134,11 +134,18 @@ func (p *AllDebridProvider) Resolve(ctx context.Context, rawURL string, headers 
 		return nil, fmt.Errorf("alldebrid error: %s", result.Error.Message)
 	}
 
-	return &provider.ResolveResult{
+	res := &provider.ResolveResult{
 		URL:  result.Data.Link,
 		Name: result.Data.Filename,
 		Size: result.Data.Filesize,
-	}, nil
+	}
+
+	// Fetch ModTime
+	if meta, err := provider.FetchMetadata(ctx, p.client, result.Data.Link); err == nil {
+		res.ModTime = meta.ModTime
+	}
+
+	return res, nil
 }
 
 func (p *AllDebridProvider) Test(ctx context.Context) (*model.AccountInfo, error) {

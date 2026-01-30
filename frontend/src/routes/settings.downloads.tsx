@@ -41,10 +41,12 @@ const downloadSettingsSchema = z.object({
     .default(3),
   maxDownloadSpeed: z
     .string()
-    .regex(/^\d+[KMGkmg]?$/, "Invalid speed format (e.g. 0, 500K, 5M)"),
+    .regex(/^(\d+[KMGkmg]?)?$/, "Invalid speed format (e.g. 0, 500K, 5M)")
+    .default("0"),
   maxUploadSpeed: z
     .string()
-    .regex(/^\d+[KMGkmg]?$/, "Invalid speed format (e.g. 0, 500K, 1M)"),
+    .regex(/^(\d+[KMGkmg]?)?$/, "Invalid speed format (e.g. 0, 500K, 1M)")
+    .default("0"),
   preferredEngine: z
     .enum(["aria2", "native"], {
       error: "Please select a valid engine",
@@ -74,6 +76,11 @@ const downloadSettingsSchema = z.object({
     .string()
     .regex(/^\d+[KMGkmg]?$/, "Invalid speed format (e.g. 0, 10K)")
     .default("0"),
+  maxConnectionPerServer: z.number().min(1).max(16).default(8),
+  userAgent: z.string().optional(),
+  connectTimeout: z.number().min(1).default(60),
+  maxTries: z.number().min(0).default(0),
+  checkCertificate: z.boolean().default(true),
 });
 
 function DownloadSettingsForm({
@@ -89,7 +96,7 @@ function DownloadSettingsForm({
   const form = useForm({
     defaultValues: serverSettings.download,
     validators: {
-      onChange: downloadSettingsSchema as any,
+      onChange: downloadSettingsSchema,
     },
     onSubmit: async ({ value }) => {
       const updated: Settings = {
@@ -178,6 +185,43 @@ function DownloadSettingsForm({
           placeholder: "5",
           description: "Number of connections per download (1-16)",
         },
+        {
+          name: "maxConnectionPerServer",
+          type: "number",
+          label: "Connections per Server",
+          placeholder: "8",
+          description: "Max connections per single server (1-16)",
+        },
+      ],
+    },
+    {
+      id: "network",
+      title: "Network & Security",
+      fields: [
+        {
+          name: "userAgent",
+          type: "text",
+          label: "User Agent",
+          placeholder: "Aria2/1.36.0",
+        },
+        {
+          name: "connectTimeout",
+          type: "number",
+          label: "Connect Timeout (s)",
+          placeholder: "60",
+        },
+        {
+          name: "maxTries",
+          type: "number",
+          label: "Max Retries",
+          placeholder: "0 (Unlimited)",
+        },
+        {
+          name: "checkCertificate",
+          type: "switch",
+          label: "Check Certificate",
+          description: "Verify SSL certificates for HTTPS downloads",
+        },
       ],
     },
     {
@@ -241,24 +285,31 @@ function DownloadSettingsForm({
             Core engine & file storage options
           </p>
         </div>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-4">
           <form.Subscribe
             selector={(state) => [
               state.canSubmit,
               state.isSubmitting,
               state.isDirty,
+              state.errors,
             ]}
           >
-            {([canSubmit, isSubmitting, isDirty]) => (
-              <Button
-                variant="primary"
-                onPress={() => form.handleSubmit()}
-                isDisabled={!canSubmit || !isDirty}
-                isPending={isSubmitting as boolean}
-                className="rounded-xl font-bold"
-              >
-                Save Changes
-              </Button>
+            {([canSubmit, isSubmitting, isDirty, errors]) => (
+              <div className="flex items-center gap-4">
+                {errors.length > 0 && (
+                  <div className="text-xs text-danger font-medium animate-pulse">
+                    {errors.length} error(s) detected
+                  </div>
+                )}
+                <Button
+                  variant="primary"
+                  onPress={() => form.handleSubmit()}
+                  isPending={isSubmitting as boolean}
+                  className="rounded-xl font-bold"
+                >
+                  Save Changes
+                </Button>
+              </div>
             )}
           </form.Subscribe>
         </div>

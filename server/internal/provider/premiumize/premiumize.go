@@ -172,11 +172,18 @@ func (p *PremiumizeProvider) Resolve(ctx context.Context, rawURL string, headers
 		return nil, fmt.Errorf("premiumize error: %s", result.Message)
 	}
 
-	return &provider.ResolveResult{
+	res := &provider.ResolveResult{
 		URL:  result.Location,
 		Name: result.Filename,
 		Size: result.Filesize,
-	}, nil
+	}
+
+	// Fetch ModTime
+	if meta, err := provider.FetchMetadata(ctx, p.client, result.Location); err == nil {
+		res.ModTime = meta.ModTime
+	}
+
+	return res, nil
 }
 
 func (p *PremiumizeProvider) Test(ctx context.Context) (*model.AccountInfo, error) {

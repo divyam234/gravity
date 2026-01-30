@@ -248,11 +248,18 @@ func (p *MegaDebridProvider) Resolve(ctx context.Context, rawURL string, headers
 		return nil, fmt.Errorf("megadebrid error: %s", result.ResponseText)
 	}
 
-	return &provider.ResolveResult{
+	res := &provider.ResolveResult{
 		URL:  result.DebridLink,
 		Name: result.Filename,
 		Size: result.Filesize,
-	}, nil
+	}
+
+	// Fetch ModTime
+	if meta, err := provider.FetchMetadata(ctx, p.client, result.DebridLink); err == nil {
+		res.ModTime = meta.ModTime
+	}
+
+	return res, nil
 }
 
 func (p *MegaDebridProvider) Test(ctx context.Context) (*model.AccountInfo, error) {

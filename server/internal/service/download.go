@@ -180,6 +180,10 @@ func (s *DownloadService) Create(ctx context.Context, d *model.Download) (*model
 	d.IsMagnet = res.IsMagnet
 	d.ExecutionMode = res.ExecutionMode
 
+	if !res.ModTime.IsZero() {
+		d.FileModTime = &res.ModTime
+	}
+
 	if res.IsMagnet {
 		if len(res.Files) > 0 {
 			var totalSize int64
@@ -281,6 +285,7 @@ func (s *DownloadService) startDebridDownload(ctx context.Context, d *model.Down
 		execOpts := effectiveOpts.DownloadOptions
 		execOpts.DownloadDir = effectiveOpts.LocalPath // Enforce resolved path
 		execOpts.Filename = file.Path                  // Preserve structure
+		execOpts.ModTime = &resolved.ModTime           // Pass modtime to engine
 
 		// Use gid:index format so handleProgress can attribute progress to the correct file
 		parentGID := fmt.Sprintf("%016s", d.ID[2:])
@@ -949,6 +954,7 @@ func (s *DownloadService) executeDownload(d *model.Download) {
 	execOpts.Filename = d.Filename
 	execOpts.Size = d.Size
 	execOpts.ID = gid
+	execOpts.ModTime = d.FileModTime
 
 	engineID, err := s.engine.Add(ctx, d.ResolvedURL, execOpts)
 
@@ -1178,6 +1184,7 @@ func (s *DownloadService) handleComplete(engineID string, filePath string) {
 
 	d, err := s.repo.GetByEngineID(ctx, engineID)
 	if err == nil {
+		var actualPath string
 		// Determine the actual path created by aria2
 		status, err := s.engine.Status(ctx, engineID)
 		if err == nil {
@@ -1200,7 +1207,7 @@ func (s *DownloadService) handleComplete(engineID string, filePath string) {
 			d.Size = status.Size
 
 			if len(status.Files) > 0 {
-				actualPath := status.Files[0].Path
+				actualPath = status.Files[0].Path
 				if actualPath == "" {
 					actualPath = filePath
 				}

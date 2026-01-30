@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"gravity/internal/client"
 	"gravity/internal/engine"
 	"gravity/internal/logger"
 	"gravity/internal/model"
@@ -63,6 +64,7 @@ type task struct {
 	filename string
 	size     int64
 	headers  map[string]string
+	modTime  *time.Time
 
 	stats *accounting.StatsInfo
 
@@ -198,8 +200,9 @@ func (e *NativeEngine) Add(ctx context.Context, url string, opts engine.Download
 		filename: opts.Filename,
 		size:     opts.Size,
 		headers:  opts.Headers,
+		modTime:  opts.ModTime,
 		done:     make(chan struct{}),
-		split:    0,
+		split:    *opts.Split,
 	}
 
 	if opts.Split != nil {
@@ -312,32 +315,17 @@ func (e *NativeEngine) runRcloneDownload(ctx context.Context, t *task) {
 
 	e.logger.Debug("starting rclone download", zap.String("id", t.id), zap.String("url", t.url))
 
-	// Create a fresh config for this context to support per-request headers/proxy
 	ctx, ci := fs.AddConfig(ctx)
-
-	if s != nil {
-		ci.MultiThreadStreams = s.Download.Split
-		ci.ConnectTimeout = fs.Duration(time.Duration(s.Download.ConnectTimeout) * time.Second)
-		ci.InsecureSkipVerify = !s.Download.CheckCertificate
-		if s.Download.MaxTries > 0 {
-			ci.LowLevelRetries = s.Download.MaxTries
-		}
-	}
-
-	if t.proxyURL != "" {
-		ci.Proxy = t.proxyURL
-	}
 
 	if t.split > 0 {
 		ci.MultiThreadStreams = t.split
 		if t.split > 1 {
-			ci.MultiThreadCutoff = 0 // Force multi-thread
+			ci.MultiThreadCutoff = 0
 		}
 	}
 	ci.MultiThreadResume = true
-	ci.MultiThreadChunkSize = 16 * 1024 * 1024
+	ci.MultiThreadChunkSize = 32 * 1024 * 1024
 
-	// Set headers in rclone config
 	if len(t.headers) > 0 {
 		for k, v := range t.headers {
 			ci.Headers = append(ci.Headers, &fs.HTTPOption{
@@ -358,7 +346,21 @@ func (e *NativeEngine) runRcloneDownload(ctx context.Context, t *task) {
 		return
 	}
 
-	destObj, err := operations.CopyURLMulti(accCtx, dstFs, t.filename, t.url, false)
+	client := client.New(ctx, "", client.WithProxy(t.proxyURL),
+		client.WithInsecureSkipVerify(!s.Download.CheckCertificate),
+		client.WithConnectTimeout(time.Duration(s.Download.ConnectTimeout)*time.Second),
+	)
+
+	srcObj := NewHTTPObject(ctx,
+		WithURL(t.url),
+		WithSize(t.size),
+		WithRetries(ci.LowLevelRetries),
+		WithRemote(t.filename),
+		WithModTime(*t.modTime),
+		WithClient(client),
+	)
+
+	destObj, err := operations.CopyURLMulti(accCtx, dstFs, t.filename, srcObj, false)
 
 	if err != nil {
 		e.logger.Error("rclone download failed", zap.String("id", t.id), zap.Error(err))

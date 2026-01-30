@@ -112,11 +112,18 @@ func (p *DebridLinkProvider) Resolve(ctx context.Context, rawURL string, headers
 		return nil, fmt.Errorf("debrid-link error: %s", result.Error)
 	}
 
-	return &provider.ResolveResult{
+	res := &provider.ResolveResult{
 		URL:  result.Value.DownloadLink,
 		Name: result.Value.Name,
 		Size: result.Value.Size,
-	}, nil
+	}
+
+	// Fetch ModTime
+	if meta, err := provider.FetchMetadata(ctx, p.client, result.Value.DownloadLink); err == nil {
+		res.ModTime = meta.ModTime
+	}
+
+	return res, nil
 }
 
 func (p *DebridLinkProvider) Test(ctx context.Context) (*model.AccountInfo, error) {

@@ -62,6 +62,9 @@ type DownloadOptions struct {
 
 	// Engine selection
 	Engine string `json:"engine,omitempty"`
+
+	// Metadata
+	ModTime *time.Time `json:"modTime,omitempty"`
 }
 
 // EffectiveOptions holds the resolved/final values after merging with global settings
@@ -170,6 +173,9 @@ func (r *OptionResolver) Resolve(opts DownloadOptions) EffectiveOptions {
 
 			// Proxies
 			Proxies: opts.Proxies,
+
+			// Metadata
+			ModTime: opts.ModTime,
 		},
 	}
 

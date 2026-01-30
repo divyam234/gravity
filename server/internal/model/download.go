@@ -70,6 +70,7 @@ type Download struct {
 	EngineID    string            `json:"-" gorm:"column:engine_id;index"`
 	UploadJobID string            `json:"-" gorm:"column:upload_job_id;index"`
 	Headers     map[string]string `json:"headers,omitempty" gorm:"serializer:json"`
+	FileModTime *time.Time        `json:"fileModTime,omitempty"`
 	CreatedAt   time.Time         `json:"createdAt"`
 	StartedAt   *time.Time        `json:"startedAt,omitempty"`
 	CompletedAt *time.Time        `json:"completedAt,omitempty"`
@@ -144,6 +145,7 @@ type DownloadFile struct {
 	Status     DownloadStatus `json:"status"`
 	Error      string         `json:"error,omitempty"`
 	URL        string         `json:"-"`
+	ModTime    *time.Time     `json:"modTime,omitempty"`
 	Index      int            `json:"-" gorm:"column:file_index"` // 1-indexed file number for aria2c --select-file
 	CreatedAt  time.Time      `json:"createdAt"`
 	UpdatedAt  time.Time      `json:"updatedAt"`

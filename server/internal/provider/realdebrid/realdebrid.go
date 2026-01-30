@@ -156,11 +156,18 @@ func (p *RealDebridProvider) Resolve(ctx context.Context, rawURL string, headers
 		return nil, fmt.Errorf("realdebrid error: %s", result.Error)
 	}
 
-	return &provider.ResolveResult{
+	res := &provider.ResolveResult{
 		URL:  result.Link,
 		Name: result.Filename,
 		Size: result.Filesize,
-	}, nil
+	}
+
+	// Fetch ModTime
+	if meta, err := provider.FetchMetadata(ctx, p.client, result.Link); err == nil {
+		res.ModTime = meta.ModTime
+	}
+
+	return res, nil
 }
 
 func (p *RealDebridProvider) Test(ctx context.Context) (*model.AccountInfo, error) {
